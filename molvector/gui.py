@@ -4225,22 +4225,21 @@ class NotificationContainer(QWidget):
         self._notifications = []
         self._removal_queue = []
         self._slide_anim = None
+        self._spacing = 10
+        self._margin = 10
 
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
         self.setStyleSheet("background:transparent;")
 
-        self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(10, 10, 10, 10)
-        self._layout.setSpacing(10)
-        self._layout.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignRight)
-
     def _update_size(self):
-        h = self._layout.contentsMargins().top() + self._layout.contentsMargins().bottom()
+        h = self._margin * 2
+        max_w = 0
         for i, note in enumerate(self._notifications):
             h += note.sizeHint().height()
+            max_w = max(max_w, note.minimumWidth())
             if i > 0:
-                h += self._layout.spacing()
-        self.setFixedWidth(self._main_window.width())
+                h += self._spacing
+        self.setFixedWidth(max_w + self._margin * 2)
         self.setFixedHeight(h)
 
     def _reposition(self):
@@ -4250,8 +4249,8 @@ class NotificationContainer(QWidget):
             if toolbar.isVisible():
                 tb_height = max(tb_height, toolbar.y() + toolbar.height() - mb_height)
         top = mb_height + max(tb_height, 4) + 8
-        self.setFixedWidth(self._main_window.width())
-        self.move(0, top)
+        mw = self._main_window.width()
+        self.move(mw - self.width() - 5, top)
         self.raise_()
 
     def resizeEvent(self, event):
@@ -4264,7 +4263,8 @@ class NotificationContainer(QWidget):
                                   button_text=button_text, button_callback=button_callback)
         note.closed.connect(self._remove_notification)
         self._notifications.append(note)
-        self._layout.addWidget(note)
+        positions = self._compute_positions()
+        note.move(positions[id(note)])
         self._update_size()
         self._reposition()
         self.show()
@@ -4283,12 +4283,11 @@ class NotificationContainer(QWidget):
         old_positions = {id(n): n.pos() for n in self._notifications if n is not note}
         self._notifications.remove(note)
 
-        # Hide remaining widgets BEFORE removeWidget so the layout
+        # Hide remaining widgets BEFORE removal so the visual
         # reflow doesn't cause a visible flash at new positions
         for n in self._notifications:
             n.hide()
 
-        self._layout.removeWidget(note)
         note.setParent(None)
         note.blockSignals(True)
         note.hide()
@@ -4317,14 +4316,12 @@ class NotificationContainer(QWidget):
                 break  # _remove_notification may re-queue if another animation starts
 
     def _compute_positions(self, old_positions=None):
-        spacing = self._layout.spacing()
-        margin_top = self._layout.contentsMargins().top()
         positions = {}
-        y = margin_top
+        y = self._margin
         for n in self._notifications:
             x = old_positions[id(n)].x() if old_positions and id(n) in old_positions else n.pos().x()
             positions[id(n)] = QPoint(x, y)
-            y += n.sizeHint().height() + spacing
+            y += n.sizeHint().height() + self._spacing
         return positions
 
     def _animate_slide_up(self, old_positions, new_positions):
