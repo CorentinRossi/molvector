@@ -1726,15 +1726,28 @@ _EXPECTED_VALENCE: Dict[str, int] = {
 def check_valence_issues(mol: Molecule) -> List[str]:
     """Return a list of valence warning strings for atoms in *mol*."""
     issues: List[str] = []
+
+    charge_idx = -1
+    if mol.charge != 0:
+        charge_idx = next(
+            (i for i, a in enumerate(mol.atoms) if a.element != "H"), 0
+        )
+
     for idx, a in enumerate(mol.atoms):
         bond_sum = 0.0
         for b in mol.bonds:
             if b.i == idx or b.j == idx:
                 bond_sum += b.order
         expected = _EXPECTED_VALENCE.get(a.element, 4)
+        if idx == charge_idx:
+            expected -= mol.charge
         if bond_sum > expected:
             issues.append(
                 f"{a.element}#{idx + 1}: valence {int(bond_sum)} exceeds expected {expected}"
+            )
+        elif bond_sum < expected:
+            issues.append(
+                f"{a.element}#{idx + 1}: valence {int(bond_sum)} is below expected {expected}"
             )
     return issues
 
@@ -1746,8 +1759,9 @@ def _generate_inchi_rdkit(mol: Molecule) -> Optional[str]:
     kek = _kekule_orders(mol)
 
     rw = Chem.RWMol()
-    for a in mol.atoms:
+    for i, a in enumerate(mol.atoms):
         rw.AddAtom(Chem.Atom(a.element))
+        rw.GetAtomWithIdx(i).SetNumImplicitHs(0)
     for b in mol.bonds:
         if b.order == 5:
             k = (b.i, b.j) if b.i < b.j else (b.j, b.i)
@@ -1788,10 +1802,13 @@ def _generate_inchi_openbabel(mol: Molecule) -> Optional[str]:
     obmol = ob.OBMol()
     obmol.SetDimension(3)
 
-    for a in mol.atoms:
+    heavy_idx = -1
+    for idx, a in enumerate(mol.atoms):
         oba = obmol.NewAtom()
         oba.SetAtomicNum(_SYM_TO_Z.get(a.element, 6))
         oba.SetVector(a.x, a.y, a.z)
+        if heavy_idx < 0 and a.element != "H":
+            heavy_idx = idx
 
     _kekule_prepass(mol, obmol)
 
@@ -1800,8 +1817,8 @@ def _generate_inchi_openbabel(mol: Molecule) -> Optional[str]:
             continue
         obmol.AddBond(b.i + 1, b.j + 1, b.order)
 
-    if mol.charge != 0:
-        obmol.SetTotalCharge(mol.charge)
+    if mol.charge != 0 and heavy_idx >= 0:
+        obmol.GetAtom(heavy_idx + 1).SetFormalCharge(mol.charge)
 
     obmol.ConnectTheDots()
     obmol.PerceiveBondOrders()
