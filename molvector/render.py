@@ -41,44 +41,89 @@ except ImportError:
     _HAS_CCLIB = False
 
 # ── OpenBabel data directory setup (cross-platform) ───────────────────────────
+# A broken openbabel-wheel installation (missing .so deps, incompatible
+# glibc, etc.) can SEGFAULT during `import openbabel`.  Because segfaults
+# are OS-level *signals*, not Python exceptions, a bare try/except cannot
+# catch them — the interpreter is killed before the except clause runs.
+#
+# We probe the actual SWIG extension import in a short-lived subprocess first.
+# If the child exits abnormally (signal / non-zero code) we treat OpenBabel
+# as unavailable and carry on without it.
 _HAS_OPENBABEL_PKG = False   # True if the openbabel *package* can be imported
 _HAS_OPENBABEL_DATA = False  # True if UFF.prm was located
 _OB_DATA_DIR = None          # path to the directory containing UFF.prm
+openbabel = None             # type: ignore[assignment]
 
-try:
-    import openbabel
-    _HAS_OPENBABEL_PKG = True
-except ImportError:
-    openbabel = None          # type: ignore[assignment]
+_OB_PROBE_CODE = (
+    "import openbabel; from openbabel import openbabel;"
+    " ob = openbabel.OBMol(); ob.NewAtom(); ob.DeleteAtom(ob.GetAtom(1))"
+)
 
-if _HAS_OPENBABEL_PKG:
+
+def _probe_openbabel() -> bool:
+    """Return True if the OpenBabel SWIG extension loads without crashing.
+
+    Tests ``from openbabel import openbabel`` and a minimal OBMol round-trip,
+    which is the exact code path used by Molvector.  A broken shared library
+    will SEGFAULT here (child process), not in the main process.
+    """
+    import subprocess
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", _OB_PROBE_CODE],
+            timeout=10,
+            capture_output=True,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
+def _try_setup_openbabel() -> bool:
+    """Attempt to install / repair OpenBabel automatically.
+
+    Runs ``molvector.setup_openabel`` in a subprocess so that any crash
+    or ``sudo`` prompt stays isolated from the main process.  Returns
+    True if the probe passes after the setup attempt.
+    """
+    import subprocess
+    setup_mod = os.path.join(os.path.dirname(__file__), "setup_openbabel.py")
+    if not os.path.isfile(setup_mod):
+        return False
+    try:
+        subprocess.run(
+            [sys.executable, setup_mod],
+            timeout=180,
+        )
+    except Exception:
+        pass
+    return _probe_openbabel()
+
+
+def _setup_openbabel_data() -> None:
+    """Locate OpenBabel data files (UFF.prm etc.) on disk."""
+    global _OB_DATA_DIR, _HAS_OPENBABEL_DATA
     _IS_WIN = sys.platform == 'win32'
     _OB_VERSIONS = ('3.1.1', '3.1.0', '3.0.0')
 
     _OB_CANDIDATES = []
 
-    # Detect if openbabel is a single-file module (e.g. openbabel.pyd on Windows)
-    # vs. a package (directory with __init__.py).
     _ob_file = getattr(openbabel, '__file__', None) or ''
     _OB_PKG_DIR = os.path.dirname(_ob_file)
     _is_single_module = os.path.isfile(_ob_file) and not os.path.isdir(
         os.path.join(_OB_PKG_DIR, os.path.splitext(os.path.basename(_ob_file))[0])
     )
 
-    # 1. Environment variable — only if the path actually contains UFF.prm
     _ENV_DATADIR = os.environ.get('BABEL_DATADIR')
     if _ENV_DATADIR and os.path.isfile(os.path.join(_ENV_DATADIR, 'UFF.prm')):
         _OB_CANDIDATES.append(_ENV_DATADIR)
 
-    # 2. Data bundled within the Python package (pip install openbabel-wheel)
     for ver in _OB_VERSIONS:
         _OB_CANDIDATES.append(os.path.join(_OB_PKG_DIR, 'share', 'openbabel', ver))
     _OB_CANDIDATES += [
         os.path.join(_OB_PKG_DIR, 'bin', 'data'),
         os.path.join(_OB_PKG_DIR, 'data'),
     ]
-    # 2b. Single-file .pyd module: data lives in a subdirectory with the same
-    #     basename alongside the module file itself.
     if _is_single_module:
         _mod_stem = os.path.splitext(os.path.basename(_ob_file))[0]
         _mod_dir = os.path.join(_OB_PKG_DIR, _mod_stem)
@@ -89,10 +134,6 @@ if _HAS_OPENBABEL_PKG:
             os.path.join(_mod_dir, 'data'),
         ]
 
-    # 2c. Windows openbabel-wheel: data may sit at <site-packages>/openbabel/data/
-    #     but _OB_PKG_DIR could point to openbabel/openbabel/ (the compiled subdir).
-    #     Walk one and two levels up from _OB_PKG_DIR looking for a data/ dir
-    #     that contains UFF.prm.
     if _IS_WIN:
         _p = _OB_PKG_DIR
         for _ in range(3):
@@ -100,7 +141,6 @@ if _HAS_OPENBABEL_PKG:
             _OB_CANDIDATES.append(os.path.join(_p, 'openbabel', 'data'))
             _OB_CANDIDATES.append(os.path.join(_p, 'data'))
 
-    # 2d. sys.prefix / sys.base_prefix — catches virtual-env and conda installs
     for _prefix in dict.fromkeys([sys.prefix, getattr(sys, 'base_prefix', sys.prefix)]):
         for ver in _OB_VERSIONS:
             _OB_CANDIDATES.append(os.path.join(_prefix, 'share', 'openbabel', ver))
@@ -108,9 +148,6 @@ if _HAS_OPENBABEL_PKG:
                 _OB_CANDIDATES.append(os.path.join(_prefix, 'Library', 'share', 'openbabel', ver))
         _OB_CANDIDATES.append(os.path.join(_prefix, 'data'))
 
-    # 3. Walk up from package directory to find share/openbabel under the
-    #    install prefix (catches Homebrew, Conda, Linux distro installs).
-    #    On Windows conda, data lives under Library/share/openbabel/<ver>/.
     _OB_PARENT = _OB_PKG_DIR
     for _ in range(6):
         _OB_PARENT = os.path.dirname(_OB_PARENT)
@@ -119,9 +156,6 @@ if _HAS_OPENBABEL_PKG:
             if _IS_WIN:
                 _OB_CANDIDATES.append(os.path.join(_OB_PARENT, 'Library', 'share', 'openbabel', ver))
 
-    # 4. Common absolute paths
-    #    Unix: Homebrew /usr/local /usr
-    #    Windows: Program Files, AppData, ProgramData, LOCALAPPDATA
     if _IS_WIN:
         for pf_var in ('PROGRAMFILES', 'PROGRAMFILES(X86)'):
             pf = os.environ.get(pf_var, '')
@@ -147,6 +181,44 @@ if _HAS_OPENBABEL_PKG:
     if _OB_DATA_DIR:
         os.environ['BABEL_DATADIR'] = _OB_DATA_DIR
     _HAS_OPENBABEL_DATA = _OB_DATA_DIR is not None
+
+
+if _probe_openbabel():
+    try:
+        import openbabel as _ob_pkg
+        from openbabel import openbabel as _ob_swig
+        # Touch the SWIG module so it's fully loaded before we proceed.
+        _ob_swig.OBMol()
+        openbabel = _ob_pkg
+        _HAS_OPENBABEL_PKG = True
+    except Exception:
+        openbabel = None
+else:
+    # First probe failed — try automatic repair, then re-probe.
+    if _try_setup_openbabel():
+        try:
+            import openbabel as _ob_pkg
+            from openbabel import openbabel as _ob_swig
+            _ob_swig.OBMol()
+            openbabel = _ob_pkg
+            _HAS_OPENBABEL_PKG = True
+        except Exception:
+            openbabel = None
+    else:
+        print(
+            "[molvector] OpenBabel is not available.\n"
+            "            Features requiring it (optimise, dipole, InChI) are disabled.\n"
+            "            To enable, run:  molvector-setup",
+            file=sys.stderr,
+        )
+
+if _HAS_OPENBABEL_PKG:
+    try:
+        _setup_openbabel_data()
+    except Exception:
+        _HAS_OPENBABEL_PKG = False
+        _HAS_OPENBABEL_DATA = False
+        openbabel = None
 
 # Convenient aliases for the rest of the codebase
 HAS_OPENBABEL = _HAS_OPENBABEL_PKG and _HAS_OPENBABEL_DATA
