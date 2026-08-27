@@ -2262,6 +2262,10 @@ def render_molecule(
             offsets = [-hw_angstrom * 2.0, 0.0, hw_angstrom * 2.0]
             indiv_hw_angstrom = hw_angstrom * 0.5
             
+        if export_mode:
+            surf_off_A -= indiv_hw_angstrom * 0.5
+            surf_off_B -= indiv_hw_angstrom * 0.5
+            
         if u_len > 1e-6 and u_len <= surf_off_A + surf_off_B:
             continue
         
