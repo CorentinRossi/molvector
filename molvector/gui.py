@@ -6183,39 +6183,58 @@ class MainWindow(QMainWindow):
             return
         try:
             with open(path) as f:
-                content = f.read().strip()
-            try:
-                data = json.loads(content)
-                mol_path = data.get("path", "")
-                view = data
-            except (json.JSONDecodeError, ValueError):
-                mol_path = content
-                view = None
+                data = json.loads(f.read().strip())
+        except Exception:
+            return
+
+        mol = None
+        view = data
+
+        if "molecule" in data:
+            md = data["molecule"]
+            atoms = [Atom(**a) for a in md.get("atoms", [])]
+            bonds = [Bond(**b) for b in md.get("bonds", [])]
+            mol = Molecule(
+                name=md.get("name", ""),
+                atoms=atoms,
+                bonds=bonds,
+                charge=md.get("charge", 0),
+            )
+            self._color_overrides = {}
+            self._canvas.color_overrides = {}
+            self._canvas.load_molecule(mol)
+            self._legend.update_for(mol, {})
+            self._current_source = "Session"
+            self._current_path = data.get("path", "")
+            self._update_info_panel(mol)
+            self._update_calculations_menu(mol)
+        else:
+            mol_path = data.get("path", "") if isinstance(data, dict) else data
             if mol_path and os.path.isfile(mol_path):
                 self._restoring_session = True
                 self._load_and_display(mol_path)
                 self._restoring_session = False
-                if view and self._canvas.molecule:
-                    c = self._canvas
-                    if "rot" in view:
-                        c._rot = np.array(view["rot"])
-                    if "zoom" in view:
-                        c._zoom = view["zoom"]
-                    if "pan" in view:
-                        c._pan = np.array(view["pan"])
-                    if "axes_ref" in view:
-                        c._axes_ref = np.array(view["axes_ref"])
-                    if "default_view" in view:
-                        c._default_view = np.array(view["default_view"])
-                    pct = int(c._zoom * 100)
-                    self._zoom_slider.blockSignals(True)
-                    self._zoom_slider.setValue(pct)
-                    self._zoom_slider.blockSignals(False)
-                    self._zoom_lbl.setText(f"{pct}%")
-                    c.request_render()
-                QTimer.singleShot(500, lambda: self.show_notification("Session restored", "info"))
-        except Exception:
-            pass
+                mol = self._canvas.molecule
+
+        if mol and mol.atoms and view:
+            c = self._canvas
+            if "rot" in view:
+                c._rot = np.array(view["rot"])
+            if "zoom" in view:
+                c._zoom = view["zoom"]
+            if "pan" in view:
+                c._pan = np.array(view["pan"])
+            if "axes_ref" in view:
+                c._axes_ref = np.array(view["axes_ref"])
+            if "default_view" in view:
+                c._default_view = np.array(view["default_view"])
+            pct = int(c._zoom * 100)
+            self._zoom_slider.blockSignals(True)
+            self._zoom_slider.setValue(pct)
+            self._zoom_slider.blockSignals(False)
+            self._zoom_lbl.setText(f"{pct}%")
+            c.request_render()
+            QTimer.singleShot(500, lambda: self.show_notification("Session restored", "info"))
 
     def _edit_settings(self, tab_index=0):
         cfg = SettingsDialog.load_config() or {}
@@ -6345,10 +6364,24 @@ class MainWindow(QMainWindow):
             QProcess.startDetached(sys.executable, [os.path.abspath(sys.argv[0])] + sys.argv[1:])
 
     def closeEvent(self, event):
-        if self._current_path and self._canvas.molecule:
+        if self._canvas.molecule:
             try:
                 c = self._canvas
+                mol = c.molecule
+                mol_data = {
+                    "name": mol.name,
+                    "charge": mol.charge,
+                    "atoms": [
+                        {"element": a.element, "x": a.x, "y": a.y, "z": a.z, "color": a.color}
+                        for a in mol.atoms
+                    ],
+                    "bonds": [
+                        {"i": b.i, "j": b.j, "order": b.order}
+                        for b in mol.bonds
+                    ],
+                }
                 data = {
+                    "molecule": mol_data,
                     "path": self._current_path,
                     "rot": c._rot.tolist(),
                     "zoom": c._zoom,
