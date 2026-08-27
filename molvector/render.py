@@ -2397,6 +2397,8 @@ def render_molecule(
             # Simple arrow: line + triangle at the tip
             draw_list.append((max(az, bz), 2, ("vector", ax, ay, bx, by, vcol)))
 
+    if export_mode:
+        draw_list = [(z, 1 - p if p < 2 else p, item) for z, p, item in draw_list]
     draw_list.sort(key=lambda x:(x[0],x[1]))
 
     molecule_group = dwg.g(id="molecule")
