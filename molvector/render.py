@@ -359,6 +359,9 @@ Z_TO_SYM: Dict[int, str] = {
    113:"Nh",114:"Fl",115:"Mc",116:"Lv",117:"Ts",118:"Og",
 }
 
+# Element symbol to atomic number (inverse of Z_TO_SYM, full Z=1..118)
+_SYM_TO_Z: Dict[str, int] = {sym: z for z, sym in Z_TO_SYM.items()}
+
 # Hill order: C first, H second, then alphabetical
 _HILL_PRIORITY = {"C": 0, "H": 1}
 
@@ -381,7 +384,7 @@ def calculate_rotational_constants(mol: "Molecule") -> Tuple[float, float, float
     masses = []
     for atom in mol.atoms:
         coords.append((atom.x, atom.y, atom.z))
-        masses.append(ATOMIC_MASSES[atom.element])
+        masses.append(ATOMIC_MASSES.get(atom.element, 0.0))
 
     coords = np.array(coords)
     masses = np.array(masses)
@@ -430,6 +433,7 @@ def parse_pdb(text: str, name: str = "PDB Molecule") -> Molecule:
     lines = text.splitlines()
     atoms = []
     bonds = []
+    seen_bonds = set()
     serial_to_idx = {}
     import re
     
@@ -483,8 +487,10 @@ def parse_pdb(text: str, name: str = "PDB Molecule") -> Molecule:
                     if target_serial not in serial_to_idx: continue
                     target_idx = serial_to_idx[target_serial]
                     
-                    if src_idx < target_idx:
-                        bonds.append(Bond(src_idx, target_idx))
+                    key = (src_idx, target_idx) if src_idx < target_idx else (target_idx, src_idx)
+                    if key not in seen_bonds:
+                        seen_bonds.add(key)
+                        bonds.append(Bond(key[0], key[1]))
             except (ValueError, IndexError):
                 continue
 
@@ -1610,14 +1616,6 @@ def optimize_geometry(mol: Molecule, max_steps: int = 500, tol: float = 0.01,
 
     n = len(mol.atoms)
 
-    # ── 1. Element symbol → atomic number ─────────────────────────────────
-    _SYM_TO_Z = {
-        "H":1, "He":2, "Li":3, "Be":4, "B":5, "C":6, "N":7, "O":8, "F":9,
-        "Ne":10, "Na":11, "Mg":12, "Al":13, "Si":14, "P":15, "S":16,
-        "Cl":17, "Ar":18, "K":19, "Ca":20, "Fe":26, "Ni":28, "Cu":29,
-        "Zn":30, "Br":35, "I":53, "Au":79, "Hg":80,
-    }
-
     # ── 2. Build OBMol ────────────────────────────────────────────────────
     obmol = ob.OBMol()
     obmol.SetDimension(3)
@@ -1645,10 +1643,10 @@ def optimize_geometry(mol: Molecule, max_steps: int = 500, tol: float = 0.01,
     ff_name = "MMFF94s"
     with _suppress_ob_stderr():
         ff = ob.OBForceField.FindForceField(ff_name)
-        if not ff.Setup(obmol):
+        if ff is None or not ff.Setup(obmol):
             ff = ob.OBForceField.FindForceField("UFF")
             ff_name = "UFF"
-            if not ff.Setup(obmol):
+            if ff is None or not ff.Setup(obmol):
                 raise RuntimeError(
                     "Force field setup failed.  UFF.prm was found at\n"
                     f"  {os.environ.get('BABEL_DATADIR', '?')}\n"
@@ -1699,13 +1697,6 @@ def calculate_dipole_moment(mol: Molecule):
 
     import os
     from openbabel import openbabel as ob
-
-    _SYM_TO_Z = {
-        "H":1, "He":2, "Li":3, "Be":4, "B":5, "C":6, "N":7, "O":8, "F":9,
-        "Ne":10, "Na":11, "Mg":12, "Al":13, "Si":14, "P":15, "S":16,
-        "Cl":17, "Ar":18, "K":19, "Ca":20, "Fe":26, "Ni":28, "Cu":29,
-        "Zn":30, "Br":35, "I":53, "Au":79, "Hg":80,
-    }
 
     n = len(mol.atoms)
 
@@ -1805,11 +1796,17 @@ def check_valence_issues(mol: Molecule) -> List[str]:
             (i for i, a in enumerate(mol.atoms) if a.element != "H"), 0
         )
 
+    kek = _kekule_orders(mol)
+
     for idx, a in enumerate(mol.atoms):
         bond_sum = 0.0
         for b in mol.bonds:
             if b.i == idx or b.j == idx:
-                bond_sum += b.order
+                if b.order == 5:
+                    k = (b.i, b.j) if b.i < b.j else (b.j, b.i)
+                    bond_sum += kek.get(k, 1)
+                else:
+                    bond_sum += b.order
         expected = _EXPECTED_VALENCE.get(a.element, 4)
         if idx == charge_idx:
             expected -= mol.charge
@@ -1863,13 +1860,6 @@ def _generate_inchi_openbabel(mol: Molecule) -> Optional[str]:
     import os
 
     from openbabel import openbabel as ob
-
-    _SYM_TO_Z = {
-        "H":1, "He":2, "Li":3, "Be":4, "B":5, "C":6, "N":7, "O":8, "F":9,
-        "Ne":10, "Na":11, "Mg":12, "Al":13, "Si":14, "P":15, "S":16,
-        "Cl":17, "Ar":18, "K":19, "Ca":20, "Fe":26, "Ni":28, "Cu":29,
-        "Zn":30, "Br":35, "I":53, "Au":79, "Hg":80,
-    }
 
     obmol = ob.OBMol()
     obmol.SetDimension(3)
@@ -2361,8 +2351,8 @@ def render_molecule(
                 keyB = _atom_custom_keys.get(aj, mol.atoms[aj].element)
                 base_A = base_colors.get(keyA, DEFAULT_BASE)
                 base_B = base_colors.get(keyB, DEFAULT_BASE)
-                dark_A = dark_colors.get(mol.atoms[ai].element, DEFAULT_DARK)
-                dark_B = dark_colors.get(mol.atoms[aj].element, DEFAULT_DARK)
+                dark_A = dark_colors.get(keyA, DEFAULT_DARK)
+                dark_B = dark_colors.get(keyB, DEFAULT_DARK)
                 z_sort = (orig_az + orig_bz) / 2.0
                 pts = ((ax, ay), (bx, by))
                 b_id = f"b_{bi}_{o_idx}_{prefix}"

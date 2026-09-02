@@ -2907,7 +2907,7 @@ class MoleculeCanvas(QSvgWidget):
         self.build_element: str = "C"
         self.auto_adjust_h: bool = False
         self.bond_order_disabled: bool = False
-        self._saved_bond_orders: list[int] | None = None
+        self._saved_bond_orders: dict[tuple[int, int], int] | None = None
 
     # ── drag and drop ─────────────────────────────────────────────────────────
 
@@ -5823,6 +5823,7 @@ class MainWindow(QMainWindow):
         self._canvas._measure_atoms.clear()
         self._canvas._angle_atoms.clear()
         self._canvas._angle_leg1 = None
+        self._canvas._measure_from = None
 
         self._canvas._green_atoms.clear()
 
@@ -5981,16 +5982,17 @@ class MainWindow(QMainWindow):
         self._canvas.bond_order_disabled = checked
         if checked:
             if self._canvas.molecule:
-                self._canvas._saved_bond_orders = [b.order for b in self._canvas.molecule.bonds]
+                self._canvas._saved_bond_orders = {(b.i, b.j): b.order for b in self._canvas.molecule.bonds}
                 for b in self._canvas.molecule.bonds:
                     b.order = 1
             self._act_bond_order.setText("Enable Bond Order")
             self._status.showMessage("Bond order disabled — all bonds set to single")
         else:
             if self._canvas.molecule and self._canvas._saved_bond_orders is not None:
-                for i, b in enumerate(self._canvas.molecule.bonds):
-                    if i < len(self._canvas._saved_bond_orders):
-                        b.order = self._canvas._saved_bond_orders[i]
+                for b in self._canvas.molecule.bonds:
+                    saved = self._canvas._saved_bond_orders.get((b.i, b.j))
+                    if saved is not None:
+                        b.order = saved
                 self._canvas._saved_bond_orders = None
             self._act_bond_order.setText("Disable Bond Order")
             self._status.showMessage("Bond order enabled — click bonds to cycle order")
@@ -6216,7 +6218,7 @@ class MainWindow(QMainWindow):
                 self._restoring_session = False
                 mol = self._canvas.molecule
 
-        if mol and mol.atoms and view:
+        if mol and mol.atoms and isinstance(view, dict) and view:
             c = self._canvas
             if "rot" in view:
                 c._rot = np.array(view["rot"])
@@ -6517,12 +6519,15 @@ class MainWindow(QMainWindow):
                 self._debug_menu.deleteLater()
                 self._debug_menu = None
 
-    def show_notification(self, message: str, notification_type: str = "info", duration: int = 4000,
+    def show_notification(self, message: str, notification_type: str = "info", duration: int = None,
                           log_file: str = None):
-        if notification_type == "error":
-            duration = 0
-        elif notification_type == "warning":
-            duration = 6000
+        if duration is None:
+            if notification_type == "error":
+                duration = 0
+            elif notification_type == "warning":
+                duration = 6000
+            else:
+                duration = 4000
         button_text = None
         button_callback = None
         if log_file:
