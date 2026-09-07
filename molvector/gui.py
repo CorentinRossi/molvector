@@ -72,7 +72,7 @@ except ImportError:
 from molvector.render import (
     parse_xyz, parse_gaussian, parse_gaussian_log, parse_pdb, parse_mol,
     infer_bonds,
-    render_molecule, Molecule, CPK_BASE, CPK_DARK, VDW_RADII,
+    render_molecule, Molecule, CPK_BASE, CPK_DARK, DEFAULT_BASE, VDW_RADII,
     lighten, darken, hex_to_rgb, rgb_to_hex, auto_dark,
     chemical_formula, molecular_mass, VibrationalMode, ExcitedState,
     save_xyz, save_gaussian_input, save_pdb, save_mol, project_molecule,
@@ -490,7 +490,7 @@ class SettingsDialog(QDialog):
                  axes_position="bottom-left", principal_axes_position="bottom-left",
                  restore_molecule=False, fast_render=False, show_debug_menu=False, live_callback=None,
                  shortcut_actions=None, alt_shortcut_defaults=None, parent=None,
-                 show_dipole_arrow=False):
+                 show_dipole_arrow=False, quick_svg_widget=False):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setMinimumWidth(520)
@@ -503,7 +503,8 @@ class SettingsDialog(QDialog):
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
 
-        self._build_general_tab(theme, restore_molecule, fast_render=fast_render, show_debug_menu=show_debug_menu)
+        self._build_general_tab(theme, restore_molecule, fast_render=fast_render, show_debug_menu=show_debug_menu,
+                                quick_svg_widget=quick_svg_widget)
         self._build_shortcuts_tab(shortcut_actions or {}, alt_shortcut_defaults or {})
         self._build_overlay_tab(bg_color, show_axes, show_principal_axes, axes_position, principal_axes_position,
                                 show_dipole_arrow=show_dipole_arrow)
@@ -528,7 +529,8 @@ class SettingsDialog(QDialog):
         btn_row.addWidget(dialog_btns)
         layout.addLayout(btn_row)
 
-    def _build_general_tab(self, theme, restore_molecule, fast_render=False, show_debug_menu=False):
+    def _build_general_tab(self, theme, restore_molecule, fast_render=False, show_debug_menu=False,
+                           quick_svg_widget=False):
         page = QWidget()
         form = QFormLayout(page)
         form.setSpacing(8)
@@ -538,6 +540,11 @@ class SettingsDialog(QDialog):
         self._restore_cb.setChecked(restore_molecule)
         self._restore_cb.toggled.connect(self._on_change)
         form.addRow("At login:", self._restore_cb)
+
+        self._quick_svg_widget_cb = QCheckBox("Activated")
+        self._quick_svg_widget_cb.setChecked(quick_svg_widget)
+        self._quick_svg_widget_cb.toggled.connect(self._on_change)
+        form.addRow("Quick SVG export widget:", self._quick_svg_widget_cb)
 
         self._theme_combo = QComboBox()
         self._theme_combo.addItems(["Dark", "Light"])
@@ -938,6 +945,10 @@ class SettingsDialog(QDialog):
         return self._restore_cb.isChecked()
 
     @property
+    def quick_svg_export_widget(self) -> bool:
+        return self._quick_svg_widget_cb.isChecked()
+
+    @property
     def ball_scale(self) -> float:
         return self._ball_slider.value() / 100.0
 
@@ -1013,7 +1024,8 @@ class SettingsDialog(QDialog):
     def _section_data(self, section: str) -> dict:
         if section == "general":
             return {"theme": self.theme, "restore_molecule": self.restore_molecule,
-                    "fast_render": self.fast_render, "show_debug_menu": self.show_debug_menu}
+                    "fast_render": self.fast_render, "show_debug_menu": self.show_debug_menu,
+                    "quick_svg_export_widget": self.quick_svg_export_widget}
         if section == "overlay":
             return {
                 "bg_color": self.bg_color,
@@ -1060,6 +1072,7 @@ class SettingsDialog(QDialog):
             self._theme_combo.setCurrentText("Light")
             self._restore_cb.setChecked(False)
             self._fast_render_cb.setChecked(False)
+            self._quick_svg_widget_cb.setChecked(False)
         elif section == "overlay":
             self._bg_btn.set_color("#ffffff")
             self._show_axes_cb.setChecked(False)
@@ -1104,6 +1117,7 @@ class SettingsDialog(QDialog):
                     "restore_molecule": data.get("restore_molecule", False),
                     "fast_render": data.get("fast_render", False),
                     "show_debug_menu": data.get("show_debug_menu", False),
+                    "quick_svg_export_widget": data.get("quick_svg_export_widget", False),
                 },
                 "overlay": {
                     "bg_color": data.get("bg_color", "#ffffff"),
@@ -1188,7 +1202,7 @@ class AtomColorDialog(QDialog):
             text_color = "#ffffff" if is_dark else "#000000"
             self._apply_tile_style(btn, cat_col, text_color)
 
-            cpk = self._overrides.get(sym, CPK_BASE.get(sym, "#cc44aa"))
+            cpk = self._overrides.get(sym, CPK_BASE.get(sym, DEFAULT_BASE))
             dot = QLabel()
             dot.setFixedSize(dot_size, dot_size)
             dot.setStyleSheet(
@@ -1249,7 +1263,7 @@ class AtomColorDialog(QDialog):
         )
 
     def _update_dot(self, sym: str):
-        cpk = self._overrides.get(sym, CPK_BASE.get(sym, "#cc44aa"))
+        cpk = self._overrides.get(sym, CPK_BASE.get(sym, DEFAULT_BASE))
         dot = self._dots[sym]
         dot.setStyleSheet(
             f"background:{cpk}; border:1px solid rgba(0,0,0,0.35); "
@@ -1260,7 +1274,7 @@ class AtomColorDialog(QDialog):
         btn.setToolTip(f"{sym} ({Z}) — {ELEM_FULL_NAME.get(sym, 'Unknown')}\nCPK: {cpk}")
 
     def _pick_color(self, sym: str):
-        current = self._overrides.get(sym, CPK_BASE.get(sym, "#cc44aa"))
+        current = self._overrides.get(sym, CPK_BASE.get(sym, DEFAULT_BASE))
         color = QColorDialog.getColor(QColor(current), self, f"Pick colour for {sym}")
         if color.isValid():
             self._overrides[sym] = color.name()
@@ -2249,7 +2263,7 @@ class LegendPanel(QGroupBox):
             if e in seen_elem:
                 continue
             seen_elem.add(e)
-            color = overrides.get(e, CPK_BASE.get(e, "#cc44aa"))
+            color = overrides.get(e, CPK_BASE.get(e, DEFAULT_BASE))
             name  = ELEM_FULL_NAME.get(e, e)
             self._add_row(e, color, f"{e} - {name}", clickable=True)
 
@@ -2451,7 +2465,7 @@ class PeriodicTableDialog(QDialog):
                 )
 
             # Small CPK-coloured dot in the bottom-right corner
-            cpk = self._overrides.get(sym, CPK_BASE.get(sym, "#cc44aa"))
+            cpk = self._overrides.get(sym, CPK_BASE.get(sym, DEFAULT_BASE))
             dot = QLabel()
             dot.setFixedSize(dot_size, dot_size)
             dot.setStyleSheet(
@@ -4949,6 +4963,15 @@ class MainWindow(QMainWindow):
         sl.addWidget(self._legend)
         sl.addStretch()
 
+        # Quick SVG export drag widget (toggle in Settings > General)
+        self._quick_svg_tmp_path: Optional[str] = None
+        self._quick_svg_widget_enabled = False
+        self._quick_svg_drag = _DragWidget(self._get_quick_svg_path, sidebar)
+        self._quick_svg_drag.setFixedHeight(52)
+        self._quick_svg_drag.setToolTip("Drag the current view into an SVG editor")
+        self._quick_svg_drag.hide()
+        sl.addWidget(self._quick_svg_drag)
+
         # Hint
         self._hint = QLabel("Drag  rotate\nRight-drag  pan\nShift+drag  rotate ard. bond\nScroll  zoom")
         self._hint.setObjectName("hint")
@@ -5432,6 +5455,7 @@ class MainWindow(QMainWindow):
             f"{len(mol.bonds)} bonds  |  {mass:.3f} uma  [{src}]"
         )
         self._legend.update_for(mol, self._color_overrides)
+        self._update_quick_svg_widget()
 
     def _show_molecule_info(self):
         mol = self._canvas.molecule
@@ -5611,6 +5635,24 @@ class MainWindow(QMainWindow):
             return
         dlg = QuickExportDialog(self._canvas, self)
         dlg.show()
+
+    def _get_quick_svg_path(self) -> str:
+        """Write the current canvas view to a temp SVG file for the sidebar drag widget."""
+        svg_data = self._canvas.get_svg_bytes(export_mode=True)
+        if self._quick_svg_tmp_path and os.path.exists(self._quick_svg_tmp_path):
+            try:
+                os.unlink(self._quick_svg_tmp_path)
+            except OSError:
+                pass
+        with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as f:
+            f.write(svg_data)
+            self._quick_svg_tmp_path = f.name
+        return self._quick_svg_tmp_path
+
+    def _update_quick_svg_widget(self):
+        """Show/hide the sidebar Quick SVG export drag widget per the current setting."""
+        enabled = bool(getattr(self, "_quick_svg_widget_enabled", False))
+        self._quick_svg_drag.setVisible(enabled and self._canvas.molecule is not None)
 
     def _edit_shortcuts(self):
         _, saved_alt = self._load_shortcut_overrides()
@@ -6156,6 +6198,8 @@ class MainWindow(QMainWindow):
             self._restore_on_startup = g.get("restore_molecule", False)
             self._canvas._fast_render = g.get("fast_render", False)
             self._show_debug_menu = g.get("show_debug_menu", False)
+            self._quick_svg_widget_enabled = g.get("quick_svg_export_widget", False)
+            self._update_quick_svg_widget()
         if a:
             self._canvas.atom_scale = a.get("atom_scale", self._canvas.atom_scale)
             self._canvas.bond_width_px = a.get("bond_width_px", self._canvas.bond_width_px)
@@ -6242,6 +6286,7 @@ class MainWindow(QMainWindow):
         cfg = SettingsDialog.load_config() or {}
         restore = cfg.get("general", {}).get("restore_molecule", False)
         show_debug = cfg.get("general", {}).get("show_debug_menu", False)
+        quick_svg_widget = getattr(self, "_quick_svg_widget_enabled", False)
         orig = (self._current_theme, self._canvas.background,
                 self._canvas.atom_scale, self._canvas.bond_width_px,
                 self._canvas.bond_style, dict(self._color_overrides),
@@ -6251,7 +6296,7 @@ class MainWindow(QMainWindow):
                 self._canvas.roughness,
                 self._canvas.show_axes, self._canvas.show_principal_axes,
                 self._canvas.axes_position, self._canvas.principal_axes_position,
-                restore, self._canvas._fast_render, show_debug)
+                restore, self._canvas._fast_render, show_debug, quick_svg_widget)
 
         def _live_update(theme, bg, ball, bw, style, colors, border_mode, border_scale,
                          border_width, bcol, lighting, pos, rough,
@@ -6294,6 +6339,7 @@ class MainWindow(QMainWindow):
             restore_molecule=orig[17],
             fast_render=orig[18],
             show_debug_menu=orig[19],
+            quick_svg_widget=orig[20],
             shortcut_actions=self._shortcut_actions,
             alt_shortcut_defaults=alt_defaults,
             live_callback=_live_update, parent=self,
@@ -6323,6 +6369,8 @@ class MainWindow(QMainWindow):
             self._canvas._cached_grad_stops.clear()
             self._canvas._fast_render = dlg.fast_render
             self._show_debug_menu = dlg.show_debug_menu
+            self._quick_svg_widget_enabled = dlg.quick_svg_export_widget
+            self._update_quick_svg_widget()
             self._update_debug_menu()
             if self._canvas.molecule:
                 self._legend.update_for(self._canvas.molecule, dlg._color_overrides)
@@ -6345,7 +6393,9 @@ class MainWindow(QMainWindow):
              self._canvas.show_principal_axes,
              self._canvas.axes_position,
              self._canvas.principal_axes_position,
-             _, self._canvas._fast_render, self._show_debug_menu) = orig
+             _, self._canvas._fast_render, self._show_debug_menu,
+             self._quick_svg_widget_enabled) = orig
+            self._update_quick_svg_widget()
             self._update_debug_menu()
             self._canvas.color_overrides = self._color_overrides
             if self._canvas.molecule:
@@ -6394,6 +6444,11 @@ class MainWindow(QMainWindow):
                 with open(self.LAST_MOLECULE_FILE, "w") as f:
                     json.dump(data, f)
             except Exception:
+                pass
+        if getattr(self, "_quick_svg_tmp_path", None) and os.path.exists(self._quick_svg_tmp_path):
+            try:
+                os.unlink(self._quick_svg_tmp_path)
+            except OSError:
                 pass
         super().closeEvent(event)
 

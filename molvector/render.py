@@ -1388,27 +1388,60 @@ def infer_bonds(mol: Molecule, tol: float = 0.40) -> None:
 # ─────────────────────────────────────────────────────────────────────────────
 
 CPK_BASE: Dict[str, str] = {
+    # Main-group / organic elements (unchanged)
     "H":"#d4d4d4","D":"#fffec7","T":"#fffeab","C":"#444444","13C":"#2f494a","14C":"#2f494a","N":"#2050d0","15N":"#232f8b","O":"#cc1111",
     "F":"#66cc22","S":"#ddcc00","P":"#ff8800","Cl":"#11bb22",
     "Br":"#882200","I":"#660099","B":"#ffaa33","Si":"#8888aa",
+    # Noble gases (unchanged)
     "He":"#e0fefe","Ne":"#c2e9ee","Ar":"#a4d4de","Kr":"#86bfce","Xe":"#68aabe","Rn":"#4a95ae","Og":"#2c809e",
-    "Al":"#abad98","Ga":"#abad98","In":"#abad98","Sn":"#abad98","Tl":"#abad98","Pb":"#abad98","Bi":"#abad98","Po":"#abad98","Nh":"#abad98","Fl":"#abad98","Mc":"#abad98","Lv":"#abad98",
-    "La":"#e91e63","Ce":"#e91e63","Pr":"#e91e63","Nd":"#e91e63","Pm":"#e91e63","Sm":"#e91e63","Eu":"#e91e63","Gd":"#e91e63","Tb":"#e91e63","Dy":"#e91e63","Ho":"#e91e63","Er":"#e91e63","Tm":"#e91e63","Yb":"#e91e63","Lu":"#e91e63",
-    "Ac":"#d32f2f","Th":"#d32f2f","Pa":"#d32f2f","U":"#d32f2f","Np":"#d32f2f","Pu":"#d32f2f","Am":"#d32f2f","Cm":"#d32f2f","Bk":"#d32f2f","Cf":"#d32f2f","Es":"#d32f2f","Fm":"#d32f2f","Md":"#d32f2f","No":"#d32f2f","Lr":"#d32f2f",
+    # Poor / post-transition metals (shades of the #abad98 grey; Al & Tl keep it exactly)
+    "Al":"#abad98","Ga":"#9a9c89","In":"#a2a490","Sn":"#b4b6a0","Tl":"#abad98","Pb":"#919381","Bi":"#bcbea7","Po":"#898a7a","Nh":"#969886","Fl":"#aeb09b","Mc":"#9d9f8c","Lv":"#828374",
+    # Alkali metals (Jmol / CPK colours)
+    "Li":"#cc80ff","Na":"#ab5cf2","K":"#8f40d4","Rb":"#702eb0","Cs":"#57178f","Fr":"#420066",
+    # Alkaline earth metals (Jmol / CPK colours)
+    "Be":"#c2ff00","Mg":"#8aff00","Ca":"#3dff00","Sr":"#00ff00","Ba":"#00c900","Ra":"#007d00",
+    # Transition metals (Jmol / CPK colours)
+    "Sc":"#e6e6e6","Ti":"#bfc2c7","V":"#a6a6ab","Cr":"#8a99c7","Mn":"#9c7ac7","Fe":"#e06633","Co":"#f090a0","Ni":"#50d050","Cu":"#c88033","Zn":"#7d80b0",
+    "Y":"#94ffff","Zr":"#94e0e0","Nb":"#73c2c9","Mo":"#54b5b5","Tc":"#3b9e9e","Ru":"#248f8f","Rh":"#0a7d8c","Pd":"#006985","Ag":"#c0c0c0","Cd":"#ffd98f",
+    "Hf":"#4dc2ff","Ta":"#4da6ff","W":"#2194d6","Re":"#267dab","Os":"#266696","Ir":"#175487","Pt":"#d0d0e0","Au":"#ffd123","Hg":"#b8b8d0",
+    "Rf":"#cc0059","Db":"#d1004f","Sg":"#d90045","Bh":"#e00038","Hs":"#e6002e","Mt":"#eb0026",
+    # Metalloids / remaining non-metals (Jmol / CPK colours)
+    "Ge":"#668f8f","As":"#bd80e3","Se":"#ffa100","Sb":"#9e63b5","Te":"#d47a00","At":"#754f45",
+    # Lanthanides (Jmol / CPK colours)
+    "La":"#70d4ff","Ce":"#ffffc7","Pr":"#d9ffc7","Nd":"#c7ffc7","Pm":"#a3ffc7","Sm":"#8fffc7","Eu":"#61ffc7","Gd":"#45ffc7","Tb":"#30ffc7","Dy":"#1fffc7","Ho":"#00ff9c","Er":"#00e675","Tm":"#00d452","Yb":"#00bf38","Lu":"#00ab24",
+    # Actinides (Jmol / CPK colours)
+    "Ac":"#70abfa","Th":"#00baff","Pa":"#00a1ff","U":"#008fff","Np":"#0080ff","Pu":"#006bff","Am":"#545cf2","Cm":"#785ce3","Bk":"#8a4fe3","Cf":"#a136d4","Es":"#b31fd4","Fm":"#b31fba","Md":"#b30da6","No":"#bd0d87","Lr":"#c70066",
 }
 
 CPK_DARK: Dict[str, str] = {
+    # Main-group / organic elements (unchanged)
     "H":"#888888","D":"#595845","T":"#59583b","C":"#111111","13C":"#101919","14C":"#101919","N":"#0a1a60","15N":"#0c1030","O":"#550000",
     "F":"#224400","S":"#554400","P":"#441100","Cl":"#003300",
     "Br":"#330000","I":"#220033","B":"#664400","Si":"#333344",
+    # Noble gases (unchanged)
     "He":"#4e5858","Ne":"#435153","Ar":"#394a4d","Kr":"#2e4248","Xe":"#243b42","Rn":"#19343c","Og":"#0f2c37",
-    "Al":"#3b3c35","Ga":"#3b3c35","In":"#3b3c35","Sn":"#3b3c35","Tl":"#3b3c35","Pb":"#3b3c35","Bi":"#3b3c35","Po":"#3b3c35","Nh":"#3b3c35","Fl":"#3b3c35","Mc":"#3b3c35","Lv":"#3b3c35",
-    "La":"#510a22","Ce":"#510a22","Pr":"#510a22","Nd":"#510a22","Pm":"#510a22","Sm":"#510a22","Eu":"#510a22","Gd":"#510a22","Tb":"#510a22","Dy":"#510a22","Ho":"#510a22","Er":"#510a22","Tm":"#510a22","Yb":"#510a22","Lu":"#510a22",
-    "Ac":"#491010","Th":"#491010","Pa":"#491010","U":"#491010","Np":"#491010","Pu":"#491010","Am":"#491010","Cm":"#491010","Bk":"#491010","Cf":"#491010","Es":"#491010","Fm":"#491010","Md":"#491010","No":"#491010","Lr":"#491010",
+    # Poor / post-transition metals (shades of the grey; Al & Tl keep it exactly)
+    "Al":"#3b3c35","Ga":"#3b3b34","In":"#3e3e37","Sn":"#44453d","Tl":"#3b3c35","Pb":"#373831","Bi":"#47483f","Po":"#34342e","Nh":"#393a33","Fl":"#42433b","Mc":"#3c3c35","Lv":"#31322c",
+    # Alkali metals
+    "Li":"#4d3060","Na":"#40225b","K":"#361850","Rb":"#2a1142","Cs":"#210836","Fr":"#190026",
+    # Alkaline earth metals
+    "Be":"#496000","Mg":"#346000","Ca":"#176000","Sr":"#006000","Ba":"#004c00","Ra":"#002f00",
+    # Transition metals
+    "Sc":"#575757","Ti":"#48494b","V":"#3f3f40","Cr":"#343a4b","Mn":"#3b2e4b","Fe":"#552613","Co":"#5b363c","Ni":"#1e4f1e","Cu":"#4c3013","Zn":"#2f3042",
+    "Y":"#386060","Zr":"#385555","Nb":"#2b494c","Mo":"#1f4444","Tc":"#163c3c","Ru":"#0d3636","Rh":"#032f35","Pd":"#002732","Ag":"#484848","Cd":"#605236",
+    "Hf":"#1d4960","Ta":"#1d3f60","W":"#0c3851","Re":"#0e2f40","Os":"#0e2639","Ir":"#081f33","Pt":"#4f4f55","Au":"#604f0d","Hg":"#45454f",
+    "Rf":"#4d0021","Db":"#4f001e","Sg":"#52001a","Bh":"#550015","Hs":"#570011","Mt":"#59000e",
+    # Metalloids / remaining non-metals
+    "Ge":"#263636","As":"#473056","Se":"#603d00","Sb":"#3c2544","Te":"#502e00","At":"#2c1e1a",
+    # Lanthanides
+    "La":"#2a5060","Ce":"#60604b","Pr":"#52604b","Nd":"#4b604b","Pm":"#3d604b","Sm":"#36604b","Eu":"#24604b","Gd":"#1a604b","Tb":"#12604b","Dy":"#0b604b","Ho":"#00603b","Er":"#00572c","Tm":"#00501f","Yb":"#004815","Lu":"#00400d",
+    # Actinides
+    "Ac":"#2a405f","Th":"#004660","Pa":"#003d60","U":"#003660","Np":"#003060","Pu":"#002860","Am":"#1f225b","Cm":"#2d2256","Bk":"#341e56","Cf":"#3d1450","Es":"#440b50","Fm":"#440b46","Md":"#44043f","No":"#470433","Lr":"#4b0026",
 }
 
-DEFAULT_BASE = "#cc44aa"
-DEFAULT_DARK = "#440022"
+# Fallback for any element not listed above (e.g. exotic / unrecognised symbols): pink.
+DEFAULT_BASE = "#ff77bb"
+DEFAULT_DARK = "#602d47"
 
 VDW_RADII: Dict[str, float] = {
     "H":0.53,"D":0.53,"T":0.53,"C":0.77,"13C":0.77,"14C":0.77,"N":0.75,"15N":0.75,"O":0.73,"F":0.71,
