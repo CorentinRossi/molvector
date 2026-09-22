@@ -52,11 +52,14 @@ from PyQt6.QtWidgets import (
     QScrollArea, QToolBar, QMenu, QCheckBox, QTableWidget, QTableWidgetItem,
     QHeaderView, QTabWidget, QComboBox, QPlainTextEdit, QLineEdit,
     QButtonGroup, QRadioButton, QKeySequenceEdit, QToolButton,
-    QGraphicsOpacityEffect,
+    QGraphicsOpacityEffect, QStackedWidget, QAbstractButton,
 )
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtSvg import QSvgRenderer
-from PyQt6.QtCore import Qt, QByteArray, QPoint, QPointF, pyqtSignal, QTimer, QSize, QRect, QRectF, QUrl, QMimeData, QEvent, QProcess, QProcessEnvironment
+from PyQt6.QtCore import (
+    Qt, QByteArray, QPoint, QPointF, pyqtSignal, pyqtProperty, QTimer, QSize, QRect, QRectF,
+    QUrl, QMimeData, QEvent, QProcess, QProcessEnvironment, QPropertyAnimation, QEasingCurve,
+)
 from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen
 from PyQt6.QtGui import QDrag
 
@@ -80,6 +83,7 @@ from molvector.render import (
     optimize_geometry, HAS_OPENBABEL, _HAS_OPENBABEL_PKG, _OB_DATA_DIR, _suppress_ob_stderr, calculate_rotational_constants, calculate_dipole_moment, generate_inchi, check_valence_issues,
     center_positions, ATOMIC_MASSES,
 )
+from molvector.chemvector import ChemCanvas, HAS_RDKIT, check_aromaticity
 
 # ── shortcut modifier prefix ─────────────────────────────────────────────────
 def _mod(s: str) -> str:
@@ -353,6 +357,69 @@ def color_pixmap(hex_color: str, size: int = 22) -> QPixmap:
     px.fill(QColor(hex_color))
     return px
 
+class ViewModeToggle(QAbstractButton):
+    """
+    A small two-state slider switch for the main toolbar — a pill thumb
+    slides between the two halves of a neutral-grey track (neither side
+    reads as the "activated"/highlighted one), animated rather than
+    snapping instantly. The "3D"/"2D" labels are drawn beside it (see
+    _build_toolbar), not on the switch itself.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setCheckable(True)
+        self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        self.setFixedSize(44, 18)
+        self.setToolTip("Switch between the 3D viewer and the 2D Chemvector whiteboard")
+        self._pos = 0.0  # 0.0 = left ("3D"/unchecked) .. 1.0 = right ("2D"/checked)
+        self._anim = QPropertyAnimation(self, b"thumbPos", self)
+        self._anim.setDuration(140)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.toggled.connect(self._animate_to)
+
+    def _animate_to(self, checked: bool):
+        self._anim.stop()
+        self._anim.setStartValue(self._pos)
+        self._anim.setEndValue(1.0 if checked else 0.0)
+        self._anim.start()
+
+    def _get_thumb_pos(self) -> float:
+        return self._pos
+
+    def _set_thumb_pos(self, value: float):
+        self._pos = value
+        self.update()
+
+    thumbPos = pyqtProperty(float, _get_thumb_pos, _set_thumb_pos)
+
+    def sizeHint(self) -> QSize:
+        return QSize(44, 18)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        rect = QRectF(self.rect().adjusted(1, 1, -1, -1))
+        radius = rect.height() / 2.0
+        t = self._pos
+
+        # Track color is fixed regardless of state — 2D isn't a special
+        # "on" state relative to 3D, just the other side of the switch.
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#787878"))
+        p.drawRoundedRect(rect, radius, radius)
+
+        # Thumb: a pill covering the active half, sliding continuously
+        # between them rather than jumping.
+        half_w = rect.width() / 2.0
+        thumb_rect = QRectF(
+            rect.left() + 1.0 + (half_w - 1.0) * t, rect.top() + 1.0,
+            half_w - 1.0, rect.height() - 2.0,
+        )
+        p.setBrush(QColor("#d8d8d8"))
+        p.drawRoundedRect(thumb_rect, radius - 1.0, radius - 1.0)
+
+
 class ColorButton(QPushButton):
     """Push-button that shows a solid colour swatch and opens a colour dialog."""
     colorChanged = pyqtSignal(str)   # emits new hex string
@@ -488,13 +555,15 @@ class SettingsDialog(QDialog):
                  light_position="top-left", roughness=1.0,
                  show_axes=False, show_principal_axes=False,
                  axes_position="bottom-left", principal_axes_position="bottom-left",
-                 restore_molecule=False, fast_render=False, show_debug_menu=False, live_callback=None,
+                 restore_molecule=False, start_view="3D", fast_render=False, show_debug_menu=False, live_callback=None,
                  shortcut_actions=None, alt_shortcut_defaults=None, parent=None,
-                 show_dipole_arrow=False, quick_svg_widget=False):
+                 show_dipole_arrow=False, quick_svg_widget=False,
+                 chem_label_colors="cpk", chem_layout="match3d", chem_callback=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setMinimumWidth(520)
         self._live_callback = live_callback
+        self._chem_callback = chem_callback
         self._color_overrides = color_overrides
 
         layout = QVBoxLayout(self)
@@ -503,8 +572,8 @@ class SettingsDialog(QDialog):
         self.tabs = QTabWidget()
         layout.addWidget(self.tabs)
 
-        self._build_general_tab(theme, restore_molecule, fast_render=fast_render, show_debug_menu=show_debug_menu,
-                                quick_svg_widget=quick_svg_widget)
+        self._build_general_tab(theme, restore_molecule, start_view=start_view, fast_render=fast_render,
+                                show_debug_menu=show_debug_menu, quick_svg_widget=quick_svg_widget)
         self._build_shortcuts_tab(shortcut_actions or {}, alt_shortcut_defaults or {})
         self._build_overlay_tab(bg_color, show_axes, show_principal_axes, axes_position, principal_axes_position,
                                 show_dipole_arrow=show_dipole_arrow)
@@ -512,6 +581,7 @@ class SettingsDialog(QDialog):
                                      atom_border_mode, atom_border_scale, atom_border_width,
                                      bond_color, lighting_intensity, light_position, roughness,
                                      fast_render=fast_render)
+        self._build_chem2d_tab(chem_label_colors, chem_layout)
 
         btn_row = QHBoxLayout()
         btn_make_config = QPushButton("Make Default")
@@ -529,7 +599,7 @@ class SettingsDialog(QDialog):
         btn_row.addWidget(dialog_btns)
         layout.addLayout(btn_row)
 
-    def _build_general_tab(self, theme, restore_molecule, fast_render=False, show_debug_menu=False,
+    def _build_general_tab(self, theme, restore_molecule, start_view="3D", fast_render=False, show_debug_menu=False,
                            quick_svg_widget=False):
         page = QWidget()
         form = QFormLayout(page)
@@ -545,6 +615,14 @@ class SettingsDialog(QDialog):
         self._quick_svg_widget_cb.setChecked(quick_svg_widget)
         self._quick_svg_widget_cb.toggled.connect(self._on_change)
         form.addRow("Quick SVG export widget:", self._quick_svg_widget_cb)
+
+        self._start_view_combo = QComboBox()
+        self._start_view_combo.addItems(["3D", "2D"])
+        self._start_view_combo.setCurrentText(start_view)
+        self._start_view_combo.setMinimumWidth(100)
+        self._start_view_combo.setToolTip("Which view (3D or 2D Chemvector) the app opens in — takes effect next launch")
+        self._start_view_combo.currentTextChanged.connect(self._on_change)
+        form.addRow("Starts in:", self._start_view_combo)
 
         self._theme_combo = QComboBox()
         self._theme_combo.addItems(["Dark", "Light"])
@@ -564,6 +642,39 @@ class SettingsDialog(QDialog):
         form.addRow("Debug:", self._debug_menu_cb)
 
         self.tabs.addTab(page, "&General")
+
+    def _build_chem2d_tab(self, label_colors: str, layout_mode: str = "match3d"):
+        page = QWidget()
+        form = QFormLayout(page)
+        form.setSpacing(8)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
+
+        self._chem_label_combo = QComboBox()
+        self._chem_label_combo.addItems(["CPK colors", "All black"])
+        self._chem_label_combo.setCurrentIndex(1 if label_colors == "black" else 0)
+        self._chem_label_combo.currentIndexChanged.connect(self._on_change)
+        form.addRow("Atom letters:", self._chem_label_combo)
+
+        self._chem_layout_combo = QComboBox()
+        self._chem_layout_combo.addItems(["Match 3D view", "Clean depiction"])
+        self._chem_layout_combo.setCurrentIndex(1 if layout_mode == "clean" else 0)
+        self._chem_layout_combo.setToolTip(
+            "Match 3D view: every atom is drawn exactly where the 3D view has it, so switching "
+            "views never shifts the molecule.\nClean depiction: idealized bond angles (RDKit); "
+            "turned to match the 3D view, but atoms can shift when switching."
+        )
+        self._chem_layout_combo.currentIndexChanged.connect(self._on_change)
+        form.addRow("2D layout:", self._chem_layout_combo)
+
+        self.tabs.addTab(page, "&2D")
+
+    @property
+    def chem_label_colors(self) -> str:
+        return "black" if self._chem_label_combo.currentIndex() == 1 else "cpk"
+
+    @property
+    def chem_layout(self) -> str:
+        return "clean" if self._chem_layout_combo.currentIndex() == 1 else "match3d"
 
     def _build_shortcuts_tab(self, shortcut_actions: dict, alt_defaults: dict):
         page = QWidget()
@@ -885,6 +996,8 @@ class SettingsDialog(QDialog):
                 self.show_axes, self.show_principal_axes,
                 self.axes_position, self.principal_axes_position,
             )
+        if self._chem_callback and hasattr(self, '_chem_layout_combo'):
+            self._chem_callback(self.chem_label_colors, self.chem_layout)
 
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.MouseButtonDblClick:
@@ -947,6 +1060,10 @@ class SettingsDialog(QDialog):
     @property
     def quick_svg_export_widget(self) -> bool:
         return self._quick_svg_widget_cb.isChecked()
+
+    @property
+    def start_view(self) -> str:
+        return self._start_view_combo.currentText()
 
     @property
     def ball_scale(self) -> float:
@@ -1018,14 +1135,19 @@ class SettingsDialog(QDialog):
         return self._show_dipole_arrow_cb.isChecked()
 
     def _section_key(self) -> str:
+        if self.tabs.currentIndex() == 4:
+            return "chem2d"
         return {0: "general", 1: "overlay", 2: "atoms_bonds"}.get(
             self.tabs.currentIndex(), "general")
 
     def _section_data(self, section: str) -> dict:
         if section == "general":
             return {"theme": self.theme, "restore_molecule": self.restore_molecule,
+                    "start_view": self.start_view,
                     "fast_render": self.fast_render, "show_debug_menu": self.show_debug_menu,
                     "quick_svg_export_widget": self.quick_svg_export_widget}
+        if section == "chem2d":
+            return {"label_colors": self.chem_label_colors, "layout": self.chem_layout}
         if section == "overlay":
             return {
                 "bg_color": self.bg_color,
@@ -1071,8 +1193,12 @@ class SettingsDialog(QDialog):
         if section == "general":
             self._theme_combo.setCurrentText("Light")
             self._restore_cb.setChecked(False)
+            self._start_view_combo.setCurrentText("3D")
             self._fast_render_cb.setChecked(False)
             self._quick_svg_widget_cb.setChecked(False)
+        elif section == "chem2d":
+            self._chem_label_combo.setCurrentIndex(0)
+            self._chem_layout_combo.setCurrentIndex(0)
         elif section == "overlay":
             self._bg_btn.set_color("#ffffff")
             self._show_axes_cb.setChecked(False)
@@ -1109,12 +1235,13 @@ class SettingsDialog(QDialog):
         except Exception:
             return None
 
-        TAB_KEYS = {"general", "overlay", "atoms_bonds"}
+        TAB_KEYS = {"general", "overlay", "atoms_bonds", "chem2d"}
         if not data.keys() & TAB_KEYS:
             data = {
                 "general": {
                     "theme": data.get("theme", "light"),
                     "restore_molecule": data.get("restore_molecule", False),
+                    "start_view": data.get("start_view", "3D"),
                     "fast_render": data.get("fast_render", False),
                     "show_debug_menu": data.get("show_debug_menu", False),
                     "quick_svg_export_widget": data.get("quick_svg_export_widget", False),
@@ -2862,10 +2989,18 @@ class MoleculeCanvas(QSvgWidget):
         self._angle_atoms: list[list[int]] = []
         self._angle_leg1: tuple[int, int] | None = None
 
-        self._paint_color = "#66b2ff"
+        self._paint_color = "#e63946"
         self.build_element = "C"
         self._cached_m_normal: np.ndarray | None = None
         self._fast_render = False
+        # Fast Render Mode also applies while zoom is actively changing (wheel,
+        # trackpad pinch, or the toolbar slider), not just while dragging —
+        # flagged for a short settle window after the last zoom step, after
+        # which one final full-quality render is triggered.
+        self._zooming = False
+        self._zoom_settle_timer = QTimer(self)
+        self._zoom_settle_timer.setSingleShot(True)
+        self._zoom_settle_timer.timeout.connect(self._on_zoom_settled)
         self._cached_svg_prefix = "".join(
             random.choices(string.ascii_lowercase + string.digits, k=4)
         )
@@ -3037,6 +3172,15 @@ class MoleculeCanvas(QSvgWidget):
     def request_render(self, delay_ms: int = 0):
         self._render_timer.start(delay_ms)
 
+    def note_zoom_activity(self):
+        """Flag zoom as actively changing (for Fast Render Mode) and (re)start the settle timer."""
+        self._zooming = True
+        self._zoom_settle_timer.start(220)
+
+    def _on_zoom_settled(self):
+        self._zooming = False
+        self.request_render()
+
     def get_svg_bytes(self, export_mode: bool = False) -> bytes:
         return self._render_to_bytes(export_mode=export_mode)
 
@@ -3079,7 +3223,7 @@ class MoleculeCanvas(QSvgWidget):
             animation_amplitude=self.animation_amplitude,
             output_path=None,
             export_mode=export_mode,
-            fast_render=self._fast_render and self._drag_start is not None and not export_mode,
+            fast_render=self._fast_render and (self._drag_start is not None or self._zooming) and not export_mode,
             selected_indices=self.selected_atoms if not export_mode else None,
             vectors=self.arrows if self._show_vectors else None,
         )
@@ -4050,6 +4194,7 @@ class MoleculeCanvas(QSvgWidget):
                     factor = val / self._prev_pinch_value
                     self._zoom = max(0.15, min(6.0, self._zoom * factor))
                     self.rotationChanged.emit()
+                    self.note_zoom_activity()
                     self.request_render(delay_ms=0)
                 self._prev_pinch_value = val
                 return True
@@ -4081,6 +4226,7 @@ class MoleculeCanvas(QSvgWidget):
             return
         self._zoom = max(0.15, min(6.0, self._zoom * factor))
         self.rotationChanged.emit()
+        self.note_zoom_activity()
         self.request_render(delay_ms=0)
 
     def resizeEvent(self, event):
@@ -4465,12 +4611,18 @@ class MainWindow(QMainWindow):
         self._notification_container.hide()
         self._build_menubar()
         self._build_toolbar()
+        # Tool-specific toolbars (Build/Select/Align/Measure and their mode
+        # options) always start their own row below the main toolbar, rather
+        # than packing onto its end when the window is wide enough.
+        self.addToolBarBreak()
         self._setup_builder_toolbar()
         self._build_statusbar()
         self._load_appearance_config()
         self._update_debug_menu()
         self._apply_shortcut_config()
         self._maybe_restore_molecule()
+        if getattr(self, '_start_view_pref', '3D') == '2D':
+            self._toggle_chem_mode(True)
         self._show_placeholder()
         self.setAcceptDrops(True)
 
@@ -4601,6 +4753,7 @@ class MainWindow(QMainWindow):
 
         # ── View ──
         view_menu = mb.addMenu("&View")
+
         act_reset_view = QAction("&Reset View", self)
         act_reset_view.setShortcut("R")
         act_reset_view.triggered.connect(self._reset_view)
@@ -4709,6 +4862,79 @@ class MainWindow(QMainWindow):
         self._menu_build.addAction(act_clear_paint)
         self._shortcut_actions["clear_paint"] = act_clear_paint
 
+        # ── 2D Viewer (Chemvector) ──
+        chem_menu = mb.addMenu("2D &Viewer")
+
+        act_chem_mode = QAction("&Chem View (2D Whiteboard)", self)
+        act_chem_mode.setCheckable(True)
+        act_chem_mode.setShortcut(_mod("Ctrl+2"))
+        act_chem_mode.setToolTip("Switch between the 3D viewer and the 2D Chemvector whiteboard")
+        act_chem_mode.triggered.connect(self._toggle_chem_mode)
+        chem_menu.addAction(act_chem_mode)
+        self._act_chem_mode = act_chem_mode
+        self._shortcut_actions["chem_mode"] = act_chem_mode
+
+        # Build/Selection Mode are shared with the 3D view (same QActions as
+        # in Edit menu / toolbar) — each applies to whichever canvas is
+        # currently on screen.
+        self._act_build_toggle.setToolTip(
+            "3D: click atom add/bond, drag to bond, click bond change order. "
+            "2D: click empty space to add an atom, drag from an atom to bond it, "
+            "click a bond to cycle its order, right-click to delete."
+        )
+        chem_menu.addAction(self._act_build_toggle)
+
+        self._act_select_toggle.setToolTip(
+            "3D: click or drag-select atoms. "
+            "2D: click an atom to select it, click a bond or anywhere inside "
+            "a ring to select the whole ring (Shift adds to the selection)."
+        )
+        chem_menu.addAction(self._act_select_toggle)
+
+        chem_menu.addSeparator()
+
+        act_chem_reset = QAction("Reset 2D View", self)
+        act_chem_reset.triggered.connect(self._reset_chem_view)
+        chem_menu.addAction(act_chem_reset)
+        self._shortcut_actions["chem_reset_view"] = act_chem_reset
+
+        chem_menu.addSeparator()
+
+        act_chem_carbons = QAction("Show Carbon Labels", self)
+        act_chem_carbons.setCheckable(True)
+        act_chem_carbons.setChecked(self._chem_canvas.show_carbon_labels)
+        act_chem_carbons.setToolTip("Show 'C' on every carbon instead of implicit (unlabeled) vertices")
+        act_chem_carbons.triggered.connect(self._toggle_chem_carbon_labels)
+        chem_menu.addAction(act_chem_carbons)
+        self._act_chem_carbons = act_chem_carbons
+        self._shortcut_actions["chem_show_carbons"] = act_chem_carbons
+
+        act_chem_hydrogens = QAction("Show Hydrogens", self)
+        act_chem_hydrogens.setCheckable(True)
+        act_chem_hydrogens.setChecked(self._chem_canvas.show_hydrogens)
+        act_chem_hydrogens.setToolTip("Draw explicit hydrogen atoms and bonds instead of leaving them implicit")
+        act_chem_hydrogens.triggered.connect(self._toggle_chem_hydrogens)
+        chem_menu.addAction(act_chem_hydrogens)
+        self._act_chem_hydrogens = act_chem_hydrogens
+        self._shortcut_actions["chem_show_hydrogens"] = act_chem_hydrogens
+
+        chem_menu.addSeparator()
+
+        act_chem_settings = QAction("2D Settings…", self)
+        act_chem_settings.setToolTip("Open Settings on the 2D tab (e.g. atom letter colors)")
+        act_chem_settings.triggered.connect(lambda: self._edit_settings(tab_index=4))
+        chem_menu.addAction(act_chem_settings)
+
+        act_chem_aromaticity = QAction("Check Aromaticity", self)
+        act_chem_aromaticity.setToolTip(
+            "Perceive aromaticity from the current (explicit Kekulé) bond orders "
+            "and show aromatic rings as circles — 2D Viewer only, does not change "
+            "bond orders or the 3D view."
+        )
+        act_chem_aromaticity.triggered.connect(self._check_chem_aromaticity)
+        chem_menu.addAction(act_chem_aromaticity)
+        self._shortcut_actions["chem_check_aromaticity"] = act_chem_aromaticity
+
         # ── Help ──
         help_menu = mb.addMenu("&Help")
         act_open_test = QAction("Open Test Molecule", self)
@@ -4717,12 +4943,15 @@ class MainWindow(QMainWindow):
         help_menu.addAction(act_open_test)
         self._shortcut_actions["open_test"] = act_open_test
 
+        # "Open Test Files Folder" lives in the Debug menu (see
+        # _update_debug_menu) rather than here — created now so it always
+        # exists for the shortcut editor, whether or not Debug is shown yet.
         act_open_test_folder = QAction("Open Test Files Folder", self)
         act_open_test_folder.triggered.connect(
             lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(
                 os.path.join(os.path.dirname(__file__), "test_files"))))
-        help_menu.addAction(act_open_test_folder)
         self._shortcut_actions["open_test_folder"] = act_open_test_folder
+        self._act_open_test_folder = act_open_test_folder
 
         help_menu.addSeparator()
 
@@ -4769,7 +4998,10 @@ class MainWindow(QMainWindow):
         measure_path = os.path.join(assets_dir, "icon_measure.svg")
         self._act_measure_btn = QAction(load_colored_icon(measure_path, icon_color), "Measure", self)
         self._act_measure_btn.setCheckable(True)
-        self._act_measure_btn.setToolTip("Measure tool — click two atoms to measure distance")
+        self._act_measure_btn.setToolTip(
+    "Measure tool — click/drag two atoms for distance, Shift+drag three for angle. "
+    "Works in the 3D and 2D views alike."
+)
         self._act_measure_btn.triggered.connect(self._toggle_measure_mode)
         self._build_toolbar_obj.addAction(self._act_measure_btn)
 
@@ -4796,7 +5028,7 @@ class MainWindow(QMainWindow):
         self._act_paint_btn.setToolTip("Toggle paint mode — click an atom to paint it (Shift+click to remove paint)")
         self._act_paint_btn.triggered.connect(self._toggle_paint_mode)
         self._selection_toolbar.addAction(self._act_paint_btn)
-        self._paint_color_btn = ColorButton("#66b2ff")
+        self._paint_color_btn = ColorButton("#e63946")
         self._paint_color_btn.setToolTip("Pick paint colour")
         self._paint_color_btn.colorChanged.connect(self._on_paint_color_changed)
         self._selection_toolbar.addWidget(self._paint_color_btn)
@@ -4891,6 +5123,21 @@ class MainWindow(QMainWindow):
         tb_action("Clear All",      self._clear_molecule)
         tb.addSeparator()
 
+        # 3D / 2D view switch — a two-state slider rather than a plain
+        # checkbox, mirroring (and mirrored by) the "Chem View" menu action.
+        # "3D"/"2D" are written beside it rather than on the switch itself.
+        self._view_mode_lbl_3d = QLabel("3D")
+        self._view_mode_lbl_2d = QLabel("2D")
+        for lbl in (self._view_mode_lbl_3d, self._view_mode_lbl_2d):
+            lbl.setObjectName("view_mode_label")
+        tb.addWidget(self._view_mode_lbl_3d)
+        self._view_mode_toggle = ViewModeToggle()
+        self._view_mode_toggle.toggled.connect(self._toggle_chem_mode)
+        tb.addWidget(self._view_mode_toggle)
+        tb.addWidget(self._view_mode_lbl_2d)
+        self._update_view_mode_labels(False)
+        tb.addSeparator()
+
         # Zoom readout
         self._zoom_lbl = QLabel("100%")
         self._zoom_lbl.setFixedWidth(46)
@@ -4980,13 +5227,28 @@ class MainWindow(QMainWindow):
 
         root.addWidget(sidebar)
 
-        # Canvas
+        # Canvas stack: 3D molecule view + 2D "Chemvector" whiteboard view
+        self._view_stack = QStackedWidget()
+
         self._canvas = MoleculeCanvas()
         self._canvas.rotationChanged.connect(self._on_rotation_changed)
         self._canvas.fileDropped.connect(self._load_and_display)
         self._canvas.moleculeChanged.connect(self._on_structure_changed)
         self._canvas.requestHistorySave.connect(self._save_history)
-        root.addWidget(self._canvas, 1)
+        self._view_stack.addWidget(self._canvas)
+
+        self._chem_canvas = ChemCanvas()
+        self._chem_canvas.fileDropped.connect(self._load_and_display)
+        self._chem_canvas.moleculeChanged.connect(self._on_chem_structure_changed)
+        self._chem_canvas.requestHistorySave.connect(self._save_history)
+        self._chem_canvas.viewChanged.connect(self._on_chem_view_changed)
+        self._chem_canvas.zoomChanged.connect(self._on_chem_zoom_changed)
+        self._view_stack.addWidget(self._chem_canvas)
+
+        self._chem_mode = False
+        self._chem_view_dirty = True
+
+        root.addWidget(self._view_stack, 1)
 
     # ── status bar ────────────────────────────────────────────────────────────
 
@@ -5011,6 +5273,7 @@ class MainWindow(QMainWindow):
             '</svg>'
         ).encode("ascii")
         self._canvas.load(QByteArray(svg))
+        self._chem_canvas.load(QByteArray(svg))
 
     # ── drag and drop ─────────────────────────────────────────────────────────
 
@@ -5085,6 +5348,7 @@ class MainWindow(QMainWindow):
             self._current_path = path
             self._update_info_panel(mol)
             self._update_calculations_menu(mol)
+            self._mark_chem_dirty(reset_view=True)
             if not getattr(self, '_restoring_session', False):
                 self.show_notification(f"Loaded {os.path.basename(path)}", "success")
         except Exception as e:
@@ -5356,6 +5620,8 @@ class MainWindow(QMainWindow):
         self._canvas.request_render()
         if self._canvas.molecule:
             self._legend.update_for(self._canvas.molecule, self._color_overrides)
+        self._chem_canvas.color_overrides[elem] = hex_color
+        self._chem_canvas.request_render()
 
     def _on_atom_color_changed(self, atom_idx: int, hex_color: str):
         mol = self._canvas.molecule
@@ -5365,6 +5631,7 @@ class MainWindow(QMainWindow):
         self._canvas._cached_grad_stops.clear()
         self._canvas.request_render()
         self._legend.update_for(mol, self._color_overrides)
+        self._chem_canvas.request_render()
         self._status.showMessage(f"Atom {atom_idx + 1} colour set to {hex_color}.")
 
     def _toggle_theme(self):
@@ -5610,6 +5877,10 @@ class MainWindow(QMainWindow):
         if path:
             self._load_and_display(path)
 
+    def _export_canvas(self):
+        """The canvas whose drawing is exported: the 2D whiteboard while it is showing, else the 3D view."""
+        return self._chem_canvas if self._chem_mode else self._canvas
+
     def _save_svg(self):
         if self._canvas.molecule is None:
             QMessageBox.information(self, "No molecule", "Load or build a molecule first.")
@@ -5621,7 +5892,7 @@ class MainWindow(QMainWindow):
         if not path:
             return
         try:
-            data = self._canvas.get_svg_bytes(export_mode=True)
+            data = self._export_canvas().get_svg_bytes(export_mode=True)
             with open(path, "wb") as f:
                 f.write(data)
             self.show_notification(f"Saved {os.path.basename(path)}", "success")
@@ -5633,12 +5904,12 @@ class MainWindow(QMainWindow):
         if self._canvas.molecule is None:
             QMessageBox.information(self, "No molecule", "Load or build a molecule first.")
             return
-        dlg = QuickExportDialog(self._canvas, self)
+        dlg = QuickExportDialog(self._export_canvas(), self)
         dlg.show()
 
     def _get_quick_svg_path(self) -> str:
         """Write the current canvas view to a temp SVG file for the sidebar drag widget."""
-        svg_data = self._canvas.get_svg_bytes(export_mode=True)
+        svg_data = self._export_canvas().get_svg_bytes(export_mode=True)
         if self._quick_svg_tmp_path and os.path.exists(self._quick_svg_tmp_path):
             try:
                 os.unlink(self._quick_svg_tmp_path)
@@ -5731,7 +6002,7 @@ class MainWindow(QMainWindow):
 
         try:
             # 1. Get SVG data from canvas
-            svg_data = self._canvas.get_svg_bytes(export_mode=True)
+            svg_data = self._export_canvas().get_svg_bytes(export_mode=True)
             renderer = QSvgRenderer(QByteArray(svg_data))
             
             # 2. Determine size (use high res for raster)
@@ -5830,6 +6101,34 @@ class MainWindow(QMainWindow):
     # ── Tool mode actions ────────────────────────────────────────────────────
 
     def _update_status_for_mode(self):
+        if self._chem_mode:
+            if self._chem_canvas.build_mode:
+                self._status.showMessage(
+                    "2D Build — click empty space to add an atom, drag from an atom to bond it, "
+                    "click a bond to cycle its order, right-click to delete."
+                )
+                self._hint.setText("Click  add atom\nDrag  bond atoms\nClick bond  change order\nShift+drag  60° snap")
+            elif self._chem_canvas.selection_mode:
+                self._status.showMessage(
+                    "2D Selection — click an atom to select it, click a bond or inside a ring "
+                    "to select the whole ring (Shift adds to the selection)."
+                )
+                self._hint.setText("Click atom  select\nClick ring  select ring\nShift  add to selection")
+            elif self._chem_canvas.align_mode:
+                self._status.showMessage(
+                    "2D Align — click a bond to make it vertical · Shift+click horizontal · "
+                    "Alt/Option+click 3 atoms, then Align plane, to draw the molecule in their plane"
+                )
+                self._hint.setText("Click bond  align vertically\nShift+click  align horizontally\nAlt+click  mark atoms for plane")
+            elif self._chem_canvas.measure_mode:
+                self._status.showMessage(
+                    "2D Measure — click or drag two atoms for distance · Shift+drag three atoms for angle · Esc to clear"
+                )
+                self._hint.setText("Click/drag  measure distance\nShift+drag  measure angle\nEsc  clear all")
+            else:
+                self._status.showMessage("Chemvector — 2D whiteboard view. Enable Build or Selection Mode to interact here.")
+                self._hint.setText("Drag  pan\nCtrl+drag  rotate\nScroll  zoom\nDouble-click  reset view")
+            return
         if self._canvas.build_mode:
             self._status.showMessage("Build: Left-click add atom · Drag to bond · Click bond change order · Scroll zoom")
             self._hint.setText("Left-click  add atom\nDrag  bond atoms\nClick bond  change order")
@@ -5860,6 +6159,17 @@ class MainWindow(QMainWindow):
             btn.setChecked(False)
             toggle.setChecked(False)
             setattr(self._canvas, attr, False)
+        self._chem_canvas.build_mode = False
+        self._chem_canvas.selection_mode = False
+        self._chem_canvas.paint_mode = False
+        self._chem_canvas.align_mode = False
+        self._chem_canvas.measure_mode = False
+        self._chem_canvas._green_atoms.clear()
+        self._chem_canvas._measure_atoms.clear()
+        self._chem_canvas._angle_atoms.clear()
+        self._chem_canvas._angle_leg1 = None
+        self._chem_canvas._measure_from = None
+        self._chem_canvas.update()
         self._act_paint_btn.setChecked(False)
         self._canvas.paint_mode = False
         self._canvas._measure_atoms.clear()
@@ -5869,37 +6179,107 @@ class MainWindow(QMainWindow):
 
         self._canvas._green_atoms.clear()
 
+    def _deactivate_non_build_modes(self):
+        """Like _deactivate_all_modes, but leaves Build/Selection Mode alone —
+        used when switching between the 3D and 2D views, where those two
+        carry over (applied to whichever canvas is now active) but
+        Align/Measure are reset here (Align is re-applied by the caller)."""
+        for btn, toggle, attr in [
+            (self._act_align_btn,   self._act_align_toggle,   "align_mode"),
+            (self._act_measure_btn, self._act_measure_toggle, "measure_mode"),
+        ]:
+            btn.setChecked(False)
+            toggle.setChecked(False)
+            setattr(self._canvas, attr, False)
+        self._act_paint_btn.setChecked(False)
+        self._canvas.paint_mode = False
+        self._chem_canvas.paint_mode = False
+        self._canvas._measure_atoms.clear()
+        self._canvas._angle_atoms.clear()
+        self._canvas._angle_leg1 = None
+        self._canvas._measure_from = None
+        self._canvas._green_atoms.clear()
+        self._chem_canvas.align_mode = False
+        self._chem_canvas.measure_mode = False
+        self._chem_canvas._green_atoms.clear()
+        self._chem_canvas._measure_atoms.clear()
+        self._chem_canvas._angle_atoms.clear()
+        self._chem_canvas._angle_leg1 = None
+        self._chem_canvas._measure_from = None
+
     def _toggle_selection_mode(self, enabled: bool):
+        """One Selection Mode toggle, shared by the 3D and 2D (Chemvector)
+        views — it applies to whichever canvas is currently on screen. In
+        2D: click an atom to select it, or click a bond/ring interior to
+        select the whole ring."""
         if enabled:
             self._deactivate_all_modes()
         self._act_select_btn.setChecked(enabled)
         self._act_select_toggle.setChecked(enabled)
-        self._canvas.selection_mode = enabled
+        if self._chem_mode:
+            self._canvas.selection_mode = False
+            self._chem_canvas.selection_mode = enabled
+        else:
+            self._chem_canvas.selection_mode = False
+            self._canvas.selection_mode = enabled
+            self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
         self._switch_mode_toolbar("selection" if enabled else None)
         self._update_status_for_mode()
-        self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
 
     def _toggle_build_mode(self, enabled: bool):
+        """One Build Mode toggle, shared by the 3D and 2D (Chemvector) views —
+        it applies to whichever canvas is currently on screen."""
         if enabled:
             self._deactivate_all_modes()
         self._act_build_toggle.setChecked(enabled)
         self._act_build_btn.setChecked(enabled)
-        self._canvas.build_mode = enabled
+        if self._chem_mode:
+            self._canvas.build_mode = False
+            self._chem_canvas.build_mode = enabled
+            self._chem_canvas.build_element = self._elem_combo.currentText() or "C"
+            self._chem_canvas.setCursor(QCursor(
+                Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.OpenHandCursor
+            ))
+        else:
+            self._chem_canvas.build_mode = False
+            self._canvas.build_mode = enabled
+            self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
         self._switch_mode_toolbar("build" if enabled else None)
         self._update_status_for_mode()
-        self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
 
     def _toggle_align_mode(self, enabled: bool):
+        """One Align Mode toggle, shared by the 3D and 2D views — it acts on
+        whichever canvas is on screen (in 2D: in-plane, and the 3D camera
+        follows)."""
         if enabled:
             self._deactivate_all_modes()
         self._act_align_toggle.setChecked(enabled)
         self._act_align_btn.setChecked(enabled)
-        self._canvas.align_mode = enabled
+        if self._chem_mode:
+            self._canvas.align_mode = False
+            self._chem_canvas.align_mode = enabled
+            self._chem_canvas.setCursor(QCursor(
+                Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.OpenHandCursor
+            ))
+        else:
+            self._chem_canvas.align_mode = False
+            self._canvas.align_mode = enabled
+            self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
         self._switch_mode_toolbar("align" if enabled else None)
         self._update_status_for_mode()
-        self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
 
     def _align_plane_to_screen(self):
+        if self._chem_mode:
+            c = self._chem_canvas
+            if len(c._green_atoms) != 3:
+                self.show_notification("Select exactly 3 atoms (Alt/Opt+click in Align mode) to define a plane.", "warning", 0)
+                return
+            if not c.align_plane(sorted(c._green_atoms)):
+                self.show_notification("The 3 selected atoms are collinear; cannot define a plane.", "warning", 0)
+                return
+            c._green_atoms.clear()
+            c.update()
+            return
         green = self._canvas._green_atoms
         if len(green) != 3:
             self.show_notification("Select exactly 3 atoms (Alt/Opt+click in Alignment mode) to define a plane.", "warning", 0)
@@ -5941,51 +6321,84 @@ class MainWindow(QMainWindow):
         self._canvas.update()
 
     def _toggle_paint_mode(self, enabled: bool):
+        """Paint Mode is shared between the 3D and 2D views like Build/Selection
+        Mode — it acts on whichever canvas is currently on screen. If atoms are
+        already selected there, turning it on paints them immediately instead
+        of entering an interactive click-to-paint mode."""
+        canvas = self._chem_canvas if self._chem_mode else self._canvas
         if enabled:
-            sel = self._canvas.selected_atoms
-            if sel:
+            if canvas.selected_atoms:
                 self._paint_selected_with_color()
                 self._act_paint_btn.setChecked(False)
                 return
         self._act_paint_btn.setChecked(enabled)
-        self._canvas.paint_mode = enabled
+        canvas.paint_mode = enabled
+        if self._chem_mode:
+            self._chem_canvas.setCursor(QCursor(
+                Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.OpenHandCursor
+            ))
+        else:
+            self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
         self._update_status_for_mode()
-        self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
 
     def _toggle_measure_mode(self, enabled: bool):
+        """One Measure Mode toggle, shared by the 3D and 2D views — it acts
+        on whichever canvas is on screen. Distances/angles are always the
+        real 3D quantities, whichever view is used to pick the atoms."""
         if enabled:
             self._deactivate_all_modes()
         self._act_measure_toggle.setChecked(enabled)
         self._act_measure_btn.setChecked(enabled)
-        self._canvas.measure_mode = enabled
+        canvas = self._chem_canvas if self._chem_mode else self._canvas
+        other = self._canvas if self._chem_mode else self._chem_canvas
+        canvas.measure_mode = enabled
+        other.measure_mode = False
         self._switch_mode_toolbar("measure" if enabled else None)
         if not enabled:
-            self._canvas._measure_atoms.clear()
-            self._canvas._measure_from = None
-            self._canvas._mouse_pos = None
-            self._canvas._angle_atoms.clear()
-            self._canvas._angle_leg1 = None
-    
-            self._canvas.update()
+            for c in (self._canvas, self._chem_canvas):
+                c._measure_atoms.clear()
+                c._measure_from = None
+                c._mouse_pos = None
+                c._angle_atoms.clear()
+                c._angle_leg1 = None
+                c.update()
         self._update_status_for_mode()
-        self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
+        if self._chem_mode:
+            self._chem_canvas.setCursor(QCursor(
+                Qt.CursorShape.CrossCursor if enabled else Qt.CursorShape.OpenHandCursor
+            ))
+        else:
+            self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
 
     def _clear_measurements(self):
-        self._canvas._measure_atoms.clear()
-        self._canvas._measure_from = None
-        self._canvas._mouse_pos = None
-        self._canvas._angle_atoms.clear()
-        self._canvas._angle_leg1 = None
-
-        self._canvas.update()
+        for c in (self._canvas, self._chem_canvas):
+            c._measure_atoms.clear()
+            c._measure_from = None
+            c._mouse_pos = None
+            c._angle_atoms.clear()
+            c._angle_leg1 = None
+            c.update()
 
     def _on_paint_color_changed(self, hex_color: str):
-        if hasattr(self._canvas, '_paint_color'):
-            self._canvas._paint_color = hex_color
+        self._canvas._paint_color = hex_color
+        self._chem_canvas._paint_color = hex_color
 
     def _paint_selected_with_color(self):
         mol = self._canvas.molecule
         if mol is None:
+            return
+        if self._chem_mode:
+            # 2D's own paint layer — separate from Atom.color, so this never
+            # touches (or is touched by) the 3D view's paint.
+            sel = self._chem_canvas.selected_atoms
+            if not sel:
+                return
+            hex_col = self._chem_canvas._paint_color
+            for idx in sel:
+                self._chem_canvas.atom_paint[idx] = hex_col
+            self._chem_canvas.selected_atoms.clear()
+            self._chem_canvas.request_render()
+            self._status.showMessage(f"Painted {len(sel)} atom(s) with {hex_col} (2D only).")
             return
         sel = self._canvas.selected_atoms
         if not sel:
@@ -6009,6 +6422,7 @@ class MainWindow(QMainWindow):
                 self._elem_combo.setCurrentText(prev)
             return
         self._canvas.build_element = elem
+        self._chem_canvas.build_element = elem
 
     def _on_pick_from_periodic_table(self, sym: str):
         idx = self._elem_combo.findText(sym)
@@ -6046,6 +6460,7 @@ class MainWindow(QMainWindow):
             self._canvas.molecule = Molecule("New Molecule", atoms=[])
             self._canvas.request_render()
             self._update_info_panel(self._canvas.molecule)
+            self._mark_chem_dirty()
 
     def _clean_molecule(self):
         if not self._canvas.molecule or not self._canvas.molecule.atoms:
@@ -6089,12 +6504,150 @@ class MainWindow(QMainWindow):
             return
         self._canvas.request_render()
         self._update_info_panel(self._canvas.molecule)
+        self._mark_chem_dirty()
         self.show_notification(f"Molecule cleaned ({steps_taken} iterations).", "success")
 
     def _on_structure_changed(self):
         # UI updates only; history should be saved BEFORE the change occurs
         # to capture the 'before' state correctly.
         self._update_info_panel(self._canvas.molecule)
+        self._mark_chem_dirty()
+
+    # ── Chemvector (2D whiteboard) view ─────────────────────────────────────
+
+    def _mark_chem_dirty(self, reset_view: bool = False):
+        """Flag that the 2D depiction is stale; it is regenerated lazily on next view / switch.
+
+        While the 2D view is showing, an edit (clear, undo/redo, clean, ...)
+        keeps its zoom/pan; only *reset_view* (a different molecule was
+        opened) refits it.
+        """
+        self._chem_view_dirty = True
+        if self._chem_mode:
+            self._sync_chem_view(keep_view=not reset_view)
+
+    def _sync_chem_view(self, force: bool = False, keep_view: bool = False):
+        """Push the current 3D molecule + appearance into the Chemvector canvas."""
+        self._chem_canvas.background = self._canvas.background
+        self._chem_canvas.color_overrides = dict(self._color_overrides)
+        # Same scale (px per Angstrom) as the 3D view, so bonds match in length.
+        self._chem_canvas.base_scale = self._canvas.base_scale
+        if not force and not self._chem_view_dirty:
+            # Structure unchanged — just turn the existing 2D layout to match
+            # wherever the 3D view has been rotated to.
+            self._chem_canvas.align_to_view(self._canvas._rot)
+            return
+        self._chem_canvas.load_molecule(
+            self._canvas.molecule, keep_view=keep_view, view_rot=self._canvas._rot)
+        self._chem_view_dirty = False
+
+    def _on_chem_view_changed(self, rot):
+        """The 2D view was turned (rotate / align) — give the 3D camera the same orientation."""
+        self._canvas._rot = np.array(rot, dtype=float)
+        self._canvas.request_render()
+
+    def _update_view_mode_labels(self, chem_mode: bool):
+        """Bold/brighten whichever of the "3D"/"2D" toolbar labels matches the active view."""
+        active_style = "font-weight: bold;"
+        dim_style = "color: palette(mid);"
+        self._view_mode_lbl_3d.setStyleSheet(dim_style if chem_mode else active_style)
+        self._view_mode_lbl_2d.setStyleSheet(active_style if chem_mode else dim_style)
+
+    def _toggle_chem_mode(self, enabled: bool):
+        self._chem_mode = enabled
+        self._act_chem_mode.setChecked(enabled)
+        self._view_mode_toggle.setChecked(enabled)
+        self._update_view_mode_labels(enabled)
+
+        build_was_active = self._act_build_toggle.isChecked()
+        select_was_active = self._act_select_toggle.isChecked()
+        align_was_active = self._act_align_toggle.isChecked()
+        measure_was_active = self._act_measure_toggle.isChecked()
+        self._deactivate_non_build_modes()
+
+        if enabled:
+            shared_zoom = self._canvas._zoom
+            self._sync_chem_view()  # a refit inside may reset zoom; the shared zoom wins
+            self._on_chem_zoom_changed(shared_zoom)
+            self._chem_canvas._zoom = shared_zoom
+            self._chem_canvas._pan = self._canvas._pan.copy()   # same framing as the 3D view
+            # Draw it now, before it is shown — a deferred render would flash
+            # the picture from before the shared zoom/orientation changed.
+            self._view_stack.setCurrentWidget(self._chem_canvas)
+            self._chem_canvas.resize(self._view_stack.size())   # render at the size it will be shown at
+            self._chem_canvas._render_timer.stop()
+            self._chem_canvas._do_render()
+            self._hint.setText("Drag  pan\nCtrl+drag  rotate\nScroll  zoom\nDouble-click  reset view")
+            self._status.showMessage("Chemvector — 2D whiteboard view. Enable Build Mode to sketch here.")
+            if not HAS_RDKIT and not getattr(self, '_rdkit_hint_shown', False):
+                self._rdkit_hint_shown = True
+                self.show_notification(
+                    "Chem view is using a simplified layout — install RDKit "
+                    "(pip install rdkit) for proper 2D depictions and stereo wedges.",
+                    "info", 7000,
+                )
+        else:
+            # Zoom (and rotation) may have been changed from the 2D view while
+            # this one was hidden — draw it with the current shared state.
+            self._canvas._pan = self._chem_canvas._pan.copy()
+            self._view_stack.setCurrentWidget(self._canvas)
+            self._canvas.resize(self._view_stack.size())
+            self._canvas._render_timer.stop()
+            self._canvas._do_render()
+            self._hint.setText("Drag  rotate\nRight-drag  pan\nShift+drag  rotate ard. bond\nScroll  zoom")
+            self._update_status_for_mode()
+
+        if build_was_active:
+            # Build/Selection Mode are shared between the two views — carry
+            # whichever was active over onto the now-active canvas instead
+            # of dropping it.
+            self._toggle_build_mode(True)
+        elif select_was_active:
+            self._toggle_selection_mode(True)
+        elif align_was_active:
+            self._toggle_align_mode(True)
+        elif measure_was_active:
+            self._toggle_measure_mode(True)
+
+    def _reset_chem_view(self):
+        self._chem_canvas.reset_view()
+
+    def _toggle_chem_carbon_labels(self, enabled: bool):
+        self._chem_canvas.show_carbon_labels = enabled
+        self._chem_canvas.request_render()
+
+    def _toggle_chem_hydrogens(self, enabled: bool):
+        self._chem_canvas.show_hydrogens = enabled
+        self._chem_canvas.request_render()
+
+    def _check_chem_aromaticity(self):
+        """2D Viewer only: perceive aromaticity from the molecule's current
+        explicit (Kekulé) bond orders and show those rings as a circle in the
+        2D view. This is a purely 2D-local overlay (ChemCanvas.aromatic_bonds)
+        — it never writes to bond.order, so the shared Molecule and the 3D
+        view are completely untouched."""
+        mol = self._canvas.molecule
+        if mol is None or not mol.atoms:
+            self.show_notification("Load or build a molecule first.", "warning")
+            return
+        aromatic_bond_idxs = check_aromaticity(mol)
+        new_bonds = aromatic_bond_idxs - self._chem_canvas.aromatic_bonds
+        if not aromatic_bond_idxs:
+            self._status.showMessage("Check Aromaticity — no aromatic rings found.")
+            return
+        self._chem_canvas.aromatic_bonds |= aromatic_bond_idxs
+        self._chem_canvas.request_render()
+        if not new_bonds:
+            self._status.showMessage("Check Aromaticity — no new aromatic rings found.")
+        else:
+            self._status.showMessage(
+                f"Check Aromaticity — marked {len(aromatic_bond_idxs)} bond(s) aromatic (2D view only)."
+            )
+
+    def _on_chem_structure_changed(self):
+        """A 2D build-mode edit mutated the shared Molecule directly — refresh both views."""
+        self._update_info_panel(self._canvas.molecule)
+        self._canvas.request_render()
 
     def _save_history(self):
         import copy
@@ -6122,6 +6675,7 @@ class MainWindow(QMainWindow):
         self._canvas.molecule = prev
         self._canvas.request_render()
         self._update_info_panel(self._canvas.molecule)
+        self._mark_chem_dirty()
         self._status.showMessage("Undo successful.")
 
     def _redo(self):
@@ -6141,6 +6695,7 @@ class MainWindow(QMainWindow):
         self._canvas.molecule = next_state
         self._canvas.request_render()
         self._update_info_panel(self._canvas.molecule)
+        self._mark_chem_dirty()
         self._status.showMessage("Redo successful.")
 
     def _edit_ff_settings(self):
@@ -6190,12 +6745,18 @@ class MainWindow(QMainWindow):
         g = cfg.get("general", {})
         o = cfg.get("overlay", {})
         a = cfg.get("atoms_bonds", {})
+        c2 = cfg.get("chem2d", {})
+        if c2:
+            self._chem_canvas.label_color_mode = c2.get("label_colors", "cpk")
+            self._chem_canvas.layout_mode = c2.get("layout", "match3d")
+            self._chem_canvas.request_render()
         if g:
             theme = g.get("theme", "light")
             if theme != self._current_theme:
                 self._apply_theme(theme)
             self._canvas.background = o.get("bg_color", g.get("bg_color", self._canvas.background))
             self._restore_on_startup = g.get("restore_molecule", False)
+            self._start_view_pref = g.get("start_view", "3D")
             self._canvas._fast_render = g.get("fast_render", False)
             self._show_debug_menu = g.get("show_debug_menu", False)
             self._quick_svg_widget_enabled = g.get("quick_svg_export_widget", False)
@@ -6287,6 +6848,7 @@ class MainWindow(QMainWindow):
         restore = cfg.get("general", {}).get("restore_molecule", False)
         show_debug = cfg.get("general", {}).get("show_debug_menu", False)
         quick_svg_widget = getattr(self, "_quick_svg_widget_enabled", False)
+        start_view_pref = getattr(self, "_start_view_pref", "3D")
         orig = (self._current_theme, self._canvas.background,
                 self._canvas.atom_scale, self._canvas.bond_width_px,
                 self._canvas.bond_style, dict(self._color_overrides),
@@ -6296,7 +6858,8 @@ class MainWindow(QMainWindow):
                 self._canvas.roughness,
                 self._canvas.show_axes, self._canvas.show_principal_axes,
                 self._canvas.axes_position, self._canvas.principal_axes_position,
-                restore, self._canvas._fast_render, show_debug, quick_svg_widget)
+                restore, self._canvas._fast_render, show_debug, quick_svg_widget,
+                start_view_pref)
 
         def _live_update(theme, bg, ball, bw, style, colors, border_mode, border_scale,
                          border_width, bcol, lighting, pos, rough,
@@ -6324,6 +6887,14 @@ class MainWindow(QMainWindow):
                 self._legend.update_for(self._canvas.molecule, colors)
             self._canvas.request_render()
 
+        orig_chem_labels = self._chem_canvas.label_color_mode
+        orig_chem_layout = self._chem_canvas.layout_mode
+
+        def _chem_live_update(labels, layout):
+            self._chem_canvas.label_color_mode = labels
+            self._chem_canvas.set_layout_mode(layout)
+            self._chem_canvas.request_render()
+
         _, saved_alt = self._load_shortcut_overrides()
         alt_defaults = dict(self.ALT_SHORTCUT_DEFAULTS)
         alt_defaults.update(saved_alt)
@@ -6344,6 +6915,9 @@ class MainWindow(QMainWindow):
             alt_shortcut_defaults=alt_defaults,
             live_callback=_live_update, parent=self,
             show_dipole_arrow=self._canvas.show_dipole_arrow,
+            start_view=orig[21],
+            chem_label_colors=orig_chem_labels, chem_layout=orig_chem_layout,
+            chem_callback=_chem_live_update,
         )
         dlg.tabs.setCurrentIndex(tab_index)
         if dlg.exec() == QDialog.DialogCode.Accepted:
@@ -6370,6 +6944,10 @@ class MainWindow(QMainWindow):
             self._canvas._fast_render = dlg.fast_render
             self._show_debug_menu = dlg.show_debug_menu
             self._quick_svg_widget_enabled = dlg.quick_svg_export_widget
+            self._start_view_pref = dlg.start_view
+            self._chem_canvas.label_color_mode = dlg.chem_label_colors
+            self._chem_canvas.set_layout_mode(dlg.chem_layout)
+            self._chem_canvas.request_render()
             self._update_quick_svg_widget()
             self._update_debug_menu()
             if self._canvas.molecule:
@@ -6394,7 +6972,10 @@ class MainWindow(QMainWindow):
              self._canvas.axes_position,
              self._canvas.principal_axes_position,
              _, self._canvas._fast_render, self._show_debug_menu,
-             self._quick_svg_widget_enabled) = orig
+             self._quick_svg_widget_enabled, self._start_view_pref) = orig
+            self._chem_canvas.label_color_mode = orig_chem_labels
+            self._chem_canvas.set_layout_mode(orig_chem_layout)
+            self._chem_canvas.request_render()
             self._update_quick_svg_widget()
             self._update_debug_menu()
             self._canvas.color_overrides = self._color_overrides
@@ -6493,7 +7074,8 @@ class MainWindow(QMainWindow):
         if mol is None:
             QMessageBox.information(self, "No molecule", "Load or build a molecule first.")
             return
-        sel = self._canvas.selected_atoms
+        canvas = self._chem_canvas if self._chem_mode else self._canvas
+        sel = canvas.selected_atoms
         if not sel:
             QMessageBox.information(self, "No selection", "Select atoms first, then use Paint.")
             return
@@ -6501,9 +7083,17 @@ class MainWindow(QMainWindow):
         if not col.isValid():
             return
         hex_col = col.name()
+        if self._chem_mode:
+            # 2D's own paint layer — separate from Atom.color.
+            for idx in sel:
+                self._chem_canvas.atom_paint[idx] = hex_col
+            canvas.selected_atoms.clear()
+            self._chem_canvas.request_render()
+            self._status.showMessage(f"Painted {len(sel)} atom(s) with {hex_col} (2D only).")
+            return
         for idx in sel:
             mol.atoms[idx].color = hex_col
-        self._canvas.selected_atoms.clear()
+        canvas.selected_atoms.clear()
         self._canvas.color_overrides = {}
         self._color_overrides = {}
         self._legend.update_for(mol, {})
@@ -6514,6 +7104,15 @@ class MainWindow(QMainWindow):
         mol = self._canvas.molecule
         if mol is None:
             QMessageBox.information(self, "No molecule", "Load or build a molecule first.")
+            return
+        if self._chem_mode:
+            n = len(self._chem_canvas.atom_paint)
+            if n == 0:
+                self._status.showMessage("No painted atoms to clear.")
+                return
+            self._chem_canvas.atom_paint.clear()
+            self._chem_canvas.request_render()
+            self._status.showMessage(f"Cleared paint on {n} atom(s) (2D only).")
             return
         n = sum(1 for a in mol.atoms if a.color is not None)
         if n == 0:
@@ -6568,6 +7167,7 @@ class MainWindow(QMainWindow):
                 act_test_notif = QAction("Send Test Notifications", self)
                 act_test_notif.triggered.connect(self._send_test_notification)
                 self._debug_menu.addAction(act_test_notif)
+                self._debug_menu.addAction(self._act_open_test_folder)
         else:
             if hasattr(self, '_debug_menu') and self._debug_menu is not None:
                 mb.removeAction(self._debug_menu.menuAction())
@@ -6608,16 +7208,37 @@ class MainWindow(QMainWindow):
         return super().eventFilter(obj, event)
 
     def _on_zoom_change(self, value):
-        self._canvas._zoom = value / 100.0
+        # One zoom for both views: the slider drives the 3D and 2D canvases alike.
+        z = value / 100.0
+        self._canvas._zoom = z
+        self._chem_canvas._zoom = z
         self._zoom_lbl.setText(f"{value}%")
-        self._canvas.request_render(delay_ms=0)
+        self._canvas.note_zoom_activity()
+        (self._chem_canvas if self._chem_mode else self._canvas).request_render(delay_ms=0)
+
+    def _on_chem_zoom_changed(self, zoom: float):
+        """The 2D view was zoomed — mirror it onto the 3D camera and the slider."""
+        self._canvas._zoom = zoom
+        self._canvas.note_zoom_activity()
+        if not self._chem_mode:
+            self._canvas.request_render(delay_ms=0)
+        pct = int(round(zoom * 100))
+        self._zoom_lbl.setText(f"{pct}%")
+        self._zoom_slider.blockSignals(True)
+        self._zoom_slider.setValue(pct)
+        self._zoom_slider.blockSignals(False)
 
     def _reset_view(self):
+        if self._chem_mode:
+            self._chem_canvas.reset_view()
+            self._on_chem_zoom_changed(self._chem_canvas._zoom)
+            return
         self._canvas.reset_view()
         self._zoom_slider.setValue(100)
         self._zoom_lbl.setText("100%")
 
     def _on_rotation_changed(self):
+        self._chem_canvas._zoom = self._canvas._zoom  # linked zoom
         pct = int(self._canvas._zoom * 100)
         self._zoom_lbl.setText(f"{pct}%")
         self._zoom_slider.blockSignals(True)

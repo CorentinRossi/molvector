@@ -21,6 +21,7 @@ dependencies = [
 [project.optional-dependencies]
 spectra = ["matplotlib"]
 openbabel = ["openbabel-wheel"]
+chemvector = ["rdkit"]
 
 [project.urls]
 Homepage = "https://github.com/CorentinRossi/Molvector"
