@@ -60,7 +60,7 @@ from PyQt6.QtCore import (
     Qt, QByteArray, QPoint, QPointF, pyqtSignal, pyqtProperty, QTimer, QSize, QRect, QRectF,
     QUrl, QMimeData, QEvent, QProcess, QProcessEnvironment, QPropertyAnimation, QEasingCurve,
 )
-from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen
+from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen, QLinearGradient, QBrush
 from PyQt6.QtGui import QDrag
 
 try:
@@ -81,7 +81,8 @@ from molvector.render import (
     save_xyz, save_gaussian_input, save_pdb, save_mol, project_molecule,
     Atom, Bond,
     optimize_geometry, HAS_OPENBABEL, _HAS_OPENBABEL_PKG, _OB_DATA_DIR, _suppress_ob_stderr, calculate_rotational_constants, calculate_dipole_moment, generate_inchi, check_valence_issues,
-    center_positions, ATOMIC_MASSES,
+    center_positions, ATOMIC_MASSES, mulliken_gradient_color,
+    MULLIKEN_NEGATIVE_COLOR, MULLIKEN_ZERO_COLOR, MULLIKEN_POSITIVE_COLOR,
 )
 from molvector.chemvector import ChemCanvas, HAS_RDKIT, check_aromaticity
 
@@ -1533,6 +1534,119 @@ class SpectrumDialog(QDialog):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# MULLIKEN GRADIENT BAR (non-interactive preview)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class _MullikenGradientBar(QWidget):
+    """A preview of the negative/zero/positive gradient with the three
+    colour-pick swatches positioned directly under their actual stop on the
+    bar (left end, right end, and wherever the centre currently falls) so
+    the picker for a stop's colour lines up with where it sits visually."""
+    colorPickRequested = pyqtSignal(str)  # "neg" | "zero" | "pos"
+
+    TICK_H = 6
+    BAR_H = 14
+    GAP = 4
+    SWATCH = 18
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedHeight(self.TICK_H + self.BAR_H + self.GAP + self.SWATCH)
+        self.setMinimumWidth(140)
+        self._neg = MULLIKEN_NEGATIVE_COLOR
+        self._zero = MULLIKEN_ZERO_COLOR
+        self._pos = MULLIKEN_POSITIVE_COLOR
+        self._zero_frac = 0.5
+
+        self._neg_btn = self._make_swatch("neg", "Colour for the most negative charge")
+        self._zero_btn = self._make_swatch("zero", "Colour at the centre value")
+        self._pos_btn = self._make_swatch("pos", "Colour for the most positive charge")
+        self._restyle_swatches()
+
+    def _make_swatch(self, key: str, tooltip: str) -> QPushButton:
+        btn = QPushButton(self)
+        btn.setFixedSize(self.SWATCH, self.SWATCH)
+        btn.setAutoDefault(False)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setToolTip(tooltip)
+        btn.clicked.connect(lambda: self.colorPickRequested.emit(key))
+        return btn
+
+    def set_colors(self, neg: str, zero: str, pos: str, zero_frac: float):
+        self._neg, self._zero, self._pos = neg, zero, pos
+        self._zero_frac = max(0.0, min(1.0, zero_frac))
+        self._restyle_swatches()
+        self._position_swatches()
+        self.update()
+
+    def _restyle_swatches(self):
+        for btn, color in (
+            (self._neg_btn, self._neg), (self._zero_btn, self._zero), (self._pos_btn, self._pos),
+        ):
+            btn.setStyleSheet(f"background:{color}; border-radius:3px; border:1.5px solid #eeeeee;")
+
+    def _bar_rect(self) -> QRect:
+        # Inset by half a swatch on each side so the neg/pos swatches can be
+        # centred exactly on the bar's own left/right edge and still fit
+        # fully inside the widget — no clamping needed, so no misalignment.
+        half = self.SWATCH // 2
+        return QRect(half, self.TICK_H, max(1, self.width() - 2 * half), self.BAR_H)
+
+    SPACING = 2  # minimum gap kept between adjacent swatches
+
+    def _position_swatches(self):
+        bar = self._bar_rect()
+        y = bar.bottom() + self.GAP
+        half = self.SWATCH // 2
+        max_x = self.width() - self.SWATCH
+
+        def clamp_x(x):
+            return max(0, min(max_x, x))
+
+        neg_x = bar.left() - half
+        pos_x = bar.right() - half
+        zero_x = clamp_x(int(bar.left() + self._zero_frac * bar.width()) - half)
+
+        # The middle swatch tracks a data-driven position and can land right
+        # next to (or past) an end swatch when the centre sits near range_min
+        # or range_max — push it back inside the gap between the two ends
+        # so the three never overlap.
+        lo = neg_x + self.SWATCH + self.SPACING
+        hi = pos_x - self.SWATCH - self.SPACING
+        if lo <= hi:
+            zero_x = max(lo, min(hi, zero_x))
+
+        self._neg_btn.move(neg_x, y)
+        self._pos_btn.move(pos_x, y)
+        self._zero_btn.move(zero_x, y)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._position_swatches()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        bar = self._bar_rect()
+
+        grad = QLinearGradient(bar.left(), 0, bar.right(), 0)
+        grad.setColorAt(0.0, QColor(self._neg))
+        grad.setColorAt(self._zero_frac, QColor(self._zero))
+        grad.setColorAt(1.0, QColor(self._pos))
+        painter.setBrush(QBrush(grad))
+        painter.setPen(QPen(QColor("#666666"), 1))
+        painter.drawRoundedRect(bar, 3, 3)
+
+        for frac in (0.0, self._zero_frac, 1.0):
+            x = bar.left() + frac * bar.width()
+            x = min(max(x, bar.left() + 1), bar.right() - 1)
+            width = 2.5 if 0.0 < frac < 1.0 else 1.5
+            painter.setPen(QPen(QColor("#ffffff"), width))
+            painter.drawLine(int(x), bar.top() - self.TICK_H, int(x), bar.top())
+        painter.end()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # CALCULATIONS DIALOG
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -1542,6 +1656,8 @@ class CalculationsDialog(QDialog):
     viewSpectrum = pyqtSignal(str)     # "ir" or "uvvis"
     animationToggled = pyqtSignal(bool)
     vectorsToggled = pyqtSignal(bool)
+    colorByCharge = pyqtSignal(float, float, float, str, str, str, bool, bool)  # (range_min, range_max, center, neg_color, zero_color, pos_color, show_legend, include_in_export)
+    clearAtomColors = pyqtSignal()
 
     def __init__(self, mol: Molecule, parent=None):
         super().__init__(parent)
@@ -1602,6 +1718,9 @@ class CalculationsDialog(QDialog):
         if mol.excited_states:
             n = len(mol.excited_states)
             form.addRow("Excited States:", sel_label(str(n)))
+        if mol.mulliken_charges:
+            n = len(mol.mulliken_charges)
+            form.addRow("Mulliken Charges:", sel_label(f"{n} atom(s)"))
 
         if form.rowCount() > 0:
             gpl.addLayout(form)
@@ -1629,6 +1748,7 @@ class CalculationsDialog(QDialog):
             fpl.addWidget(self._freq_table)
             
             btn_ir = QPushButton("View IR Spectrum…")
+            btn_ir.setAutoDefault(False)
             btn_ir.clicked.connect(lambda: self.viewSpectrum.emit("ir"))
             fpl.addWidget(btn_ir)
             
@@ -1646,6 +1766,7 @@ class CalculationsDialog(QDialog):
             fpl.addWidget(self._vector_check)
 
             btn_export_freq = QPushButton("Export Data (.txt)")
+            btn_export_freq.setAutoDefault(False)
             btn_export_freq.clicked.connect(lambda: self._export_table(self._freq_table, "frequencies"))
             fpl.addWidget(btn_export_freq)
             
@@ -1673,18 +1794,157 @@ class CalculationsDialog(QDialog):
             tpl.addWidget(self._state_table)
             
             btn_uv = QPushButton("View UV-Vis Spectrum…")
+            btn_uv.setAutoDefault(False)
             btn_uv.clicked.connect(lambda: self.viewSpectrum.emit("uvvis"))
             tpl.addWidget(btn_uv)
 
             btn_export_state = QPushButton("Export Data (.txt)")
+            btn_export_state.setAutoDefault(False)
             btn_export_state.clicked.connect(lambda: self._export_table(self._state_table, "excited_states"))
             tpl.addWidget(btn_export_state)
             
             self.tabs.addTab(td_page, "Excited States (TDDFT)")
 
+        # ── Mulliken Charges Tab ──
+        if mol.mulliken_charges:
+            charges = mol.mulliken_charges
+            mull_page = QWidget()
+            mpl = QVBoxLayout(mull_page)
+
+            self._mulliken_table = QTableWidget(len(charges), 3)
+            self._mulliken_table.setHorizontalHeaderLabels(["Atom #", "Element", "Charge (e)"])
+            self._mulliken_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+            self._mulliken_table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+            self._mulliken_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+            self._mulliken_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+
+            for i, q in enumerate(charges):
+                elem = mol.atoms[i].element if i < len(mol.atoms) else ""
+                self._mulliken_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
+                self._mulliken_table.setItem(i, 1, QTableWidgetItem(elem))
+                self._mulliken_table.setItem(i, 2, QTableWidgetItem(f"{q:.6f}"))
+
+            mpl.addWidget(self._mulliken_table)
+
+            btn_export_mull = QPushButton("Export Data (.txt)")
+            btn_export_mull.setAutoDefault(False)
+            btn_export_mull.clicked.connect(lambda: self._export_table(self._mulliken_table, "mulliken_charges"))
+            mpl.addWidget(btn_export_mull)
+
+            color_box = QGroupBox("Color Atoms by Charge")
+            cbl = QFormLayout(color_box)
+
+            # Red/green default to the actual min/max partial charges. The
+            # neutral ("0") colour sits at the mean charge by default, not
+            # literal zero, but it's freely editable to any value by typing.
+            init_center = sum(charges) / len(charges)
+            data_min = min(charges)
+            data_max = max(charges)
+
+            self._mulliken_colors = {
+                "neg": MULLIKEN_NEGATIVE_COLOR,
+                "zero": MULLIKEN_ZERO_COLOR,
+                "pos": MULLIKEN_POSITIVE_COLOR,
+            }
+
+            self._mulliken_min = QDoubleSpinBox()
+            self._mulliken_min.setDecimals(4)
+            self._mulliken_min.setRange(-1000.0, 1000.0)
+            self._mulliken_min.setSingleStep(0.01)
+            self._mulliken_min.setValue(data_min)
+            cbl.addRow("Range Min (red):", self._mulliken_min)
+
+            self._mulliken_max = QDoubleSpinBox()
+            self._mulliken_max.setDecimals(4)
+            self._mulliken_max.setRange(-1000.0, 1000.0)
+            self._mulliken_max.setSingleStep(0.01)
+            self._mulliken_max.setValue(data_max)
+            cbl.addRow("Range Max (green):", self._mulliken_max)
+
+            self._mulliken_center_spin = QDoubleSpinBox()
+            self._mulliken_center_spin.setDecimals(4)
+            self._mulliken_center_spin.setRange(-1000.0, 1000.0)
+            self._mulliken_center_spin.setSingleStep(0.01)
+            self._mulliken_center_spin.setValue(init_center)
+            cbl.addRow("Center (black, mean by default):", self._mulliken_center_spin)
+
+            self._mulliken_bar = _MullikenGradientBar()
+            self._mulliken_bar.colorPickRequested.connect(self._pick_mulliken_color)
+            cbl.addRow("Gradient:", self._mulliken_bar)
+
+            self._mulliken_debounce = QTimer(self)
+            self._mulliken_debounce.setSingleShot(True)
+            self._mulliken_debounce.timeout.connect(self._emit_color_by_charge)
+            self._mulliken_min.valueChanged.connect(self._on_mulliken_range_changed)
+            self._mulliken_max.valueChanged.connect(self._on_mulliken_range_changed)
+            self._mulliken_center_spin.valueChanged.connect(self._on_mulliken_range_changed)
+            self._update_mulliken_bar()
+
+            self._mulliken_legend_check = QCheckBox("Show gradient legend on canvas")
+            self._mulliken_legend_check.toggled.connect(lambda _: self._emit_color_by_charge())
+            cbl.addRow(self._mulliken_legend_check)
+
+            self._mulliken_export_check = QCheckBox("Include gradient in exports")
+            self._mulliken_export_check.setEnabled(False)
+            self._mulliken_legend_check.toggled.connect(self._mulliken_export_check.setEnabled)
+            self._mulliken_export_check.toggled.connect(lambda _: self._emit_color_by_charge())
+            cbl.addRow(self._mulliken_export_check)
+
+            btn_row = QHBoxLayout()
+            btn_apply_color = QPushButton("Apply Colors")
+            btn_apply_color.setAutoDefault(False)
+            btn_apply_color.clicked.connect(self._emit_color_by_charge)
+            btn_row.addWidget(btn_apply_color)
+            btn_clear_color = QPushButton("Clear Colors")
+            btn_clear_color.setAutoDefault(False)
+            btn_clear_color.clicked.connect(self._clear_mulliken_colors)
+            btn_row.addWidget(btn_clear_color)
+            cbl.addRow(btn_row)
+
+            mpl.addWidget(color_box)
+
+            self.tabs.addTab(mull_page, "Mulliken Charges")
+
         close_btn = QPushButton("Close")
+        close_btn.setAutoDefault(False)
         close_btn.clicked.connect(self.accept)
         layout.addWidget(close_btn)
+
+    def _pick_mulliken_color(self, key: str):
+        dlg = QColorDialog(QColor(self._mulliken_colors[key]), self)
+        dlg.setWindowTitle("Pick Colour")
+        if dlg.exec():
+            self._mulliken_colors[key] = dlg.selectedColor().name()
+            self._update_mulliken_bar()
+            self._emit_color_by_charge()
+
+    def _on_mulliken_range_changed(self, _value):
+        self._update_mulliken_bar()
+        self._mulliken_debounce.start(150)
+
+    def _update_mulliken_bar(self):
+        lo, hi = self._mulliken_min.value(), self._mulliken_max.value()
+        center = self._mulliken_center_spin.value()
+        span = (hi - lo) or 1e-9
+        zero_frac = max(0.0, min(1.0, (center - lo) / span))
+        self._mulliken_bar.set_colors(
+            self._mulliken_colors["neg"], self._mulliken_colors["zero"], self._mulliken_colors["pos"],
+            zero_frac,
+        )
+
+    def _emit_color_by_charge(self):
+        show_legend = self._mulliken_legend_check.isChecked()
+        self.colorByCharge.emit(
+            self._mulliken_min.value(), self._mulliken_max.value(), self._mulliken_center_spin.value(),
+            self._mulliken_colors["neg"], self._mulliken_colors["zero"], self._mulliken_colors["pos"],
+            show_legend,
+            show_legend and self._mulliken_export_check.isChecked(),
+        )
+
+    def _clear_mulliken_colors(self):
+        self._mulliken_legend_check.setChecked(False)
+        self._mulliken_export_check.setChecked(False)
+        self.clearAtomColors.emit()
 
     def _on_freq_sel(self, table):
         rows = table.selectedItems()
@@ -2366,11 +2626,27 @@ class LegendPanel(QGroupBox):
     elementColorChanged = pyqtSignal(str, str)  # (element_symbol, hex_color)
     atomColorChanged = pyqtSignal(int, str)     # (atom_index, hex_color)
 
+    MAX_VISIBLE_ROWS = 10
+
     def __init__(self, parent=None):
         super().__init__("Elements", parent)
-        self._layout = QVBoxLayout(self)
+        self.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(10,14,10,10)
+        outer.setSpacing(0)
+
+        self._scroll = QScrollArea()
+        self._scroll.setWidgetResizable(True)
+        self._scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self._scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        outer.addWidget(self._scroll)
+
+        rows_widget = QWidget()
+        self._layout = QVBoxLayout(rows_widget)
         self._layout.setSpacing(4)
-        self._layout.setContentsMargins(10,14,10,10)
+        self._layout.setContentsMargins(0,0,0,0)
+        self._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        self._scroll.setWidget(rows_widget)
 
         self._rows: list = []
         self._custom_atom_map: Dict[str, int] = {}
@@ -2406,6 +2682,26 @@ class LegendPanel(QGroupBox):
             self._custom_atom_map[label] = idx
             self._add_row(label, atom.color, label, clickable=True, custom=True)
 
+        self._update_scroll_height()
+
+    def _update_scroll_height(self):
+        n = len(self._rows)
+        if n == 0:
+            self._scroll.setMinimumHeight(0)
+            self._scroll.setMaximumHeight(0)
+        else:
+            row_h = self._rows[0].sizeHint().height()
+            spacing = self._layout.spacing()
+            visible_rows = min(n, self.MAX_VISIBLE_ROWS)
+            visible_h = visible_rows * row_h + (visible_rows - 1) * spacing
+            self._scroll.setMinimumHeight(visible_h)
+            self._scroll.setMaximumHeight(visible_h)
+        # Pin the group box itself to its content height immediately —
+        # sizeHint() recomputes synchronously, unlike the geometry the
+        # parent layout applies (which can lag a cycle behind after
+        # several back-to-back updates).
+        self.setFixedHeight(self.sizeHint().height())
+
     def _add_row(self, key: str, color: str, label: str, clickable: bool = True, custom: bool = False):
         row = QWidget()
         rl  = QHBoxLayout(row)
@@ -2440,8 +2736,6 @@ class LegendPanel(QGroupBox):
         if dlg.exec():
             new_hex = dlg.selectedColor().name()
             self.elementColorChanged.emit(elem, new_hex)
-
-        self._layout.addStretch()
 
     def _pick_atom_color(self, label: str, current_hex: str):
         idx = self._custom_atom_map.get(label)
@@ -2859,11 +3153,17 @@ class QuickExportDialog(QDialog):
         layout.addWidget(btn_close, alignment=Qt.AlignmentFlag.AlignCenter)
 
     def _get_svg_path(self) -> str:
-        if self._tmp_path is None:
-            svg_data = self._canvas.get_svg_bytes(export_mode=True)
-            with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as f:
-                f.write(svg_data)
-                self._tmp_path = f.name
+        # Re-render every drag rather than caching: the canvas' appearance
+        # (colors, legend, etc.) can change while this dialog stays open.
+        if self._tmp_path and os.path.exists(self._tmp_path):
+            try:
+                os.unlink(self._tmp_path)
+            except OSError:
+                pass
+        svg_data = self._canvas.get_svg_bytes(export_mode=True)
+        with tempfile.NamedTemporaryFile(suffix=".svg", delete=False) as f:
+            f.write(svg_data)
+            self._tmp_path = f.name
         return self._tmp_path
 
     def closeEvent(self, event):
@@ -3047,6 +3347,8 @@ class MoleculeCanvas(QSvgWidget):
         self.active_vectors: Optional[np.ndarray] = None
         self.animation_phase: float = 0.0
         self.animation_amplitude: float = 0.0
+        self.mulliken_legend: Optional[Tuple[float, float, str, str, str]] = None
+        self.mulliken_legend_in_export: bool = False
 
         self.dipole_arrow_3d: Optional[Tuple[np.ndarray, np.ndarray, float]] = None
         self.show_dipole_arrow: bool = False
@@ -3226,6 +3528,8 @@ class MoleculeCanvas(QSvgWidget):
             fast_render=self._fast_render and (self._drag_start is not None or self._zooming) and not export_mode,
             selected_indices=self.selected_atoms if not export_mode else None,
             vectors=self.arrows if self._show_vectors else None,
+            mulliken_legend=self.mulliken_legend,
+            mulliken_legend_in_export=self.mulliken_legend_in_export,
         )
         return result.encode("utf-8") if isinstance(result, str) else result
 
@@ -5361,7 +5665,7 @@ class MainWindow(QMainWindow):
         while len(self._menu_calc.actions()) > 6:
             self._menu_calc.removeAction(self._menu_calc.actions()[-1])
 
-        if mol and (mol.vibrational_modes or mol.excited_states):
+        if mol and (mol.vibrational_modes or mol.excited_states or mol.mulliken_charges):
             self._menu_calc.addSeparator()
             act_results = QAction("Calculation Results…", self)
             overrides, alt_overrides = self._load_shortcut_overrides()
@@ -5391,8 +5695,35 @@ class MainWindow(QMainWindow):
         dlg.viewSpectrum.connect(self._on_view_spectrum)
         dlg.animationToggled.connect(self._on_anim_toggle)
         dlg.vectorsToggled.connect(self._on_vectors_toggle)
+        dlg.colorByCharge.connect(self._color_atoms_by_mulliken)
+        dlg.clearAtomColors.connect(self._clear_paint)
         dlg.finished.connect(self._on_calculations_closed)
         dlg.show()
+
+    def _color_atoms_by_mulliken(self, range_min: float, range_max: float, center: float,
+                                  neg_color: str, zero_color: str, pos_color: str,
+                                  show_legend: bool, include_in_export: bool):
+        mol = self._canvas.molecule
+        if not mol or not mol.mulliken_charges:
+            return
+        for atom, charge in zip(mol.atoms, mol.mulliken_charges):
+            atom.color = mulliken_gradient_color(charge, range_min, range_max, neg_color, zero_color, pos_color, center)
+        self._canvas.color_overrides = {}
+        self._color_overrides = {}
+        self._canvas.mulliken_legend = (range_min, range_max, center, neg_color, zero_color, pos_color) if show_legend else None
+        self._canvas.mulliken_legend_in_export = include_in_export
+        # Re-applying the gradient reassigns the SAME atom indices new colours;
+        # without invalidating the per-atom gradient-stop cache, the renderer
+        # keeps drawing the stale stops from the previous application.
+        self._canvas._cached_grad_stops.clear()
+        # NOT self._legend.update_for(): it builds one sidebar row per
+        # custom-coloured atom, and Mulliken coloring gives every atom its
+        # own colour — for a few hundred atoms that rebuild alone takes over
+        # a second and freezes the UI on every drag/edit. The gradient bar
+        # (in the dialog and, if enabled, on the canvas) is the legend for
+        # this mode; the per-element sidebar legend isn't meaningful here.
+        self._canvas.request_render()
+        self._status.showMessage(f"Coloured {len(mol.atoms)} atom(s) by Mulliken charge.")
 
     def _calculate_rotational_constants(self):
         mol = self._canvas.molecule
@@ -6511,6 +6842,8 @@ class MainWindow(QMainWindow):
         # UI updates only; history should be saved BEFORE the change occurs
         # to capture the 'before' state correctly.
         self._update_info_panel(self._canvas.molecule)
+        if self._canvas.molecule is not None:
+            self._legend.update_for(self._canvas.molecule, self._color_overrides)
         self._mark_chem_dirty()
 
     # ── Chemvector (2D whiteboard) view ─────────────────────────────────────
@@ -7120,6 +7453,9 @@ class MainWindow(QMainWindow):
             return
         for atom in mol.atoms:
             atom.color = None
+        self._canvas.mulliken_legend = None
+        self._canvas.mulliken_legend_in_export = False
+        self._canvas._cached_grad_stops.clear()
         self._legend.update_for(mol, self._color_overrides)
         self._canvas.request_render()
         self._status.showMessage(f"Cleared paint on {n} atom(s).")

@@ -323,6 +323,7 @@ class Molecule:
     g16_entropy: Optional[float] = None
     g16_freeenergy: Optional[float] = None
     g16_temperature: Optional[float] = None
+    mulliken_charges: Optional[List[float]] = None
 
 
 
@@ -920,6 +921,13 @@ def _parse_gaussian_log_cclib(text: str) -> Molecule:
         if sym:
             point_group = str(sym)
 
+    # ── Mulliken charges ──────────────────────────────────────────────────
+    mulliken_charges = None
+    if hasattr(data, "atomcharges") and data.atomcharges:
+        mulliken = data.atomcharges.get("mulliken")
+        if mulliken is not None and len(mulliken) == len(atoms):
+            mulliken_charges = [float(q) for q in mulliken]
+
     # ── Build Molecule ───────────────────────────────────────────────────
     mol = Molecule(
         name=name,
@@ -940,6 +948,7 @@ def _parse_gaussian_log_cclib(text: str) -> Molecule:
     mol.g16_entropy = entropy
     mol.g16_freeenergy = freeenergy
     mol.g16_temperature = temperature
+    mol.mulliken_charges = mulliken_charges
     if chk:
         mol.g16_chk = chk
     if route_str:
@@ -1251,12 +1260,45 @@ def _parse_gaussian_log_legacy(text: str) -> Molecule:
     mol.g16_scf_energy = scf_energy
     mol.g16_opt_energy = opt_energy
     mol.g16_point_group = point_group
+    mol.mulliken_charges = _parse_mulliken_charges_text(lines, len(atoms))
     if chk:
         mol.g16_chk = chk
     if route_str:
         mol.g16_route = route_str
     mol.name = chemical_formula(mol)
     return mol
+
+
+def _parse_mulliken_charges_text(lines: List[str], n_atoms: int) -> Optional[List[float]]:
+    """
+    Parse the last per-atom "Mulliken charges:" (or "... and spin densities:")
+    block in a Gaussian log, skipping the "with hydrogens summed into heavy
+    atoms" variant. Returns None if no matching block is found.
+    """
+    block_start = None
+    for i, line in enumerate(lines):
+        s = line.strip()
+        if s.startswith("Mulliken charges") and "summed into heavy atoms" not in s:
+            block_start = i
+    if block_start is None:
+        return None
+
+    charges = [None] * n_atoms
+    for line in lines[block_start + 2:]:
+        parts = line.split()
+        if len(parts) < 3:
+            break
+        try:
+            idx = int(parts[0]) - 1
+            charge = float(parts[2])
+        except ValueError:
+            break
+        if 0 <= idx < n_atoms:
+            charges[idx] = charge
+
+    if any(c is None for c in charges):
+        return None
+    return charges
 
 
 def _parse_select_modes(text: str, atoms: list, vibrational_modes: list):
@@ -1477,6 +1519,34 @@ def interpolate_color(c1: str, c2: str, t: float) -> str:
     r1, g1, b1 = hex_to_rgb(c1)
     r2, g2, b2 = hex_to_rgb(c2)
     return rgb_to_hex(r1 + (r2-r1)*t, g1 + (g2-g1)*t, b1 + (b2-b1)*t)
+
+MULLIKEN_NEGATIVE_COLOR = "#c62828"  # red
+MULLIKEN_ZERO_COLOR = "#000000"      # black
+MULLIKEN_POSITIVE_COLOR = "#2e7d32"  # green
+
+def mulliken_gradient_color(
+    charge: float, range_min: float, range_max: float,
+    negative_color: str = MULLIKEN_NEGATIVE_COLOR,
+    zero_color: str = MULLIKEN_ZERO_COLOR,
+    positive_color: str = MULLIKEN_POSITIVE_COLOR,
+    center: float = 0.0,
+) -> str:
+    """
+    Diverging colour (negative_color -> zero_color -> positive_color) for a
+    Mulliken charge, scaled linearly and independently against ``range_min``
+    (<= center) and ``range_max`` (>= center) so that a charge equal to
+    ``center`` (by default 0, but typically the mean charge) always maps to
+    ``zero_color``. Charges outside [range_min, range_max] clamp to the full
+    negative_color/positive_color.
+    """
+    if charge >= center:
+        denom = (range_max - center) if range_max > center else 1e-9
+        t = max(0.0, min(1.0, (charge - center) / denom))
+        return interpolate_color(zero_color, positive_color, t)
+    else:
+        denom = (range_min - center) if range_min < center else -1e-9
+        t = max(0.0, min(1.0, (charge - center) / denom))
+        return interpolate_color(zero_color, negative_color, t)
 
 def compute_gradient_stops(
     base: str, dark: str, li: float,
@@ -2125,6 +2195,8 @@ def render_molecule(
     fast_render: bool = False,
     svg_prefix: Optional[str] = None,
     cached_grad_stops: Optional[Dict[str, list]] = None,
+    mulliken_legend: Optional[Tuple[float, float, float, str, str, str]] = None,
+    mulliken_legend_in_export: bool = False,
 ) -> str:
 
     rot = rot_matrix_override if rot_matrix_override is not None \
@@ -2711,6 +2783,43 @@ def render_molecule(
             dwg.add(dwg.text(lbl, insert=(tx, ty),
                              font_size=8, font_family="monospace",
                              fill=col, font_weight="bold"))
+
+    if mulliken_legend and (not export_mode or mulliken_legend_in_export):
+        range_min, range_max, center, neg_c, zero_c, pos_c = mulliken_legend
+        bar_w, bar_h = 140.0, 12.0
+        margin = 16.0
+        bx = canvas_w - margin - bar_w
+        by = canvas_h - margin - bar_h
+
+        span = (range_max - range_min) or 1e-9
+        zero_frac = max(0.0, min(1.0, (center - range_min) / span))
+
+        gid = f"mulliken_grad_{prefix}"
+        g = dwg.linearGradient(id=gid, start=(0, 0), end=(1, 0))
+        g.add_stop_color("0%", neg_c, 1.0)
+        g.add_stop_color(f"{zero_frac * 100:.2f}%", zero_c, 1.0)
+        g.add_stop_color("100%", pos_c, 1.0)
+        defs.add(g)
+
+        dwg.add(dwg.rect(insert=(bx, by), size=(bar_w, bar_h),
+                         fill=f"url(#{gid})", stroke="#888888", stroke_width=0.75,
+                         rx=2, ry=2))
+        dwg.add(dwg.text("Mulliken charge (e)", insert=(bx, by - 6),
+                         font_size=9, font_family="monospace", fill="#cccccc"))
+        dwg.add(dwg.text(f"{range_min:.3f}", insert=(bx, by + bar_h + 11),
+                         font_size=8, font_family="monospace", fill="#cccccc",
+                         text_anchor="start"))
+        dwg.add(dwg.text(f"{range_max:.3f}", insert=(bx + bar_w, by + bar_h + 11),
+                         font_size=8, font_family="monospace", fill="#cccccc",
+                         text_anchor="end"))
+        # Tick + label marking where the centre (mean) charge sits, since
+        # it no longer necessarily lines up with the middle of the bar.
+        tick_x = bx + zero_frac * bar_w
+        dwg.add(dwg.line(start=(tick_x, by), end=(tick_x, by + bar_h),
+                         stroke="#ffffff", stroke_width=1.0, stroke_opacity=0.6))
+        dwg.add(dwg.text(f"μ={center:.3f}", insert=(tick_x, by + bar_h + 22),
+                         font_size=8, font_family="monospace", fill="#999999",
+                         text_anchor="middle"))
 
     if output_path:
         dwg.save()
