@@ -35,9 +35,10 @@ import numpy as np
 import svgwrite
 
 from PyQt6.QtCore import QByteArray, QEvent, QPoint, QPointF, QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QCursor, QPainter, QPainterPath, QPen
+from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen
 from PyQt6.QtSvgWidgets import QSvgWidget
-from PyQt6.QtWidgets import QLineEdit, QSizePolicy
+from PyQt6.QtWidgets import (QColorDialog, QFrame, QHBoxLayout, QLineEdit, QSizePolicy,
+                             QToolButton, QVBoxLayout)
 
 from molvector.render import (
     Atom,
@@ -49,44 +50,16 @@ from molvector.render import (
     _kekule_orders,
 )
 
-def _probe_rdkit() -> bool:
-    """Return True if RDKit loads without crashing next to OpenBabel.
+# RDKit is needed for 2D depictions as soon as the window opens, so it is
+# loaded eagerly — but only through native_guard, which first checks in a
+# throw-away child that loading it next to everything already in this process
+# (PyQt6, numpy, ...) does not SEGFAULT.  See molvector/native_guard.py.
+from molvector import native_guard
 
-    render.py has already loaded OpenBabel into this process by now.  The
-    openbabel-wheel and rdkit wheels each bundle their own native libraries
-    (libstdc++, boost, ...), and on Linux loading both in one process can
-    SEGFAULT.  A segfault is a signal, not an exception, so `try/except` can't
-    catch it.  We therefore replay the exact import order of this process in a
-    throw-away child first, and only import RDKit here if the child survives.
-    """
-    import subprocess
-    import sys
-    from molvector.render import _HAS_OPENBABEL_PKG
-
-    code = ""
-    if _HAS_OPENBABEL_PKG:
-        code += "from openbabel import openbabel as ob; ob.OBMol().NewAtom();"
-    code += (
-        "from rdkit import Chem; from rdkit.Chem import rdCoordGen;"
-        " m = Chem.RWMol(); m.AddAtom(Chem.Atom(6)); rdCoordGen.AddCoords(m)"
-    )
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", code], timeout=30, capture_output=True,
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
-
-
-try:
-    if not _probe_rdkit():
-        raise ImportError("RDKit unavailable or crashes alongside OpenBabel")
+HAS_RDKIT = native_guard.load("rdkit") is not None
+if HAS_RDKIT:
     from rdkit import Chem, RDLogger
     RDLogger.DisableLog("rdApp.*")  # RDKit logs sanitize failures straight to stderr
-    HAS_RDKIT = True
-except ImportError:
-    HAS_RDKIT = False
 
 if HAS_RDKIT:
     try:
@@ -951,6 +924,8 @@ def _fan_out_terminal_wedges(mol: Molecule, positions: Positions2D, bond_info: B
 #        molecule-scaled (denser on a longer bond, but independent of zoom),
 #        so line thickness and spacing grow together and the dashes stay
 #        legible at any zoom level.
+SNAP_RADIUS_PX = 14.0          # build-mode snapping reach (screen pixels)
+STEREO_DEPTH = 1.0             # Angstrom a wedge/hash-drawn atom sits toward/away from the viewer in 3D
 WEDGE_SEP_PX = 5.0             # ZOOM-ONLY
 DOUBLE_BOND_GAP_PX = 6.0       # ZOOM-ONLY
 HASH_SPACING_PX = 9.0          # ZOOM-ONLY
@@ -1043,10 +1018,11 @@ def _box_edge_dist(ux: float, uy: float, box: Box) -> float:
 
 
 def _label_svg_text(dwg, elem: str, n_h: int, h_side: str, x: float, y: float,
-                    font_size: float, font_family: str, fill: str) -> list:
+                    font_size: float, font_family: str, fill: str, bold: bool = True) -> list:
     """The label's text element(s): the element, then "H" and a subscript count."""
     base_y = y + font_size * 0.35
-    kw = dict(font_size=font_size, font_family=font_family, font_weight="bold", fill=fill)
+    kw = dict(font_size=font_size, font_family=font_family,
+              font_weight="bold" if bold else "normal", fill=fill)
     if n_h <= 0:
         return [dwg.text(elem, insert=(x, base_y), text_anchor="middle", **kw)]
     sub_size = font_size * 0.7
@@ -1274,6 +1250,8 @@ def render_chemvector(
     aromatic_bond_idxs: Optional[set] = None,
     export_mode: bool = False,
     center: Optional[Tuple[float, float]] = None,
+    ring_bonds: Optional[List[dict]] = None,
+    label_boxes_out: Optional[Dict[int, Box]] = None,
 ) -> str:
     """
     Render *mol* (with a precomputed 2D layout) as an SVG string.
@@ -1313,6 +1291,14 @@ def render_chemvector(
     so painting in one view never touches the other. Whenever every atom of
     one ring is selected (or painted the same color), that whole ring is
     shaded as a single filled polygon instead of per-atom dots.
+
+    *ring_bonds* ({"ring": [atom indices], "atom": idx}) are drawn as a line
+    from the ring's center out to that atom — a substituent whose ring
+    position (ortho/meta/para) is left undetermined.
+
+    Each atom's label uses its own Atom.label_color / Atom.label_bold when
+    set. *label_boxes_out*, if given, is filled with every drawn label's
+    canvas box (x0, x1, y0, y1) by atom index — for hit-testing labels.
     """
     dwg = svgwrite.Drawing("__mem__", size=(canvas_w, canvas_h))
     if not export_mode:
@@ -1323,17 +1309,21 @@ def render_chemvector(
 
     if center is not None:
         ccx, ccy = center
-    else:
+    elif positions:
         xs = [p[0] for p in positions.values()]
         ys = [p[1] for p in positions.values()]
         ccx = (min(xs) + max(xs)) / 2.0
         ccy = (min(ys) + max(ys)) / 2.0
+    else:
+        ccx = ccy = 0.0
     cx = canvas_w / 2 + pan_x
     cy = canvas_h / 2 + pan_y
 
-    def to_canvas(i: int) -> Tuple[float, float]:
-        x, y = positions[i]
+    def to_canvas_xy(x: float, y: float) -> Tuple[float, float]:
         return (cx + (x - ccx) * scale, cy - (y - ccy) * scale)
+
+    def to_canvas(i: int) -> Tuple[float, float]:
+        return to_canvas_xy(*positions[i])
 
     base_colors = dict(CPK_BASE)
     if color_overrides:
@@ -1356,6 +1346,18 @@ def render_chemvector(
             visible_degree[bond.i] += 1
             visible_degree[bond.j] += 1
 
+    # Ring bonds whose ring and substituent are all on screen, with the
+    # ring's canvas center. They count as a real bond on the substituent
+    # (degree, valence, H placement), so e.g. a bare methyl stays a line end.
+    shown_ring_bonds: List[Tuple[int, Tuple[float, float]]] = []
+    for rb in ring_bonds or []:
+        ring, a = rb.get("ring", []), rb.get("atom")
+        if a not in visible or len(ring) < 3 or not all(r in visible for r in ring):
+            continue
+        pts = [to_canvas(r) for r in ring]
+        shown_ring_bonds.append((a, (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))))
+        visible_degree[a] += 1
+
     # A carbon can only be a bare implicit vertex when its valence checks out.
     # Over 4 (invalid structure) always keeps its "C" letter. Under 4 depends
     # on whether hydrogens are known: when the molecule carries explicit H
@@ -1371,6 +1373,8 @@ def render_chemvector(
         o = 1.5 if b.order == 5 else b.order
         valence_sum[b.i] = valence_sum.get(b.i, 0) + o
         valence_sum[b.j] = valence_sum.get(b.j, 0) + o
+    for a, _center in shown_ring_bonds:
+        valence_sum[a] = valence_sum.get(a, 0) + 1
 
     # Needed up front (not just in the atom-drawing loop below) so wedge/hash
     # bonds can trim themselves clear of whichever end has a visible label.
@@ -1392,6 +1396,9 @@ def render_chemvector(
                 d = math.hypot(ox_ - ax_, oy_ - ay_)
                 if d > 1e-6:
                     bond_angles.setdefault(a, []).append(math.atan2(oy_ - ay_, ox_ - ax_))
+    for a, (rcx, rcy) in shown_ring_bonds:
+        ax_, ay_ = to_canvas(a)
+        bond_angles.setdefault(a, []).append(math.atan2(rcy - ay_, rcx - ax_))
 
     label_box_by_atom: Dict[int, Box] = {}
     label_h_side: Dict[int, str] = {}
@@ -1459,6 +1466,12 @@ def render_chemvector(
             hash_spacing=hash_spacing,
         )
 
+    for a, (rcx, rcy) in shown_ring_bonds:
+        # Plain line from the ring center; the substituent's label padding
+        # (drawn later, on top) erases its end like any other bond's.
+        bonds_group.add(dwg.line(start=(rcx, rcy), end=to_canvas(a), stroke=bond_color,
+                                  stroke_width=lw, stroke_linecap="round"))
+
     for ring in aromatic_rings:
         pts = [to_canvas(i) for i in ring]
         cx_r = sum(p[0] for p in pts) / len(pts)
@@ -1524,6 +1537,11 @@ def render_chemvector(
         # The letter always keeps its own element color — painting an atom
         # never overrides it; see the low-opacity wash below instead.
         text_color = mono_label_color if label_color_mode == "black" else base_colors.get(elem, DEFAULT_BASE)
+        atom = mol.atoms[i]
+        if getattr(atom, "label_color", None):
+            text_color = atom.label_color
+        if label_boxes_out is not None:
+            label_boxes_out[i] = (x + bx0, x + bx1, y + by0, y + by1)
 
         # Erase bonds under the label first (the white/background padding).
         # An individually ("leftover") selected atom gets its own solid-
@@ -1560,6 +1578,7 @@ def render_chemvector(
         for el in _label_svg_text(
             dwg, elem, hidden_h_count.get(i, 0), label_h_side.get(i, "right"),
             x, y, font_size, font_family, text_color,
+            bold=getattr(atom, "label_bold", None) is not False,
         ):
             text_group.add(el)
 
@@ -1593,6 +1612,7 @@ def render_chemvector(
     dwg.add(mask_group)
     dwg.add(text_group)
 
+
     if not export_mode:
         dwg.add(dwg.text(
             mol.name, insert=(16, 26), font_size=15, font_family="monospace",
@@ -1607,6 +1627,14 @@ def render_chemvector(
 # QT WIDGET
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _apply_drawn_stereo(mol: Molecule, bond_info: BondInfo) -> None:
+    """Bonds drawn as wedge/hash in 2D build mode keep that look over whatever the layout perceived."""
+    for bi, b in enumerate(mol.bonds):
+        stereo = getattr(b, "stereo", None)
+        if stereo in ("wedge", "hash"):
+            bond_info[bi] = {"kind": stereo, "apex": b.i, "order": 1}
+
+
 def _rot_z(a: float) -> np.ndarray:
     """3D rotation about the viewing axis by *a* radians (counter-clockwise, y up)."""
     c, s_ = math.cos(a), math.sin(a)
@@ -1614,7 +1642,8 @@ def _rot_z(a: float) -> np.ndarray:
 
 
 class _LabelEdit(QLineEdit):
-    """Inline atom-label editor: Enter commits, Escape or losing focus cancels."""
+    """Line edit of the label editor: Enter commits, Escape cancels (focus-out
+    does not — the color dialog takes focus while the edit is open)."""
 
     cancelled = pyqtSignal()
 
@@ -1624,9 +1653,97 @@ class _LabelEdit(QLineEdit):
             return
         super().keyPressEvent(event)
 
-    def focusOutEvent(self, event):
-        super().focusOutEvent(event)
-        self.cancelled.emit()
+
+class _TextEditor(QFrame):
+    """
+    Inline editor for an atom label (Text tool): the text field, with a
+    minimal toolbar right above it (color swatch, bold toggle). Enter
+    commits, Escape cancels; clicking elsewhere on the canvas commits too
+    (ChemCanvas does that — not focus-out, since the color dialog takes focus).
+    """
+
+    committed = pyqtSignal()
+    cancelled = pyqtSignal()
+
+    def __init__(self, text: str, color: str, bold: bool, font: QFont, parent=None):
+        super().__init__(parent)
+        self.color = color
+        self._invalid = False
+        self.setObjectName("chemTextEditor")
+        self.setStyleSheet(
+            "#chemTextEditor { background: transparent; }"
+            "QToolButton { background: #ffffff; color: #222; border: 1px solid #c8ccd2; border-radius: 4px;"
+            " min-width: 22px; min-height: 20px; padding: 0 3px; font-weight: bold; }"
+            "QToolButton:checked { background: #dbe9ff; border-color: #2f8fff; }")
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(3)
+        bar = QHBoxLayout()
+        bar.setSpacing(3)
+        self._color_btn = QToolButton()
+        self._color_btn.setToolTip("Text color")
+        self._color_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._color_btn.clicked.connect(self._pick_color)
+        self._bold_btn = QToolButton()
+        self._bold_btn.setText("B")
+        self._bold_btn.setToolTip("Bold")
+        self._bold_btn.setCheckable(True)
+        self._bold_btn.setChecked(bold)
+        self._bold_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._bold_btn.toggled.connect(self._restyle)
+        bar.addWidget(self._color_btn)
+        bar.addWidget(self._bold_btn)
+        bar.addStretch()
+        outer.addLayout(bar)
+        self.edit = _LabelEdit(text)
+        self.edit.setFont(font)
+        self.edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.edit.cancelled.connect(self.cancelled)
+        self.edit.returnPressed.connect(self.committed)
+        self.edit.textChanged.connect(lambda _t: self.set_invalid(False))
+        outer.addWidget(self.edit)
+        self._restyle()
+
+    @property
+    def bold(self) -> bool:
+        return self._bold_btn.isChecked()
+
+    def set_invalid(self, invalid: bool):
+        self._invalid = invalid
+        self._restyle()
+
+    def _pick_color(self):
+        col = QColorDialog.getColor(QColor(self.color), self, "Text color")
+        if col.isValid():
+            self.color = col.name()
+            self._restyle()
+        self.edit.setFocus()
+
+    def _restyle(self, *_):
+        self._color_btn.setStyleSheet(
+            f"QToolButton {{ background: {self.color}; border: 2px solid #ffffff; outline: 1px solid #c8ccd2; }}")
+        font = self.edit.font()
+        font.setBold(self.bold)
+        self.edit.setFont(font)
+        border, bg = ("#e03131", "#fff0f0") if self._invalid else ("#2f8fff", "white")
+        self.edit.setStyleSheet(
+            f"QLineEdit {{ border: 2px solid {border}; border-radius: 4px; background: {bg}; color: {self.color}; }}")
+        self._fit_width()
+
+    def _fit_width(self, *_):
+        fm = QFontMetricsF(self.edit.font())
+        w = max(90, int(fm.horizontalAdvance(self.edit.text() or "M") + 30))
+        self.edit.setFixedWidth(w)
+        self.adjustSize()
+        center = self.property("anchor_center")
+        if center is not None:
+            x = int(center[0] - self.width() / 2)
+            y = int(center[1] - self.height() + self.edit.height() / 2)
+            parent = self.parentWidget()
+            if parent is not None:   # keep it fully on the canvas near the edges
+                x = max(2, min(x, parent.width() - self.width() - 2))
+                y = max(2, min(y, parent.height() - self.height() - 2))
+            self.move(x, y)
 
 
 class ChemCanvas(QSvgWidget):
@@ -1711,7 +1828,23 @@ class ChemCanvas(QSvgWidget):
         self.view_rot = np.eye(3)
         self._frame_origin = np.zeros(3)
         self.selected_atoms: set = set()
-        self._label_editor: Optional[QLineEdit] = None
+
+        # Build mode subtools: what kind of bond a drag draws / a bond click
+        # sets ("single" | "double" | "triple" | "wedge" | "hash" | "ring"),
+        # and whether the cursor snaps to atoms, ring centers, bond midpoints
+        # and ideal next-atom positions.
+        self.bond_type = "single"
+        self.snapping = False
+        self._snap_hint: Optional[Tuple[float, float, str]] = None   # canvas x, y, kind
+        self._ring_bond_from: Optional[List[int]] = None   # ring a ring bond is being dragged out of
+
+        # Text tool (a build subtool): edit the label of an atom drawn as
+        # letters — its text, plus color and boldness (Atom.label_color/_bold)
+        self.text_mode = False
+        self._text_editor: Optional[_TextEditor] = None
+        self._editing_atom: Optional[int] = None
+        self._editing_initial: Tuple[str, bool] = ("#000000", True)
+        self._label_boxes: Dict[int, Box] = {}   # canvas box of each drawn label, from the last render
 
         self._render_timer = QTimer()
         self._render_timer.setSingleShot(True)
@@ -1727,7 +1860,7 @@ class ChemCanvas(QSvgWidget):
         for edits made while this view is showing (clear, undo, clean, ...),
         as opposed to opening a different molecule, which refits the view.
         """
-        self._close_label_editor()
+        self._close_text_editor()
         self.molecule = mol
         if view_rot is not None:
             self.view_rot = np.array(view_rot, dtype=float)
@@ -1761,9 +1894,11 @@ class ChemCanvas(QSvgWidget):
         self.request_render()
 
     def _make_layout(self):
-        return generate_2d_layout(
+        positions, bond_info = generate_2d_layout(
             self.molecule, self.planarity_tolerance, self.view_rot,
             projection=(self.layout_mode == "match3d"), plane=self._plane)
+        _apply_drawn_stereo(self.molecule, bond_info)
+        return positions, bond_info
 
     def set_layout_mode(self, mode: str):
         """Switch between "match3d" and "clean" layouts and redraw (view unchanged)."""
@@ -1865,10 +2000,12 @@ class ChemCanvas(QSvgWidget):
 
     def _render_to_bytes(self, w=None, h=None, export_mode: bool = False) -> bytes:
         if self.molecule is None or not self.molecule.atoms:
+            self._label_boxes = {}
             return b""
         w = w or max(self.width(), 500)
         h = h or max(self.height(), 450)
         pan_x, pan_y, center = self._pan[0], self._pan[1], self._center
+        label_boxes: Dict[int, Box] = {}
         if export_mode:
             # Export what is drawn, not what fits the window: size the canvas
             # to the visible atoms (plus room for labels) at the current
@@ -1911,7 +2048,11 @@ class ChemCanvas(QSvgWidget):
             paint_colors=self.atom_paint or None,
             aromatic_bond_idxs=self.aromatic_bonds or None,
             export_mode=export_mode,
+            ring_bonds=self.molecule.ring_bonds,
+            label_boxes_out=None if export_mode else label_boxes,
         )
+        if not export_mode:
+            self._label_boxes = label_boxes
         return svg.encode("utf-8")
 
     def _do_render(self):
@@ -1997,18 +2138,145 @@ class ChemCanvas(QSvgWidget):
         landing anywhere inside it, not just on one of its atoms/bonds."""
         if self.molecule is None:
             return None
-        seen: Dict[frozenset, List[int]] = {}
-        for i in range(len(self.molecule.atoms)):
-            ring = _find_ring_for_atom(self.molecule, i)
-            if ring:
-                seen.setdefault(frozenset(ring), ring)
         best = None
-        for ring in seen.values():
+        for ring in self._rings():
             pts = [self._to_canvas_point(*self._positions[a]) for a in ring if a in self._positions]
             if len(pts) >= 3 and _point_in_polygon(pos.x(), pos.y(), pts):
                 if best is None or len(ring) < len(best):
                     best = ring
         return best
+
+    def _rings(self) -> List[List[int]]:
+        """Every atom's smallest ring, deduplicated."""
+        if self.molecule is None:
+            return []
+        seen: Dict[frozenset, List[int]] = {}
+        for i in range(len(self.molecule.atoms)):
+            ring = _find_ring_for_atom(self.molecule, i)
+            if ring:
+                seen.setdefault(frozenset(ring), ring)
+        return list(seen.values())
+
+    def _ring_center_canvas(self, ring: List[int]) -> Optional[Tuple[float, float]]:
+        pts = [self._to_canvas_point(*self._positions[a]) for a in ring if a in self._positions]
+        if len(pts) < 3:
+            return None
+        return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+
+    def _ring_at(self, pos: QPoint) -> Optional[List[int]]:
+        """The ring whose center is at *pos* (within the snap radius), else the one *pos* is inside."""
+        for ring in self._rings():
+            c = self._ring_center_canvas(ring)
+            if c and math.hypot(pos.x() - c[0], pos.y() - c[1]) < SNAP_RADIUS_PX:
+                return ring
+        return self._get_hit_ring(pos)
+
+    def _ideal_bond_px(self) -> float:
+        return self._ref_len * self._scale_px
+
+    def _snap(self, pos: QPoint, origin: Optional[int] = None) -> Tuple[QPoint, Optional[str]]:
+        """
+        With snapping on, pull *pos* onto the nearest important location
+        within SNAP_RADIUS_PX: an atom, a ring center, a bond midpoint, or —
+        while drawing a bond from atom *origin* — an ideal next-atom spot
+        (typical bond length, on a 30° step). Atoms win over ring centers,
+        which win over the rest. Returns the point and what it snapped to.
+        """
+        if not self.snapping or self.molecule is None:
+            return pos, None
+        cands: List[Tuple[float, float, str]] = []
+        hidden = set(self._hidden_h_atoms())
+        for i, (x, y) in self._positions.items():
+            if i not in hidden:
+                cands.append((*self._to_canvas_point(x, y), "atom"))
+        for ring in self._rings():
+            c = self._ring_center_canvas(ring)
+            if c:
+                cands.append((*c, "ring"))
+        for b in self.molecule.bonds:
+            if b.i in self._positions and b.j in self._positions and not ({b.i, b.j} & hidden):
+                ax, ay = self._to_canvas_point(*self._positions[b.i])
+                bx, by = self._to_canvas_point(*self._positions[b.j])
+                cands.append(((ax + bx) / 2, (ay + by) / 2, "bond"))
+        if origin is not None and origin in self._positions:
+            ox, oy = self._to_canvas_point(*self._positions[origin])
+            ref = self._existing_bond_angle_canvas(origin) or 0.0
+            length = self._ideal_bond_px()
+            for k in range(12):
+                a = ref + k * math.pi / 6
+                cands.append((ox + length * math.cos(a), oy + length * math.sin(a), "ideal"))
+        rank = {"atom": 0, "ring": 1, "bond": 2, "ideal": 2}
+        best = None
+        for x, y, kind in cands:
+            d = math.hypot(pos.x() - x, pos.y() - y)
+            if d < SNAP_RADIUS_PX:
+                key = (rank[kind], d)
+                if best is None or key < best[0]:
+                    best = (key, x, y, kind)
+        if best is None:
+            return pos, None
+        return QPoint(round(best[1]), round(best[2])), best[3]
+
+    def _snap_ring_bond_end(self, ring: List[int], pos: QPoint) -> QPoint:
+        """
+        Snapped end of a ring bond dragged to *pos*: onto an atom outside
+        the ring if one is in reach, else straight out over the nearest ring
+        bond (through its midpoint), and at a typical bond length past the
+        ring's edge when close to it.
+        """
+        snapped, kind = self._snap(pos)
+        if kind == "atom" and self._get_hit_atom(snapped) not in ring:
+            return snapped
+        if not self.snapping:
+            return pos
+        c = self._ring_center_canvas(ring)
+        if c is None:
+            return pos
+        dx, dy = pos.x() - c[0], pos.y() - c[1]
+        dist = math.hypot(dx, dy)
+        if dist < 1e-6:
+            return pos
+        best = None
+        n = len(ring)
+        for k in range(n):
+            a, b = ring[k], ring[(k + 1) % n]
+            if a not in self._positions or b not in self._positions:
+                continue
+            ax, ay = self._to_canvas_point(*self._positions[a])
+            bx, by = self._to_canvas_point(*self._positions[b])
+            mx, my = (ax + bx) / 2 - c[0], (ay + by) / 2 - c[1]
+            m = math.hypot(mx, my)
+            if m < 1e-6:
+                continue
+            cosang = (mx * dx + my * dy) / (m * dist)
+            if best is None or cosang > best[0]:
+                best = (cosang, mx / m, my / m, m)
+        if best is None:
+            return pos
+        _, ux, uy, apothem = best
+        along = max(dist, apothem * 1.2)
+        ideal = apothem + self._ideal_bond_px()
+        if abs(along - ideal) < SNAP_RADIUS_PX * 1.5:
+            along = ideal
+        return QPoint(round(c[0] + ux * along), round(c[1] + uy * along))
+
+    def _get_hit_ring_bond(self, pos: QPoint, threshold_px: float = 8.0) -> Optional[int]:
+        """Index into molecule.ring_bonds of the ring bond under *pos*."""
+        if self.molecule is None:
+            return None
+        for k, rb in enumerate(self.molecule.ring_bonds):
+            c = self._ring_center_canvas(rb["ring"])
+            if c is None or rb["atom"] not in self._positions:
+                continue
+            bx, by = self._to_canvas_point(*self._positions[rb["atom"]])
+            ax, ay = c
+            l2 = (bx - ax) ** 2 + (by - ay) ** 2
+            if l2 < 1e-6:
+                continue
+            t = max(0.0, min(1.0, ((pos.x() - ax) * (bx - ax) + (pos.y() - ay) * (by - ay)) / l2))
+            if math.hypot(pos.x() - (ax + t * (bx - ax)), pos.y() - (ay + t * (by - ay))) < threshold_px:
+                return k
+        return None
 
     def _existing_bond_angle_canvas(self, atom_idx: int) -> Optional[float]:
         """Canvas-space angle (radians) of one existing bond at atom_idx, or None if it has none."""
@@ -2051,11 +2319,12 @@ class ChemCanvas(QSvgWidget):
 
     # ── build mode: editing ─────────────────────────────────────────────────
 
-    def _add_atom(self, pos: QPoint, depth_from: Optional[int] = None) -> int:
+    def _add_atom(self, pos: QPoint, depth_from: Optional[int] = None, depth_offset: float = 0.0) -> int:
         """
         Add an atom at canvas point *pos*. Its 3D position is the inverse of
         this view's projection: the picked point in the screen plane, at the
-        depth of atom *depth_from* (or at the molecule's center depth).
+        depth of atom *depth_from* (or at the molecule's center depth), moved
+        *depth_offset* Angstrom toward the viewer (negative: away).
         """
         if self.molecule is None:
             self.molecule = Molecule("New Molecule", atoms=[])
@@ -2064,6 +2333,7 @@ class ChemCanvas(QSvgWidget):
         if depth_from is not None and depth_from < len(self.molecule.atoms):
             a = self.molecule.atoms[depth_from]
             depth = float((self.view_rot @ (np.array([a.x, a.y, a.z]) - self._frame_origin))[2])
+        depth += depth_offset
         zf = PERSPECTIVE_CAMERA_Z / (PERSPECTIVE_CAMERA_Z - depth) if abs(PERSPECTIVE_CAMERA_Z - depth) > 1e-6 else 1.0
         world = self._frame_origin + self.view_rot.T @ np.array([x / zf, y / zf, depth])
         self.molecule.atoms.append(Atom(self.build_element, float(world[0]), float(world[1]), float(world[2])))
@@ -2071,14 +2341,55 @@ class ChemCanvas(QSvgWidget):
         self._positions[idx] = (x, y)
         return idx
 
-    def _add_bond(self, i: int, j: int):
-        self.molecule.bonds.append(Bond(i, j, 1))
+    def _add_bond(self, i: int, j: int, order: int = 1, stereo: Optional[str] = None):
+        self.molecule.bonds.append(Bond(i, j, order, stereo))
         bi = len(self.molecule.bonds) - 1
-        self._bond_info[bi] = {"kind": "none", "apex": i, "order": 1}
+        self._bond_info[bi] = {"kind": stereo or "none", "apex": i, "order": order}
         # A new bond can close a ring that an existing double bond is part
         # of (or open/close another one), so refresh which double bonds get
         # the ring-aware inner line and on which side.
         _annotate_double_bond_insets(self.molecule, self._positions, self._bond_info)
+
+    def _new_bond_args(self) -> Tuple[int, Optional[str]]:
+        """(order, stereo) of a bond drawn with the current bond type."""
+        return {"double": (2, None), "triple": (3, None),
+                "wedge": (1, "wedge"), "hash": (1, "hash")}.get(self.bond_type, (1, None))
+
+    def _apply_bond_type(self, bi: int) -> bool:
+        """
+        A click on bond *bi* in build mode: Regular cycles its order (or
+        first clears a wedge/hash); Double/Triple set that order; Wedge/Hash
+        make it one, or flip its direction when it already is. Returns
+        whether anything changed.
+        """
+        bond = self.molecule.bonds[bi]
+        bt = self.bond_type
+        if bt == "ring":
+            return False
+        info = self._bond_info.setdefault(bi, {"kind": "none", "apex": bond.i, "order": bond.order})
+        if bt in ("wedge", "hash"):
+            if bond.stereo == bt:
+                bond.i, bond.j = bond.j, bond.i   # narrow end goes to the other atom
+            bond.stereo = bt
+            bond.order = 1
+            info.update(kind=bt, apex=bond.i, order=1)
+            info.pop("inside", None)
+            _annotate_double_bond_insets(self.molecule, self._positions, self._bond_info)
+            return True
+        if bond.stereo:
+            bond.stereo = None
+            info["kind"] = "none"
+            if bt == "single":
+                _annotate_double_bond_insets(self.molecule, self._positions, self._bond_info)
+                return True
+        if bt == "single":
+            self._cycle_bond_order(bi)
+            return True
+        order = 2 if bt == "double" else 3
+        bond.order = order
+        info.update(kind="none", order=order)
+        _annotate_double_bond_insets(self.molecule, self._positions, self._bond_info)
+        return True
 
     def _cycle_bond_order(self, bi: int):
         bond = self.molecule.bonds[bi]
@@ -2125,7 +2436,7 @@ class ChemCanvas(QSvgWidget):
                     continue
                 ni = b.i - 1 if b.i > d_idx else b.i
                 nj = b.j - 1 if b.j > d_idx else b.j
-                new_bonds.append(Bond(ni, nj, b.order))
+                new_bonds.append(Bond(ni, nj, b.order, b.stereo))
                 info = dict(self._bond_info.get(bi, {"kind": "none", "apex": b.i, "order": b.order}))
                 old_apex = info.get("apex", b.i)
                 info["apex"] = old_apex - 1 if old_apex > d_idx else old_apex
@@ -2147,6 +2458,11 @@ class ChemCanvas(QSvgWidget):
                 (i - 1 if i > d_idx else i): c for i, c in self.atom_paint.items() if i != d_idx
             }
             self._green_atoms = {(i - 1 if i > d_idx else i) for i in self._green_atoms if i != d_idx}
+            shift = lambda i: i - 1 if i > d_idx else i
+            mol.ring_bonds = [
+                {"ring": [shift(r) for r in rb["ring"]], "atom": shift(rb["atom"])}
+                for rb in mol.ring_bonds if rb["atom"] != d_idx and d_idx not in rb["ring"]
+            ]
         _annotate_double_bond_insets(mol, self._positions, self._bond_info)
 
     # ── drag and drop ────────────────────────────────────────────────────────
@@ -2178,6 +2494,9 @@ class ChemCanvas(QSvgWidget):
 
     def mousePressEvent(self, event):
         pos = event.position().toPoint()
+
+        if self.text_mode and self._text_press(event, pos):
+            return
 
         if self.align_mode and event.button() == Qt.MouseButton.LeftButton and self.molecule:
             if event.modifiers() & Qt.KeyboardModifier.AltModifier:
@@ -2276,18 +2595,28 @@ class ChemCanvas(QSvgWidget):
             return
 
         if self.build_mode and event.button() == Qt.MouseButton.LeftButton:
+            raw = pos
+            pos, _kind = self._snap(pos)
             idx = self._get_hit_atom(pos)
+            if self.bond_type == "ring" and idx is None and self.molecule:
+                ring = self._ring_at(pos)
+                if ring:
+                    # Ring bond: dragged out from the ring's center
+                    self._ring_bond_from = ring
+                    self._mouse_pos = pos
+                    self.update()
+                    return
             if idx is not None:
                 self._bonding_from = idx
                 self._mouse_pos = pos
                 self.update()
                 return
-            bi = self._get_hit_bond(pos)
+            bi = self._get_hit_bond(raw)
             if bi is not None:
                 self.requestHistorySave.emit()
-                self._cycle_bond_order(bi)
-                self.moleculeChanged.emit()
-                self.request_render()
+                if self._apply_bond_type(bi):
+                    self.moleculeChanged.emit()
+                    self.request_render()
                 return
             self.requestHistorySave.emit()
             self._add_atom(pos)
@@ -2310,11 +2639,19 @@ class ChemCanvas(QSvgWidget):
                 self.moleculeChanged.emit()
                 self.request_render()
                 return
+            rbi = self._get_hit_ring_bond(pos)
+            if rbi is not None:
+                self.requestHistorySave.emit()
+                self.molecule.ring_bonds.pop(rbi)
+                self.moleculeChanged.emit()
+                self.request_render()
+                return
 
         if (event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton)
                 and event.modifiers() & (Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
                 and self.molecule and self._positions
-                and not (self.build_mode or self.selection_mode or self.paint_mode or self.measure_mode)):
+                and not (self.build_mode or self.selection_mode or self.paint_mode or self.measure_mode
+                         or self.text_mode)):
             # No tool active: Ctrl (Cmd or Ctrl on macOS) + drag spins the
             # depiction in the plane, about where it currently sits on screen.
             px, py = self._to_canvas_point(0.0, 0.0)  # the 3D centroid's projection
@@ -2331,13 +2668,22 @@ class ChemCanvas(QSvgWidget):
             self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
 
     def mouseMoveEvent(self, event):
+        if self.build_mode and self._ring_bond_from is not None:
+            self._mouse_pos = self._snap_ring_bond_end(self._ring_bond_from, event.position().toPoint())
+            self._snap_hint = (float(self._mouse_pos.x()), float(self._mouse_pos.y()), "ideal") if self.snapping else None
+            self.update()
+            return
         if self.build_mode and self._bonding_from is not None:
             pos = event.position().toPoint()
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 pos = self._snap_to_60deg(self._bonding_from, pos)
+            else:
+                pos, _kind = self._snap(pos, origin=self._bonding_from)
             self._mouse_pos = pos
-            self.update()
+            self._update_snap_hint(pos)
             return
+        if self.build_mode and self.snapping and not self.text_mode and self._drag_mode == "none":
+            self._update_snap_hint(event.position().toPoint())
         if self.measure_mode and (self._measure_from is not None or self._angle_leg1 is not None):
             self._mouse_pos = event.position().toPoint()
             self.update()
@@ -2367,10 +2713,17 @@ class ChemCanvas(QSvgWidget):
                 self._mouse_pos = None
             self.update()
             return
+        if self.build_mode and self._ring_bond_from is not None:
+            self._finish_ring_bond(event.position().toPoint())
+            return
         if self.build_mode and self._bonding_from is not None:
             pos = event.position().toPoint()
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 pos = self._snap_to_60deg(self._bonding_from, pos)
+            else:
+                pos, _kind = self._snap(pos, origin=self._bonding_from)
+            self._snap_hint = None
+            order, stereo = self._new_bond_args()
             end_idx = self._get_hit_atom(pos)
             if end_idx is not None and end_idx == self._bonding_from:
                 self.requestHistorySave.emit()
@@ -2378,12 +2731,15 @@ class ChemCanvas(QSvgWidget):
                 self.moleculeChanged.emit()
             elif end_idx is not None:
                 self.requestHistorySave.emit()
-                self._add_bond(self._bonding_from, end_idx)
+                self._add_bond(self._bonding_from, end_idx, order, stereo)
                 self.moleculeChanged.emit()
             else:
                 self.requestHistorySave.emit()
-                new_idx = self._add_atom(pos, depth_from=self._bonding_from)
-                self._add_bond(self._bonding_from, new_idx)
+                # A wedge/hash also puts the new atom toward/away from the
+                # viewer in 3D, so the structure matches what was drawn.
+                offset = {"wedge": STEREO_DEPTH, "hash": -STEREO_DEPTH}.get(stereo, 0.0)
+                new_idx = self._add_atom(pos, depth_from=self._bonding_from, depth_offset=offset)
+                self._add_bond(self._bonding_from, new_idx, order, stereo)
                 self.moleculeChanged.emit()
             self._bonding_from = None
             self._mouse_pos = None
@@ -2393,6 +2749,142 @@ class ChemCanvas(QSvgWidget):
         self._drag_start = None
         self._drag_mode = "none"
         self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+
+    def _update_snap_hint(self, pos: Optional[QPoint]):
+        """Show (or clear) the marker over the location the cursor would snap to."""
+        hint = None
+        if pos is not None and self.snapping:
+            snapped, kind = self._snap(pos, origin=self._bonding_from)
+            if kind is not None:
+                hint = (float(snapped.x()), float(snapped.y()), kind)
+        if hint != self._snap_hint or self._bonding_from is not None:
+            self._snap_hint = hint
+            self.update()
+
+    def _finish_ring_bond(self, pos: QPoint):
+        ring = self._ring_bond_from
+        self._ring_bond_from = None
+        self._snap_hint = None
+        self._mouse_pos = None
+        end = self._snap_ring_bond_end(ring, pos)
+        end_idx = self._get_hit_atom(end)
+        outline = [self._to_canvas_point(*self._positions[a]) for a in ring if a in self._positions]
+        if end_idx in ring or (end_idx is None and _point_in_polygon(end.x(), end.y(), outline)):
+            self.update()   # released inside the ring: nothing to draw
+            return
+        self.requestHistorySave.emit()
+        if end_idx is None:
+            end_idx = self._add_atom(end, depth_from=ring[0])
+        rb = {"ring": list(ring), "atom": end_idx}
+        if rb not in self.molecule.ring_bonds:
+            self.molecule.ring_bonds.append(rb)
+        self.moleculeChanged.emit()
+        self.request_render()
+        self.update()
+
+    # ── text tool: edit atom labels ──────────────────────────────────────────
+
+    def _get_hit_label(self, pos: QPoint) -> Optional[int]:
+        """The atom whose drawn label (letters) is under *pos*, if any."""
+        for i, (x0, x1, y0, y1) in self._label_boxes.items():
+            if x0 <= pos.x() <= x1 and y0 <= pos.y() <= y1:
+                return i
+        return None
+
+    def _default_label_color(self, idx: int) -> str:
+        """The label color atom *idx* gets without a color of its own."""
+        if self.label_color_mode == "black":
+            bg = self.background.lstrip("#")
+            try:
+                lum = (0.299 * int(bg[0:2], 16) + 0.587 * int(bg[2:4], 16) + 0.114 * int(bg[4:6], 16)) / 255.0
+            except (ValueError, IndexError):
+                lum = 1.0
+            return "#000000" if lum >= 0.4 else "#ffffff"
+        elem = self.molecule.atoms[idx].element
+        return self.color_overrides.get(elem) or CPK_BASE.get(elem, DEFAULT_BASE)
+
+    def set_text_mode(self, enabled: bool):
+        if not enabled:
+            self._commit_text_editor()
+        self.text_mode = enabled
+        self.setCursor(QCursor(Qt.CursorShape.IBeamCursor if enabled else Qt.CursorShape.OpenHandCursor))
+
+    def _text_press(self, event, pos: QPoint) -> bool:
+        """
+        Text tool: click an atom drawn as letters to edit its label — text,
+        color and boldness. Clicking elsewhere confirms the open edit; it
+        never adds atoms. Right-clicks are left to build mode (delete).
+        Returns whether the press was handled.
+        """
+        if event.button() != Qt.MouseButton.LeftButton:
+            return False
+        if self._text_editor is not None:
+            self._commit_text_editor()
+            return True
+        idx = self._get_hit_label(pos)
+        if idx is not None:
+            self._open_text_editor(idx)
+        return True
+
+    def _open_text_editor(self, idx: int):
+        self._close_text_editor()
+        atom = self.molecule.atoms[idx]
+        bold = atom.label_bold is not False
+        color = atom.label_color or self._default_label_color(idx)
+        font = QFont(self.font_family.split(",")[0].strip())
+        font.setPixelSize(max(10, round(self.font_size_px * self._eff_zoom)))
+        font.setBold(bold)
+        editor = _TextEditor(self._atom_label_text(idx), color, bold, font, self)
+        editor.edit.setMaxLength(6)
+        editor.setProperty("anchor_center", self._to_canvas_point(*self._positions[idx]))
+        editor.committed.connect(self._commit_text_editor)
+        editor.cancelled.connect(self._close_text_editor)
+        editor._fit_width()
+        editor.show()
+        editor.edit.setFocus()
+        editor.edit.selectAll()
+        self._text_editor = editor
+        self._editing_atom = idx
+        self._editing_initial = (color, bold)
+
+    def _commit_text_editor(self) -> bool:
+        """Apply the open label edit. An unreadable label keeps the editor open (marked red)."""
+        editor = self._text_editor
+        if editor is None:
+            return True
+        parsed = self._parse_atom_label(editor.edit.text())
+        if parsed is None:
+            editor.set_invalid(True)
+            return False
+        idx = self._editing_atom
+        atom = self.molecule.atoms[idx]
+        # Only store a style that was actually changed here (or already set),
+        # so untouched labels keep following the element / theme default.
+        new_color = editor.color if (editor.color != self._editing_initial[0] or atom.label_color) else None
+        new_bold = editor.bold if (editor.bold != self._editing_initial[1] or atom.label_bold is not None) else None
+        self._close_text_editor()
+        symbol, n_h = parsed
+        want_h, cur_h = self._label_h_target(idx, symbol, n_h)
+        label_changed = symbol != atom.element or want_h != len(cur_h)
+        if not label_changed and (new_color, new_bold) == (atom.label_color, atom.label_bold):
+            return True
+        self.requestHistorySave.emit()
+        atom.label_color, atom.label_bold = new_color, new_bold
+        if label_changed:
+            self._apply_atom_label(idx, symbol, want_h, cur_h)
+            self.moleculeChanged.emit()
+        self.request_render()
+        return True
+
+    def _close_text_editor(self):
+        editor = self._text_editor
+        self._text_editor = None
+        self._editing_atom = None
+        if editor is not None:
+            editor.blockSignals(True)
+            editor.hide()
+            editor.deleteLater()
+            self.setFocus()
 
     def _rotate_layout(self, screen_angle: float):
         """Rotate the depiction by *screen_angle* (radians, clockwise on screen)."""
@@ -2462,6 +2954,7 @@ class ChemCanvas(QSvgWidget):
         self._plane = (normal / n, p[0])
         self._positions, self._bond_info = generate_2d_layout(
             mol, self.planarity_tolerance, rot, projection=True, plane=self._plane)
+        _apply_drawn_stereo(mol, self._bond_info)
         self._frame_origin = origin
         zoom, pan = self._zoom, self._pan.copy()
         self._fit_view()  # resets zoom (and announces it); put the shared zoom back and re-announce it
@@ -2472,12 +2965,8 @@ class ChemCanvas(QSvgWidget):
         return True
 
     def mouseDoubleClickEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton and self.molecule:
-            idx = self._get_hit_atom(event.position().toPoint())
-            if idx is not None:
-                self._edit_atom_label(idx)
-                return
-        if not self.build_mode:
+        # Labels are edited with the Text tool only; a double-click with no tool resets the view.
+        if not (self.build_mode or self.text_mode):
             self.reset_view()
 
     def _atom_label_text(self, idx: int) -> str:
@@ -2507,57 +2996,26 @@ class ChemCanvas(QSvgWidget):
                 return norm(text[-n:]), int(m.group(1) or 1)
         return None
 
-    def _edit_atom_label(self, idx: int):
-        """Open an inline editor over atom *idx*'s label (element + hidden H) to change it."""
-        self._close_label_editor()
-        ax, ay = self._to_canvas_point(*self._positions[idx])
-        edit = _LabelEdit(self._atom_label_text(idx), self)
-        font = edit.font()
-        font.setBold(True)
-        font.setPointSizeF(max(10.0, self.font_size_px * self._eff_zoom * 0.6))
-        edit.setFont(font)
-        edit.setMaxLength(6)
-        edit.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        edit.setStyleSheet("QLineEdit { border: 2px solid #2f8fff; border-radius: 4px; background: white; color: #222; }")
-        w = max(84, int(self.font_size_px * self._eff_zoom * 2.8))
-        h = max(32, int(self.font_size_px * self._eff_zoom * 1.2))
-        edit.setGeometry(int(ax - w / 2), int(ay - h / 2), w, h)
-        edit.returnPressed.connect(lambda: self._commit_atom_label(idx, edit))
-        edit.cancelled.connect(self._close_label_editor)
-        edit.show()
-        edit.setFocus()
-        edit.selectAll()
-        self._label_editor = edit
-
-    def _commit_atom_label(self, idx: int, edit: QLineEdit):
-        parsed = self._parse_atom_label(edit.text())
-        if parsed is None:
-            edit.setStyleSheet("QLineEdit { border: 2px solid #e03131; border-radius: 4px; background: #fff0f0; color: #222; }")
-            return
-        self._close_label_editor()
-        symbol, n_h = parsed
+    def _label_h_target(self, idx: int, symbol: str, n_h: Optional[int]) -> Tuple[int, List[int]]:
+        """(hydrogen count the edited label asks for, hidden H atoms atom *idx* has now)."""
         mol = self.molecule
-        if idx >= len(mol.atoms):
-            return
-        has_h_atoms = any(a.element == "H" for a in mol.atoms)
         cur_h = self._hidden_h_atoms(idx)
         # An H count only means something once the molecule carries explicit H
         # atoms; in a bare heavy-atom sketch hydrogens stay implicit.
+        has_h_atoms = any(a.element == "H" for a in mol.atoms)
         want_h = n_h if (n_h is not None and has_h_atoms and mol.atoms[idx].element != "H") else len(cur_h)
-        if symbol == mol.atoms[idx].element and want_h == len(cur_h):
-            self.request_render()
-            return
-        self.requestHistorySave.emit()
-        mol.atoms[idx].element = symbol
+        return want_h, cur_h
+
+    def _apply_atom_label(self, idx: int, symbol: str, want_h: int, cur_h: List[int]):
+        """Set atom *idx*'s element and add/remove hidden H atoms to reach *want_h*."""
+        self.molecule.atoms[idx].element = symbol
         if want_h < len(cur_h):
-            removed = sorted(cur_h[want_h:], reverse=True)
-            for h_idx in removed:
+            for h_idx in sorted(cur_h[want_h:], reverse=True):
                 self._delete_atom(h_idx)
-            idx -= sum(1 for h_idx in removed if h_idx < idx)
+                if h_idx < idx:
+                    idx -= 1
         elif want_h > len(cur_h):
             self._add_hidden_hydrogens(idx, want_h - len(cur_h))
-        self.moleculeChanged.emit()
-        self.request_render()
 
     def _add_hidden_hydrogens(self, idx: int, count: int):
         """Attach *count* new H atoms to atom *idx*, placed opposite its existing bonds in 3D and 2D."""
@@ -2589,15 +3047,6 @@ class ChemCanvas(QSvgWidget):
             self._positions[h_idx] = (px + float(d[0]) * 0.9, py + float(d[1]) * 0.9)
             self._add_bond(idx, h_idx)
 
-    def _close_label_editor(self):
-        edit = self._label_editor
-        self._label_editor = None
-        if edit is not None:
-            edit.blockSignals(True)
-            edit.hide()
-            edit.deleteLater()
-            self.setFocus()
-
     def paintEvent(self, event):
         super().paintEvent(event)
         draw_green = self.align_mode and self._green_atoms and self.molecule
@@ -2609,7 +3058,10 @@ class ChemCanvas(QSvgWidget):
                              and self._mouse_pos is not None and self.molecule
                              and self._measure_from in self._positions)
         draw_angles = self.measure_mode and (self._angle_atoms or self._angle_leg1 is not None) and self.molecule
-        if not (draw_green or draw_bond or draw_measure or draw_measure_drag or draw_angles):
+        draw_ring_bond = self.build_mode and self._ring_bond_from is not None and self._mouse_pos is not None
+        draw_snap = self.build_mode and self.snapping and not self.text_mode and self._snap_hint is not None
+        if not (draw_green or draw_bond or draw_measure or draw_measure_drag or draw_angles
+                or draw_ring_bond or draw_snap):
             return
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -2626,6 +3078,19 @@ class ChemCanvas(QSvgWidget):
             p.setPen(QColor("#007bff"))
             ax, ay = self._to_canvas_point(*self._positions[self._bonding_from])
             p.drawLine(int(ax), int(ay), self._mouse_pos.x(), self._mouse_pos.y())
+        if draw_ring_bond:
+            c = self._ring_center_canvas(self._ring_bond_from)
+            if c:
+                p.setPen(QPen(QColor("#007bff"), 1.5))
+                p.drawLine(QPointF(*c), QPointF(self._mouse_pos))
+        if draw_snap:
+            x, y, kind = self._snap_hint
+            p.setPen(QPen(QColor("#ff8c00"), 1.6))
+            p.setBrush(QColor(255, 140, 0, 50))
+            p.drawEllipse(QPointF(x, y), 6.0, 6.0)
+            if kind == "ring":
+                p.drawLine(QPointF(x - 4, y), QPointF(x + 4, y))
+                p.drawLine(QPointF(x, y - 4), QPointF(x, y + 4))
 
         if draw_measure or draw_measure_drag or draw_angles:
             self._paint_measurements(p, draw_measure, draw_measure_drag, draw_angles)

@@ -26,12 +26,17 @@ Measure mode (M):
   Click/drag          Measure distance
   Shift+drag          Measure angle
 
+2D view only:
+  Build subtools   Snapping toggle / bond type combo (regular, double, triple,
+                   forward wedge, backward hash, ring bond) / Text tool:
+                   click an atom label to edit its text, color and boldness
+
 Menus:
   File          Open / Save As / Export SVG / Export View / Quick SVG Export / Quit
   Edit          Settings / Style / Shortcuts / Info / Edit Charge / InChI / Selection Mode / Build Mode / Align Mode
   View          Reset View / Preset orientations / Overlay Settings
   Calculations  Generate G16 Input / Calculate Rotational Constants / Calculate Dipole Moment / Open Terminal / Calculation Results
-  Build         Clean / Undo / Redo / Optimize / Disable Bond Order
+  Build         Clean (also in the mode toolbar) / Undo / Redo / Optimize / Disable Bond Order
   Help          Open Test Molecule / About
 
   Note: On Windows/Linux use Ctrl for shortcuts; on macOS use Cmd.
@@ -53,6 +58,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QTabWidget, QComboBox, QPlainTextEdit, QLineEdit,
     QButtonGroup, QRadioButton, QKeySequenceEdit, QToolButton,
     QGraphicsOpacityEffect, QStackedWidget, QAbstractButton,
+    QStyle, QStyleOptionComboBox, QStylePainter,
 )
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtSvg import QSvgRenderer
@@ -80,11 +86,12 @@ from molvector.render import (
     chemical_formula, molecular_mass, VibrationalMode, ExcitedState,
     save_xyz, save_gaussian_input, save_pdb, save_mol, project_molecule,
     Atom, Bond,
-    optimize_geometry, HAS_OPENBABEL, _HAS_OPENBABEL_PKG, _OB_DATA_DIR, _suppress_ob_stderr, calculate_rotational_constants, calculate_dipole_moment, generate_inchi, check_valence_issues,
+    optimize_geometry, ensure_openbabel, openbabel_unavailable_message, _suppress_ob_stderr, calculate_rotational_constants, calculate_dipole_moment, generate_inchi, check_valence_issues,
     center_positions, ATOMIC_MASSES, mulliken_gradient_color,
     MULLIKEN_NEGATIVE_COLOR, MULLIKEN_ZERO_COLOR, MULLIKEN_POSITIVE_COLOR,
 )
 from molvector.chemvector import ChemCanvas, HAS_RDKIT, check_aromaticity
+from molvector import native_guard
 
 # ── shortcut modifier prefix ─────────────────────────────────────────────────
 def _mod(s: str) -> str:
@@ -130,6 +137,94 @@ def load_colored_icon(svg_path: str, color: str, size: int = 22) -> QIcon:
     renderer.render(painter, QRectF(x, y, w, h))
     painter.end()
     return QIcon(pix)
+
+BOND_TYPES = [   # (kind, combo label, tooltip)
+    ("single", "Regular",  "Regular bond — click a bond to cycle its order"),
+    ("double", "Double",   "Double bond"),
+    ("triple", "Triple",   "Triple bond"),
+    ("wedge",  "Forward",  "Forward bond (wedge, toward the viewer) — click a wedge again to flip it"),
+    ("hash",   "Backward", "Backward bond (hash, away from the viewer) — click a hash again to flip it"),
+    ("ring",   "Ring bond", "Ring bond — drag from a ring's center out over one of its bonds "
+                            "(substituent at an undetermined ortho/meta/para position)"),
+]
+
+
+def bond_type_icon(kind: str, color: str, size: int = 22) -> QIcon:
+    """Small drawn icon for a 2D build bond type (see BOND_TYPES)."""
+    pix = QPixmap(size * 2, size * 2)   # drawn at 2x for crisp HiDPI
+    pix.fill(Qt.GlobalColor.transparent)
+    p = QPainter(pix)
+    p.setRenderHint(QPainter.RenderHint.Antialiasing)
+    p.scale(2, 2)
+    col = QColor(color)
+    pen = QPen(col, 1.8)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen)
+    a, b = QPointF(4, size - 5), QPointF(size - 4, 5)
+    if kind in ("single", "double", "triple"):
+        n = {"single": 1, "double": 2, "triple": 3}[kind]
+        for k in range(n):
+            off = (k - (n - 1) / 2) * 3.6
+            d = QPointF(off * 0.7071, off * 0.7071)
+            p.drawLine(a + d, b + d)
+    elif kind == "wedge":
+        p.setBrush(col)
+        p.setPen(Qt.PenStyle.NoPen)
+        path = QPainterPath(a)
+        path.lineTo(b + QPointF(-2.8, -2.8))
+        path.lineTo(b + QPointF(2.8, 2.8))
+        path.closeSubpath()
+        p.drawPath(path)
+    elif kind == "hash":
+        p.setPen(QPen(col, 1.4))
+        for k in range(1, 6):
+            t = k / 5
+            c = a + (b - a) * t
+            w = 3.0 * t
+            p.drawLine(c + QPointF(-w, -w), c + QPointF(w, w))
+    elif kind == "ring":
+        import math as _m
+        cx, cy, r = size * 0.42, size * 0.58, size * 0.3
+        pts = [QPointF(cx + r * _m.cos(_m.radians(30 + 60 * k)), cy + r * _m.sin(_m.radians(30 + 60 * k)))
+               for k in range(6)]
+        p.setPen(QPen(col, 1.4))
+        for k in range(6):
+            p.drawLine(pts[k], pts[(k + 1) % 6])
+        p.setPen(pen)
+        p.drawLine(QPointF(cx, cy), QPointF(size - 3, 3))
+    p.end()
+    pix.setDevicePixelRatio(2)
+    return QIcon(pix)
+
+
+class _IconComboBox(QComboBox):
+    """Combo box that shows only the current item's icon when closed; the
+    item names appear in the opened list."""
+
+    def _closed_option(self) -> QStyleOptionComboBox:
+        opt = QStyleOptionComboBox()
+        self.initStyleOption(opt)
+        opt.currentText = ""
+        return opt
+
+    def paintEvent(self, event):
+        p = QStylePainter(self)
+        opt = self._closed_option()
+        p.drawComplexControl(QStyle.ComplexControl.CC_ComboBox, opt)
+        p.drawControl(QStyle.ControlElement.CE_ComboBoxLabel, opt)
+
+    def sizeHint(self) -> QSize:
+        return self.style().sizeFromContents(
+            QStyle.ContentsType.CT_ComboBox, self._closed_option(), self.iconSize(), self)
+
+    def minimumSizeHint(self) -> QSize:
+        return self.sizeHint()
+
+    def showPopup(self):
+        view = self.view()
+        view.setMinimumWidth(view.sizeHintForColumn(0) + 24)
+        super().showPopup()
+
 
 def set_icons(app, win):
     system = platform.system()
@@ -5309,6 +5404,12 @@ class MainWindow(QMainWindow):
         self._act_measure_btn.triggered.connect(self._toggle_measure_mode)
         self._build_toolbar_obj.addAction(self._act_measure_btn)
 
+        clean_path = os.path.join(assets_dir, "icon_clean.svg")
+        self._act_clean = QAction(load_colored_icon(clean_path, icon_color), "Clean", self)
+        self._act_clean.setToolTip("Clean — rapidly optimize geometry (force field)")
+        self._act_clean.triggered.connect(self._clean_molecule)
+        self._build_toolbar_obj.addAction(self._act_clean)
+
         # ── Mode-specific toolbars ────────────────────────────────────────────
         # Each mode has its own toolbar; only the active mode's toolbar is visible.
 
@@ -5362,16 +5463,40 @@ class MainWindow(QMainWindow):
         self._auto_h_check.setChecked(False)
         self._auto_h_check.toggled.connect(self._on_auto_h_toggle)
         self._build_options_toolbar.addWidget(self._auto_h_check)
-        self._build_options_toolbar.addSeparator()
-        clean_path = os.path.join(assets_dir, "icon_clean.svg")
-        self._act_clean = QAction(load_colored_icon(clean_path, icon_color), "Clean", self)
-        self._act_clean.setToolTip("Rapidly optimize geometry (Force Field)")
-        self._act_clean.triggered.connect(self._clean_molecule)
-        self._build_options_toolbar.addAction(self._act_clean)
-        clean_btn = self._build_options_toolbar.widgetForAction(self._act_clean)
-        if clean_btn:
-            clean_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
-            clean_btn.setStyleSheet("QToolButton { padding: 2px 10px 2px 6px; }")
+
+        # 2D-only build subtools: snapping, the bond type selector and the
+        # text tool. Their toolbar entries are shown only in the 2D view.
+        self._build_2d_only_actions: list[QAction] = [self._build_options_toolbar.addSeparator()]
+        magnet_path = os.path.join(assets_dir, "icon_magnet.svg")
+        self._act_snapping = QAction(load_colored_icon(magnet_path, icon_color), "Snapping", self)
+        self._act_snapping.setCheckable(True)
+        self._act_snapping.setToolTip(
+            "Snapping — snap the cursor to atoms, ring centers, bond midpoints and ideal next-atom positions")
+        self._act_snapping.toggled.connect(lambda on: self._chem_canvas.set_snapping(on))
+        self._build_options_toolbar.addAction(self._act_snapping)
+        self._build_2d_only_actions.append(self._act_snapping)
+        self._bond_type_combo = _IconComboBox()
+        self._bond_type_combo.setIconSize(QSize(20, 20))
+        self._bond_type_combo.setStyleSheet("QComboBox { padding: 3px 4px; } QComboBox::drop-down { width: 6px; }")
+        self._bond_type_combo.setToolTip("Bond type for new bonds, and for bonds you click")
+        for k, (kind, label, tip) in enumerate(BOND_TYPES):
+            self._bond_type_combo.addItem(bond_type_icon(kind, icon_color), label, kind)
+            self._bond_type_combo.setItemData(k, tip, Qt.ItemDataRole.ToolTipRole)
+        self._bond_type_combo.currentIndexChanged.connect(
+            lambda _i: self._on_bond_type_change(self._bond_type_combo.currentData()))
+        self._build_2d_only_actions.append(self._build_options_toolbar.addWidget(self._bond_type_combo))
+
+        # Text tool: while it is on, clicking an atom drawn as letters edits its label
+        text_path = os.path.join(assets_dir, "icon_text.svg")
+        self._act_text_btn = QAction(load_colored_icon(text_path, icon_color), "Text", self)
+        self._act_text_btn.setCheckable(True)
+        self._act_text_btn.setToolTip(
+            "Text tool — click an atom shown as letters to edit its label "
+            "(text, color, bold)"
+        )
+        self._act_text_btn.toggled.connect(self._toggle_text_mode)
+        self._build_options_toolbar.addAction(self._act_text_btn)
+        self._build_2d_only_actions.append(self._act_text_btn)
         self.addToolBar(self._build_options_toolbar)
         self._build_options_toolbar.setVisible(False)
 
@@ -5736,35 +5861,24 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, 'Rotational constants', f"Rotational constants:\nA: {rot_consts[0]:10.4f} MHz\nB: {rot_consts[1]:10.4f} MHz\nC: {rot_consts[2]:10.4f} MHz")
         return(rot_consts)
 
+    def _require_openbabel(self) -> bool:
+        """Load OpenBabel on first use; show a hint and return False if unusable."""
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            ok = ensure_openbabel()
+        finally:
+            QApplication.restoreOverrideCursor()
+        if not ok:
+            self.show_notification(openbabel_unavailable_message(), "warning", 0)
+        return ok
+
     def _calculate_dipole_moment(self):
         mol = self._canvas.molecule
         if not mol:
             QMessageBox.information(self, 'No molecule', "Load or build a molecule first.")
             return
 
-        if not HAS_OPENBABEL:
-            if not _HAS_OPENBABEL_PKG:
-                _hint = (
-                    "OpenBabel is not installed.\n\n"
-                    "Install it with:  pip install openbabel-wheel\n\n"
-                    "Then restart Molvector."
-                )
-            else:
-                _hint = (
-                    "OpenBabel is installed but its data files (e.g. UFF.prm)\n"
-                    "could not be found.\n\n"
-                )
-                if _OB_DATA_DIR:
-                    _hint += f"Detected data dir: {_OB_DATA_DIR}\n\n"
-                _hint += (
-                    "Fixes to try:\n"
-                    "  1. Set the BABEL_DATADIR environment variable to the\n"
-                    "     folder containing UFF.prm, then restart Molvector.\n"
-                    "  2. Reinstall into the same environment:\n"
-                    "       pip install --force-reinstall openbabel-wheel\n"
-                     "  3. Use a virtual environment to avoid path conflicts."
-                )
-            self.show_notification(_hint, "warning", 0)
+        if not self._require_openbabel():
             return
 
         mu_vec, mu_mag, atom_charges = calculate_dipole_moment(mol)
@@ -5998,6 +6112,13 @@ class MainWindow(QMainWindow):
             self._act_measure_btn.setIcon(load_colored_icon(os.path.join(assets_dir, "icon_measure.svg"), color))
         if hasattr(self, '_act_clean'):
             self._act_clean.setIcon(load_colored_icon(os.path.join(assets_dir, "icon_clean.svg"), color))
+        if hasattr(self, '_act_snapping'):
+            self._act_snapping.setIcon(load_colored_icon(os.path.join(assets_dir, "icon_magnet.svg"), color))
+        if hasattr(self, '_act_text_btn'):
+            self._act_text_btn.setIcon(load_colored_icon(os.path.join(assets_dir, "icon_text.svg"), color))
+        if hasattr(self, '_bond_type_combo'):
+            for k, (kind, _label, _tip) in enumerate(BOND_TYPES):
+                self._bond_type_combo.setItemIcon(k, bond_type_icon(kind, color))
 
     def _update_info_panel(self, mol):
         """Populate sidebar labels and status bar for a loaded molecule."""
@@ -6433,12 +6554,24 @@ class MainWindow(QMainWindow):
 
     def _update_status_for_mode(self):
         if self._chem_mode:
-            if self._chem_canvas.build_mode:
+            if self._chem_canvas.text_mode:
                 self._status.showMessage(
-                    "2D Build — click empty space to add an atom, drag from an atom to bond it, "
-                    "click a bond to cycle its order, right-click to delete."
+                    "2D Text — click an atom shown as letters to edit its label, color and boldness. "
+                    "Enter to confirm, Esc to cancel."
                 )
-                self._hint.setText("Click  add atom\nDrag  bond atoms\nClick bond  change order\nShift+drag  60° snap")
+                self._hint.setText("Click label  edit atom\nEnter  confirm\nEsc  cancel")
+            elif self._chem_canvas.build_mode:
+                if self._chem_canvas.bond_type == "ring":
+                    self._status.showMessage(
+                        "2D Build, ring bond — drag from inside a ring out over one of its bonds; "
+                        "release on an atom or empty space. Right-click a ring bond to delete it."
+                    )
+                else:
+                    self._status.showMessage(
+                        "2D Build — click empty space to add an atom, drag from an atom to bond it "
+                        "(with the selected bond type), click a bond to apply the bond type, right-click to delete."
+                    )
+                self._hint.setText("Click  add atom\nDrag  bond atoms\nClick bond  apply bond type\nShift+drag  60° snap")
             elif self._chem_canvas.selection_mode:
                 self._status.showMessage(
                     "2D Selection — click an atom to select it, click a bond or inside a ring "
@@ -6495,6 +6628,8 @@ class MainWindow(QMainWindow):
         self._chem_canvas.paint_mode = False
         self._chem_canvas.align_mode = False
         self._chem_canvas.measure_mode = False
+        self._act_text_btn.setChecked(False)
+        self._chem_canvas.set_text_mode(False)
         self._chem_canvas._green_atoms.clear()
         self._chem_canvas._measure_atoms.clear()
         self._chem_canvas._angle_atoms.clear()
@@ -6532,6 +6667,8 @@ class MainWindow(QMainWindow):
         self._canvas._green_atoms.clear()
         self._chem_canvas.align_mode = False
         self._chem_canvas.measure_mode = False
+        self._act_text_btn.setChecked(False)
+        self._chem_canvas.set_text_mode(False)
         self._chem_canvas._green_atoms.clear()
         self._chem_canvas._measure_atoms.clear()
         self._chem_canvas._angle_atoms.clear()
@@ -6562,6 +6699,8 @@ class MainWindow(QMainWindow):
         it applies to whichever canvas is currently on screen."""
         if enabled:
             self._deactivate_all_modes()
+        else:
+            self._act_text_btn.setChecked(False)   # the text tool is a build subtool
         self._act_build_toggle.setChecked(enabled)
         self._act_build_btn.setChecked(enabled)
         if self._chem_mode:
@@ -6575,7 +6714,27 @@ class MainWindow(QMainWindow):
             self._chem_canvas.build_mode = False
             self._canvas.build_mode = enabled
             self._canvas._update_cursor(self._canvas._mouse_pos or QPoint(0, 0), Qt.KeyboardModifier.NoModifier)
+        for act in self._build_2d_only_actions:
+            act.setVisible(self._chem_mode)
         self._switch_mode_toolbar("build" if enabled else None)
+        self._update_status_for_mode()
+
+    def _on_bond_type_change(self, kind: str):
+        self._chem_canvas.bond_type = kind
+        self._update_status_for_mode()
+
+    def _toggle_text_mode(self, enabled: bool):
+        """Text tool — a 2D Build subtool: while on, clicking an atom drawn as
+        letters edits its label (text, color, bold) instead of adding atoms
+        (the bond type doesn't apply then)."""
+        enabled = enabled and self._chem_mode and self._chem_canvas.build_mode
+        if self._act_text_btn.isChecked() != enabled:
+            self._act_text_btn.setChecked(enabled)   # re-enters here via toggled
+            return
+        self._chem_canvas.set_text_mode(enabled)
+        if not enabled and self._chem_canvas.build_mode:
+            self._chem_canvas.setCursor(QCursor(Qt.CursorShape.CrossCursor))
+        self._bond_type_combo.setEnabled(not enabled)
         self._update_status_for_mode()
 
     def _toggle_align_mode(self, enabled: bool):
@@ -6797,29 +6956,7 @@ class MainWindow(QMainWindow):
         if not self._canvas.molecule or not self._canvas.molecule.atoms:
             return
 
-        if not HAS_OPENBABEL:
-            if not _HAS_OPENBABEL_PKG:
-                _hint = (
-                    "OpenBabel is not installed.\n\n"
-                    "Install it with:  pip install openbabel-wheel\n\n"
-                    "Then restart Molvector."
-                )
-            else:
-                _hint = (
-                    "OpenBabel is installed but its data files (e.g. UFF.prm)\n"
-                    "could not be found.\n\n"
-                )
-                if _OB_DATA_DIR:
-                    _hint += f"Detected data dir: {_OB_DATA_DIR}\n\n"
-                _hint += (
-                    "Fixes to try:\n"
-                    "  1. Set the BABEL_DATADIR environment variable to the\n"
-                    "     folder containing UFF.prm, then restart Molvector.\n"
-                    "  2. Reinstall into the same environment:\n"
-                    "       pip install --force-reinstall openbabel-wheel\n"
-                     "  3. Use a virtual environment to avoid path conflicts."
-                )
-            self.show_notification(_hint, "warning", 0)
+        if not self._require_openbabel():
             return
 
         self._save_history()
@@ -6914,11 +7051,13 @@ class MainWindow(QMainWindow):
             self._status.showMessage("Chemvector — 2D whiteboard view. Enable Build Mode to sketch here.")
             if not HAS_RDKIT and not getattr(self, '_rdkit_hint_shown', False):
                 self._rdkit_hint_shown = True
-                self.show_notification(
-                    "Chem view is using a simplified layout — install RDKit "
-                    "(pip install rdkit) for proper 2D depictions and stereo wedges.",
-                    "info", 7000,
-                )
+                if native_guard.crashed("rdkit"):
+                    _msg = ("Chem view is using a simplified layout — RDKit is installed "
+                            "but was disabled because it crashes in this environment.")
+                else:
+                    _msg = ("Chem view is using a simplified layout — install RDKit "
+                            "(pip install rdkit) for proper 2D depictions and stereo wedges.")
+                self.show_notification(_msg, "info", 7000)
         else:
             # Zoom (and rotation) may have been changed from the 2D view while
             # this one was hidden — draw it with the current shared state.
@@ -6979,6 +7118,8 @@ class MainWindow(QMainWindow):
 
     def _on_chem_structure_changed(self):
         """A 2D build-mode edit mutated the shared Molecule directly — refresh both views."""
+        if self._canvas.molecule is None and self._chem_canvas.molecule is not None:
+            self._canvas.molecule = self._chem_canvas.molecule   # first atom/text drawn on an empty 2D view
         self._update_info_panel(self._canvas.molecule)
         self._canvas.request_render()
 
@@ -7586,6 +7727,7 @@ class MainWindow(QMainWindow):
 # ─────────────────────────────────────────────────────────────────────────────
 
 def main():
+    native_guard.enable_crash_traceback()
     app = QApplication(sys.argv)
     app.setApplicationName("Molvector")
     app.setFont(QFont("sans-serif", 10))

@@ -89,7 +89,17 @@ def _system_install():
 
 # ── main ─────────────────────────────────────────────────────────────────────
 
+def _forget_probe_verdicts():
+    """Molvector caches whether OpenBabel is safe to load; reset after changes."""
+    try:
+        from molvector import native_guard
+        native_guard.clear_cache()
+    except Exception:
+        pass
+
+
 def setup():
+    _forget_probe_verdicts()
     print("=" * 60)
     print("  Molvector — OpenBabel setup")
     print("=" * 60)

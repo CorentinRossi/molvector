@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "molvector"
-version = "1.12.0-beta.1"
+version = "1.12.0-beta.2"
 description = "Interactive 3D Molecule Viewer and Builder"
 readme = "README.md"
 requires-python = ">=3.10"

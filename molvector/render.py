@@ -34,70 +34,33 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple
 import mol_strudel as strudel
 
-try:
-    import cclib
-    _HAS_CCLIB = True
-except ImportError:
-    _HAS_CCLIB = False
+from molvector import native_guard
 
-# ── OpenBabel data directory setup (cross-platform) ───────────────────────────
-# A broken openbabel-wheel installation (missing .so deps, incompatible
-# glibc, etc.) can SEGFAULT during `import openbabel`.  Because segfaults
-# are OS-level *signals*, not Python exceptions, a bare try/except cannot
-# catch them — the interpreter is killed before the except clause runs.
-#
-# We probe the actual SWIG extension import in a short-lived subprocess first.
-# If the child exits abnormally (signal / non-zero code) we treat OpenBabel
-# as unavailable and carry on without it.
-_HAS_OPENBABEL_PKG = False   # True if the openbabel *package* can be imported
-_HAS_OPENBABEL_DATA = False  # True if UFF.prm was located
+# ── Optional native libraries ────────────────────────────────────────────────
+# OpenBabel and cclib are NEVER imported at module level.  On Linux, loading
+# openbabel-wheel next to PyQt6 / SciPy / RDKit can SEGFAULT, which kills the
+# GUI (a segfault cannot be caught by try/except).  They are loaded on first
+# use through molvector.native_guard, which first replays this process's
+# native state in a throw-away child and only imports the library here if
+# the child survived.  cclib in particular must go through the guard: its
+# `import cclib` silently imports openbabel, pyscf, ase, ... ("bridges").
+
+_HAS_CCLIB = native_guard.is_installed("cclib")
+cclib = None                 # type: ignore[assignment]  # set by _load_cclib()
+
+
+def _load_cclib():
+    """Return the cclib module, or None if unavailable / unsafe here."""
+    global cclib
+    if cclib is None:
+        cclib = native_guard.load("cclib")
+    return cclib
+
+
 _OB_DATA_DIR = None          # path to the directory containing UFF.prm
-openbabel = None             # type: ignore[assignment]
-
-_OB_PROBE_CODE = (
-    "import openbabel; from openbabel import openbabel;"
-    " ob = openbabel.OBMol(); ob.NewAtom(); ob.DeleteAtom(ob.GetAtom(1))"
-)
-
-
-def _probe_openbabel() -> bool:
-    """Return True if the OpenBabel SWIG extension loads without crashing.
-
-    Tests ``from openbabel import openbabel`` and a minimal OBMol round-trip,
-    which is the exact code path used by Molvector.  A broken shared library
-    will SEGFAULT here (child process), not in the main process.
-    """
-    import subprocess
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", _OB_PROBE_CODE],
-            timeout=10,
-            capture_output=True,
-        )
-        return result.returncode == 0
-    except Exception:
-        return False
-
-
-def _try_setup_openbabel() -> bool:
-    """Attempt to install / repair OpenBabel automatically.
-
-    Runs ``molvector.setup_openabel`` in a subprocess so that any crash
-    or ``sudo`` prompt stays isolated from the main process.  Returns
-    True if the probe passes after the setup attempt.
-    """
-    import subprocess
-    setup_mod = os.path.join(os.path.dirname(__file__), "setup_openbabel.py")
-    if not os.path.isfile(setup_mod):
-        return False
-    try:
-        subprocess.run(
-            [sys.executable, setup_mod],
-            timeout=180,
-        )
-    except Exception:
-        pass
-    return _probe_openbabel()
+_HAS_OPENBABEL_DATA = False  # True if UFF.prm was located
+openbabel = None             # type: ignore[assignment]  # set by ensure_openbabel()
+_ob_checked = False
 
 
 def _setup_openbabel_data() -> None:
@@ -183,45 +146,66 @@ def _setup_openbabel_data() -> None:
     _HAS_OPENBABEL_DATA = _OB_DATA_DIR is not None
 
 
-if _probe_openbabel():
-    try:
-        import openbabel as _ob_pkg
-        from openbabel import openbabel as _ob_swig
-        # Touch the SWIG module so it's fully loaded before we proceed.
-        _ob_swig.OBMol()
-        openbabel = _ob_pkg
-        _HAS_OPENBABEL_PKG = True
-    except Exception:
-        openbabel = None
-else:
-    # First probe failed — try automatic repair, then re-probe.
-    if _try_setup_openbabel():
-        try:
-            import openbabel as _ob_pkg
-            from openbabel import openbabel as _ob_swig
-            _ob_swig.OBMol()
-            openbabel = _ob_pkg
-            _HAS_OPENBABEL_PKG = True
-        except Exception:
-            openbabel = None
-    else:
-        print(
-            "[molvector] OpenBabel is not available.\n"
-            "            Features requiring it (optimise, dipole, InChI) are disabled.\n"
-            "            To enable, run:  molvector-setup",
-            file=sys.stderr,
-        )
 
-if _HAS_OPENBABEL_PKG:
+def ensure_openbabel() -> bool:
+    """Load OpenBabel on first use; return True if it is usable.
+
+    Safe to call repeatedly: the (possibly slow) crash probe runs once per
+    session at most, and its verdict is cached on disk across sessions.
+    """
+    global openbabel, _ob_checked
+    if _ob_checked:
+        return openbabel is not None and _HAS_OPENBABEL_DATA
+    _ob_checked = True
+    if native_guard.load("openbabel") is None:
+        return False
+    import openbabel as _ob_pkg  # package already loaded by the guard
+    openbabel = _ob_pkg
     try:
         _setup_openbabel_data()
     except Exception:
-        _HAS_OPENBABEL_PKG = False
-        _HAS_OPENBABEL_DATA = False
-        openbabel = None
+        pass
+    return _HAS_OPENBABEL_DATA
 
-# Convenient aliases for the rest of the codebase
-HAS_OPENBABEL = _HAS_OPENBABEL_PKG and _HAS_OPENBABEL_DATA
+
+def openbabel_unavailable_message() -> str:
+    """User-facing explanation of why OpenBabel features are disabled."""
+    if native_guard.crashed("openbabel"):
+        return (
+            "OpenBabel is installed, but loading it in Molvector would crash\n"
+            "the application in this environment (native library conflict),\n"
+            "so it was disabled.\n\n"
+            "Fixes to try:\n"
+            "  1. Use a fresh virtual environment:\n"
+            "       pip install molvector openbabel-wheel\n"
+            "  2. If RDKit is installed in the same environment, try without it.\n"
+            "  3. After changing packages, run:  molvector-setup"
+        )
+    if not native_guard.is_installed("openbabel") or openbabel is None:
+        reason = native_guard.failure_reason("openbabel") or ""
+        msg = (
+            "OpenBabel is not available.\n\n"
+            "Install it with:  pip install openbabel-wheel\n\n"
+            "Then restart Molvector."
+        )
+        if reason and reason != "not installed":
+            msg += f"\n\nDetails: {reason}"
+        return msg
+    msg = (
+        "OpenBabel is installed but its data files (e.g. UFF.prm)\n"
+        "could not be found.\n\n"
+    )
+    if _OB_DATA_DIR:
+        msg += f"Detected data dir: {_OB_DATA_DIR}\n\n"
+    msg += (
+        "Fixes to try:\n"
+        "  1. Set the BABEL_DATADIR environment variable to the\n"
+        "     folder containing UFF.prm, then restart Molvector.\n"
+        "  2. Reinstall into the same environment:\n"
+        "       pip install --force-reinstall openbabel-wheel\n"
+        "  3. Use a virtual environment to avoid path conflicts."
+    )
+    return msg
 
 
 # ── Suppress OpenBabel stderr (incl. C-level fd 2 on Windows) ────────────────
@@ -270,6 +254,9 @@ class Atom:
     y: float
     z: float
     color: Optional[str] = None
+    # 2D label style set with the Text tool (None: default color / bold)
+    label_color: Optional[str] = None
+    label_bold: Optional[bool] = None
 
     @property
     def pos(self) -> np.ndarray:
@@ -281,6 +268,9 @@ class Bond:
     i: int
     j: int
     order: int = 1
+    # 2D-drawn stereo bond: "wedge" (toward the viewer) or "hash" (away),
+    # narrow end at atom i. None lets the 2D layout perceive it from 3D.
+    stereo: Optional[str] = None
 
 
 @dataclass
@@ -324,6 +314,10 @@ class Molecule:
     g16_freeenergy: Optional[float] = None
     g16_temperature: Optional[float] = None
     mulliken_charges: Optional[List[float]] = None
+    # 2D whiteboard annotations (Chemvector only — the 3D view ignores them):
+    #   ring_bonds: {"ring": [atom indices], "atom": idx} — a substituent bond
+    #     drawn from a ring's center (undetermined ortho/meta/para position)
+    ring_bonds: List[dict] = field(default_factory=list)
 
 
 
@@ -767,8 +761,8 @@ def _parse_gaussian_log_cclib(text: str) -> Molecule:
 
     Falls through to the legacy parser if cclib is unavailable or fails.
     """
-    if not _HAS_CCLIB:
-        raise ImportError("cclib is not installed")
+    if _load_cclib() is None:
+        raise ImportError("cclib is not available")
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
         f.write(text)
@@ -1709,7 +1703,7 @@ def optimize_geometry(mol: Molecule, max_steps: int = 500, tol: float = 0.01,
     int
         Number of iterations taken (approximate).
     """
-    if not mol.atoms or not HAS_OPENBABEL:
+    if not mol.atoms or not ensure_openbabel():
         return 0
     if len(mol.atoms) < 2:
         return 0
@@ -1793,7 +1787,7 @@ def calculate_dipole_moment(mol: Molecule):
     Returns (None, None, None) when OpenBabel is unavailable or the
     molecule is empty.
     """
-    if not mol.atoms or not HAS_OPENBABEL:
+    if not mol.atoms or not ensure_openbabel():
         return None, None, None
     if len(mol.atoms) < 2:
         return None, None, None
@@ -1872,7 +1866,7 @@ def generate_inchi(mol: Molecule) -> Optional[str]:
     except Exception:
         pass
 
-    if HAS_OPENBABEL:
+    if ensure_openbabel():
         try:
             return _generate_inchi_openbabel(mol)
         except Exception:
@@ -1925,6 +1919,8 @@ def check_valence_issues(mol: Molecule) -> List[str]:
 
 
 def _generate_inchi_rdkit(mol: Molecule) -> Optional[str]:
+    if native_guard.load("rdkit") is None:
+        raise ImportError("RDKit is not available")
     from rdkit import Chem
     from rdkit.Geometry import Point3D
 
