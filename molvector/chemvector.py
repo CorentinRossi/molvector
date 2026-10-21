@@ -897,7 +897,7 @@ def _fan_out_terminal_wedges(mol: Molecule, positions: Positions2D, bond_info: B
 #    of one specific bond's rendered length also belongs here — the short
 #    inner line of a C=C double bond (DOUBLE_BOND_INNER_TRIM), the shorter
 #    flanking lines of a triple bond (TRIPLE_BOND_FLANK_TRIM), and the
-#    wedge/hash width cap.
+#    wedge/hash width cap on very short bonds.
 #
 #  ZOOM-ONLY — grows/shrinks with the interactive zoom level alone
 #    (ChemCanvas._eff_zoom: the drawn typical bond length relative to CHEM_SIZE_REF_BOND_PX), so their ratio to bond length is the same for every molecule.
@@ -906,31 +906,22 @@ def _fan_out_terminal_wedges(mol: Molecule, positions: Positions2D, bond_info: B
 #    size right after loading any molecule no matter how compact its
 #    auto-fit turned out, and still scale together as the user zooms in/out
 #    from there:
-#      * letters (font_size_px) — the label mask boxes (_label_box) are
+#      * letters (font_size_px) — the label boxes (_label_box) and the
+#        clear space between letters and bond ends (LABEL_BOND_GAP) are
 #        sized from that already-resolved font size, so they follow suit;
 #      * line thickness (bond_width_px);
-#      * parallel-line spacing — WEDGE_SEP_PX (triple-bond offset /
-#        wedge-width baseline) and DOUBLE_BOND_GAP_PX (double-bond line gap);
-#      * hash-mark spacing (HASH_SPACING_PX) — the gap between one dashed
-#        hash line and the next. This must scale at the same rate as
-#        bond_width_px (the hash lines' own stroke width): if the count were
-#        instead derived from the bond's already-zoomed canvas length using
-#        a fixed pixel spacing (as it once was), the line count would grow
-#        with zoom while the spacing between them wouldn't, so at high zoom
-#        each line gets thicker while staying just as close together — until
-#        neighboring hash lines overlap and the whole hash bond looks like a
-#        solid wedge instead of a dashed one. Deriving the count from
-#        HASH_SPACING_PX * zoom instead keeps the mark count purely
-#        molecule-scaled (denser on a longer bond, but independent of zoom),
-#        so line thickness and spacing grow together and the dashes stay
-#        legible at any zoom level.
+#      * the one spacing unit of every multi-line or stereo bond,
+#        DOUBLE_BOND_GAP_PX (center-to-center distance of parallel lines):
+#        double and triple bonds use it as is, a wedge/hash's wide end is
+#        1.5 gaps (+ line width) across, and hash marks are one gap apart.
+#        Since the gap and the line width scale together, hashes keep the
+#        same clear space between marks at every zoom instead of thickening
+#        into a solid-looking wedge.
 SNAP_RADIUS_PX = 14.0          # build-mode snapping reach (screen pixels)
 STEREO_DEPTH = 1.0             # Angstrom a wedge/hash-drawn atom sits toward/away from the viewer in 3D
-WEDGE_SEP_PX = 5.0             # ZOOM-ONLY
-DOUBLE_BOND_GAP_PX = 6.0       # ZOOM-ONLY
-HASH_SPACING_PX = 9.0          # ZOOM-ONLY
-DOUBLE_BOND_INNER_TRIM = 0.12  # MOLECULE-SCALED (fraction of the bond's own length; same as the triple bond's flanks)
-TRIPLE_BOND_FLANK_TRIM = 0.12  # MOLECULE-SCALED (fraction of the bond's own length)
+DOUBLE_BOND_GAP_PX = 7.0       # ZOOM-ONLY — the spacing unit of double/triple/wedge/hash bonds
+DOUBLE_BOND_INNER_TRIM = 0.12  # MOLECULE-SCALED (fraction of the bond's own length, at a bare vertex)
+TRIPLE_BOND_FLANK_TRIM = 0.12  # MOLECULE-SCALED (same, for a triple bond's flanking lines)
 
 # A "painted" atom never overrides its letter's own element color — it gets
 # a low-opacity color wash instead. A whole selected/painted ring instead
@@ -939,10 +930,9 @@ TRIPLE_BOND_FLANK_TRIM = 0.12  # MOLECULE-SCALED (fraction of the bond's own len
 # behind bonds and atoms so it reads as a background highlight rather than
 # tinting the structure drawn on top of it — selection just uses a much
 # higher opacity than paint so it still can't be missed. A single painted
-# atom's own wash is the one exception: it sits (in mask_group) right on
-# top of that atom's label padding — below the letter, but above the
-# background circle that erases bonds under it — so it tints the letter's
-# own clean background instead of hiding under the bond lines.
+# atom's own wash is the one exception: it sits (in mask_group) in its
+# label's box, right below the letter — bonds stop short of that box, so the
+# wash shows cleanly around the letter instead of hiding under bond lines.
 SELECTION_COLOR = "#2f8fff"      # selection stays blue
 DEFAULT_PAINT_COLOR = "#e63946"   # paint defaults to a soft red, so it never reads as a selection
 PAINT_OPACITY = 0.55
@@ -1007,14 +997,6 @@ def _pick_h_side(angles: List[float]) -> str:
         if clearance(d) >= math.radians(40):
             return name
     return max(cands, key=lambda c: clearance(c[1]) + (1e-6 if c[0] == "down" else 0.0))[0]
-
-
-def _box_edge_dist(ux: float, uy: float, box: Box) -> float:
-    """Distance from a box's center (inside it) to its edge along unit direction (ux, uy)."""
-    x0, x1, y0, y1 = box
-    tx = (x1 if ux > 0 else x0) / ux if abs(ux) > 1e-9 else float("inf")
-    ty = (y1 if uy > 0 else y0) / uy if abs(uy) > 1e-9 else float("inf")
-    return min(tx, ty)
 
 
 def _label_svg_text(dwg, elem: str, n_h: int, h_side: str, x: float, y: float,
@@ -1106,13 +1088,101 @@ def _hydrogen_is_implicit(i: int, mol: Molecule, bond_info: BondInfo) -> bool:
     return True
 
 
+# Clear space between a label's letters and the end of any bond reaching it,
+# in font sizes — the same for every bond line, whatever its angle or type.
+LABEL_BOND_GAP = 0.16
+
+# A label's keep-out zone: the letters' own rectangle (canvas coordinates
+# x0, x1, y0, y1) grown by a radius r, i.e. a rounded rectangle. Bond lines
+# are clipped to stop at its edge, so the gap to the text is the same in
+# every direction (a plain box would leave bigger gaps at its corners).
+KeepOut = Tuple[float, float, float, float, float]
+
+
+def _label_keepout(x: float, y: float, box: Box, font_size: float, lw: float) -> KeepOut:
+    pad = 0.12 * font_size   # the padding _label_box adds around the letters
+    x0, x1, y0, y1 = box
+    return (x + x0 + pad, x + x1 - pad, y + y0 + pad, y + y1 - pad,
+            LABEL_BOND_GAP * font_size + lw / 2.0)   # + half the stroke: round caps reach that far
+
+
+def _keepout_excess(px: float, py: float, ko: KeepOut) -> float:
+    """Distance from (px, py) to the keep-out's core rectangle, minus its radius (<= 0: inside)."""
+    dx = max(ko[0] - px, 0.0, px - ko[1])
+    dy = max(ko[2] - py, 0.0, py - ko[3])
+    return math.hypot(dx, dy) - ko[4]
+
+
+def _keepout_interval(p0, p1, ko: KeepOut) -> Optional[Tuple[float, float]]:
+    """
+    The part [t0, t1] of segment p0→p1 (t in 0..1) inside keep-out *ko*, or
+    None. The distance to a convex shape is convex along a line, so its
+    minimum is found by ternary search and both crossings by bisection.
+    """
+    def f(t):
+        return _keepout_excess(p0[0] + (p1[0] - p0[0]) * t, p0[1] + (p1[1] - p0[1]) * t, ko)
+
+    lo, hi = 0.0, 1.0
+    for _ in range(40):
+        m1, m2 = lo + (hi - lo) / 3, hi - (hi - lo) / 3
+        if f(m1) <= f(m2):
+            hi = m2
+        else:
+            lo = m1
+    tm = (lo + hi) / 2
+    if f(tm) > 0:
+        return None
+
+    def crossing(outside, inside):
+        for _ in range(30):
+            mid = (outside + inside) / 2
+            if f(mid) > 0:
+                outside = mid
+            else:
+                inside = mid
+        return (outside + inside) / 2
+
+    t0 = 0.0 if f(0.0) <= 0 else crossing(0.0, tm)
+    t1 = 1.0 if f(1.0) <= 0 else crossing(1.0, tm)
+    return t0, t1
+
+
+def _clip_to_keepouts(p0, p1, ko_start: Optional[KeepOut], ko_end: Optional[KeepOut]):
+    """
+    Segment p0→p1 shortened so it starts outside *ko_start* (the label at
+    its start) and ends outside *ko_end*; None if nothing is left.
+    """
+    s, e = 0.0, 1.0
+    if ko_start is not None:
+        iv = _keepout_interval(p0, p1, ko_start)
+        if iv is not None and iv[0] < 0.5:
+            s = iv[1]
+    if ko_end is not None:
+        iv = _keepout_interval(p0, p1, ko_end)
+        if iv is not None and iv[1] > 0.5:
+            e = iv[0]
+    if e - s < 1e-3:
+        return None
+    dx, dy = p1[0] - p0[0], p1[1] - p0[1]
+    return (p0[0] + dx * s, p0[1] + dy * s), (p0[0] + dx * e, p0[1] + dy * e)
+
+
 def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: bool,
-               bond_color: str, lw: float, sep: float, double_gap: float,
+               bond_color: str, lw: float, gap: float,
                inside_canvas: Optional[Tuple[float, float]] = None,
                is_cc: bool = False,
-               label_box_i: Optional[Box] = None,
-               label_box_j: Optional[Box] = None,
-               hash_spacing: float = HASH_SPACING_PX):
+               ko_i: Optional[KeepOut] = None,
+               ko_j: Optional[KeepOut] = None):
+    """
+    Draw one bond from atom i (ax, ay) to atom j (bx, by). Every line is
+    clipped at the keep-out of a labeled end (ko_i / ko_j), so all bonds stop
+    the same distance from the letters. All spacing derives from one unit,
+    *gap* — the center-to-center distance of parallel lines:
+      * double bond: two lines *gap* apart (C=C: the second one inset);
+      * triple bond: three lines *gap* apart;
+      * wedge / hash: the wide end is 1.5 gaps across (+ the line width),
+        and hash marks are one gap apart, like a double bond's two lines.
+    """
     dx, dy = bx - ax, by - ay
     length = math.hypot(dx, dy)
     if length < 1e-3:
@@ -1120,108 +1190,98 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
     ux, uy = dx / length, dy / length
     px, py = -uy, ux
 
+    def line(p0, p1, width=lw):
+        seg = _clip_to_keepouts(p0, p1, ko_i, ko_j)
+        if seg is not None:
+            group.add(dwg.line(start=seg[0], end=seg[1], stroke=bond_color,
+                                stroke_width=width, stroke_linecap="round"))
+
+    def offset_line(off, trim_frac):
+        # A parallel line *off* to the side, pulled in by trim_frac of the bond
+        # at a bare vertex (so it never runs into the neighbors' bonds); at a
+        # labeled end it is clipped by the keep-out like any other line.
+        ti = 0.0 if ko_i is not None else length * trim_frac
+        tj = 0.0 if ko_j is not None else length * trim_frac
+        line((ax + ux * ti + px * off, ay + uy * ti + py * off),
+             (bx - ux * tj + px * off, by - uy * tj + py * off))
+
     if kind in ("wedge", "hash"):
         if apex_is_i:
-            apex_pt, base_pt = (ax, ay), (bx, by)
-            apex_box, base_box = label_box_i, label_box_j
+            apex_pt, base_pt, ko_apex, ko_base = (ax, ay), (bx, by), ko_i, ko_j
         else:
-            apex_pt, base_pt = (bx, by), (ax, ay)
-            apex_box, base_box = label_box_j, label_box_i
+            apex_pt, base_pt, ko_apex, ko_base = (bx, by), (ax, ay), ko_j, ko_i
+        if ko_apex is not None:
+            seg = _clip_to_keepouts(apex_pt, base_pt, ko_apex, None)
+            if seg is None:
+                return
+            apex_pt = seg[0]
         adx, ady = base_pt[0] - apex_pt[0], base_pt[1] - apex_pt[1]
-        full_len = math.hypot(adx, ady)
-        if full_len < 1e-3:
+        alen = math.hypot(adx, ady)
+        if alen < 1e-3:
             return
-        aux, auy = adx / full_len, ady / full_len
-        # Trim inward from either end by that atom's own label box,
-        # so the wedge/hash's wide end never overlaps a heteroatom label box
-        # (or any other labeled atom) sitting at the apex or base.
-        apex_trim = min(_box_edge_dist(aux, auy, apex_box) if apex_box else 0.0, full_len * 0.4)
-        base_trim = min(_box_edge_dist(aux, auy, base_box) if base_box else 0.0, full_len * 0.4)
-        apex_pt = (apex_pt[0] + aux * apex_trim, apex_pt[1] + auy * apex_trim)
-        base_pt = (base_pt[0] - aux * base_trim, base_pt[1] - auy * base_trim)
-        alen = max(full_len - apex_trim - base_trim, full_len * 0.15)
-        adx, ady = aux * alen, auy * alen  # refresh to the trimmed span — used below for hash-mark spacing
+        aux, auy = adx / alen, ady / alen
         apx, apy = -auy, aux
-        half_w = min(sep * 1.4, alen * 0.24)
-
+        half_w = min(0.75 * gap + lw / 2.0, alen * 0.2)
+        # Shorten the whole tapered shape (not just its axis) so even the
+        # wide end's corners stay out of a labeled base atom's keep-out.
+        reach = 1.0
+        if ko_base is not None:
+            for side in (0.0, 1.0, -1.0):
+                corner = (base_pt[0] + apx * half_w * side, base_pt[1] + apy * half_w * side)
+                iv = _keepout_interval(apex_pt, corner, ko_base)
+                if iv is not None:
+                    reach = min(reach, iv[0])
+        if reach < 0.05:
+            return
+        w_end = half_w * reach
+        end = (apex_pt[0] + adx * reach, apex_pt[1] + ady * reach)
         if kind == "wedge":
-            p1 = apex_pt
-            p2 = (base_pt[0] + apx * half_w, base_pt[1] + apy * half_w)
-            p3 = (base_pt[0] - apx * half_w, base_pt[1] - apy * half_w)
-            group.add(dwg.polygon(points=[p1, p2, p3], fill=bond_color, stroke="none"))
+            group.add(dwg.polygon(points=[apex_pt,
+                                          (end[0] + apx * w_end, end[1] + apy * w_end),
+                                          (end[0] - apx * w_end, end[1] - apy * w_end)],
+                                  fill=bond_color, stroke="none"))
         else:
-            # No large floor here: forcing e.g. 5 marks onto a bond too short
-            # to fit them at hash_spacing apart is exactly what packs them
-            # tight enough to look like a solid wedge instead of a dashed
-            # one — a short/foreshortened bond should simply get fewer,
-            # still properly-spaced marks.
-            n_hash = max(2, round(alen / max(1.0, hash_spacing)))
+            # Evenly spaced marks, one gap apart (like a double bond's lines), widening toward the end.
+            n_hash = max(2, round(alen * reach / gap))
             for k in range(1, n_hash + 1):
                 t = k / n_hash
-                w = half_w * t
-                hx = apex_pt[0] + adx * t
-                hy = apex_pt[1] + ady * t
-                p0 = (hx - apx * w, hy - apy * w)
-                p1 = (hx + apx * w, hy + apy * w)
-                group.add(dwg.line(start=p0, end=p1, stroke=bond_color,
-                                    stroke_width=max(1.0, lw * 0.9), stroke_linecap="round"))
+                w = w_end * t
+                hx, hy = apex_pt[0] + (end[0] - apex_pt[0]) * t, apex_pt[1] + (end[1] - apex_pt[1]) * t
+                group.add(dwg.line(start=(hx - apx * w, hy - apy * w), end=(hx + apx * w, hy + apy * w),
+                                    stroke=bond_color, stroke_width=lw * 0.8, stroke_linecap="round"))
         return
 
     if order not in (1, 2, 3):
         order = 1
 
+    if order == 1:
+        line((ax, ay), (bx, by))
+        return
+
     if order == 2 and is_cc:
-        # C=C only: the bond's own endpoint-to-endpoint line is always drawn
-        # exactly as a single bond would be — it alone carries the connectivity.
-        group.add(dwg.line(start=(ax, ay), end=(bx, by), stroke=bond_color,
-                            stroke_width=lw, stroke_linecap="round"))
-        # The second line is a short, independent stroke offset to one side
-        # (never reaching the endpoints, so it never fuses into the ring/
-        # neighboring bonds) — inset toward the ring interior for a ring
-        # bond, or away from other substituents for a chain bond. Its length
-        # is a fixed fraction of the bond's own (zoom-scaled) canvas length,
-        # so it grows and shrinks together with the bond when zooming.
+        # C=C: the endpoint-to-endpoint line carries the connectivity; the
+        # second line is shorter, inset toward the ring interior (or away
+        # from the other substituents on a chain).
+        line((ax, ay), (bx, by))
         if inside_canvas is not None and (inside_canvas[0] or inside_canvas[1]):
             inside_sign = 1.0 if (px * inside_canvas[0] + py * inside_canvas[1]) >= 0 else -1.0
         else:
             inside_sign = 1.0
-        off = inside_sign * double_gap
-        trim = length * DOUBLE_BOND_INNER_TRIM
-        p0 = (ax + ux * trim + px * off, ay + uy * trim + py * off)
-        p1 = (bx - ux * trim + px * off, by - uy * trim + py * off)
-        group.add(dwg.line(start=p0, end=p1, stroke=bond_color,
-                            stroke_width=lw, stroke_linecap="round"))
+        offset_line(inside_sign * gap, DOUBLE_BOND_INNER_TRIM)
         return
 
     if order == 2:
-        # Any double bond that isn't C=C (C=O, C=N, N=O, S=O, ...) keeps the
-        # plain symmetric double-line style, both lines at full bond length.
-        for off in (-double_gap / 2.0, double_gap / 2.0):
-            p0 = (ax + px * off, ay + py * off)
-            p1 = (bx + px * off, by + py * off)
-            group.add(dwg.line(start=p0, end=p1, stroke=bond_color,
-                                stroke_width=lw, stroke_linecap="round"))
+        # Any other double bond (C=O, C=N, N=O, S=O, ...): two full-length
+        # lines centered on the bond.
+        offset_line(-gap / 2.0, 0.0)
+        offset_line(gap / 2.0, 0.0)
         return
 
-    if order == 1:
-        group.add(dwg.line(start=(ax, ay), end=(bx, by), stroke=bond_color,
-                            stroke_width=lw, stroke_linecap="round"))
-        return
-
-    # Triple bond: the center line is the true endpoint-to-endpoint line (it
-    # alone carries the connectivity, like the outer line of a C=C double
-    # bond); the two flanking lines are shorter, trimmed at both ends, per
-    # standard convention.
-    group.add(dwg.line(start=(ax, ay), end=(bx, by), stroke=bond_color,
-                        stroke_width=lw, stroke_linecap="round"))
-    trim = length * TRIPLE_BOND_FLANK_TRIM
-    p0_base = (ax + ux * trim, ay + uy * trim)
-    p1_base = (bx - ux * trim, by - uy * trim)
-    for off in (-sep * 1.8, sep * 1.8):
-        p0 = (p0_base[0] + px * off, p0_base[1] + py * off)
-        p1 = (p1_base[0] + px * off, p1_base[1] + py * off)
-        group.add(dwg.line(start=p0, end=p1, stroke=bond_color,
-                            stroke_width=lw, stroke_linecap="round"))
+    # Triple bond: the center line carries the connectivity, flanked by two
+    # lines one gap away on each side.
+    line((ax, ay), (bx, by))
+    offset_line(-gap, TRIPLE_BOND_FLANK_TRIM)
+    offset_line(gap, TRIPLE_BOND_FLANK_TRIM)
 
 
 def render_chemvector(
@@ -1237,9 +1297,7 @@ def render_chemvector(
     color_overrides: Optional[Dict[str, str]] = None,
     bond_color: str = "#2b2b2b",
     bond_width_px: float = 3.4,
-    wedge_sep_px: float = WEDGE_SEP_PX,
     double_bond_gap_px: float = DOUBLE_BOND_GAP_PX,
-    hash_spacing_px: float = HASH_SPACING_PX,
     font_family: str = "Helvetica, Arial, sans-serif",
     font_size_px: float = 26.0,
     show_carbon_labels: bool = False,
@@ -1258,8 +1316,8 @@ def render_chemvector(
 
     *scale* sets the molecule's own on-screen size (bond length, and
     anything measured as a fraction of a specific bond) — see the "SCALING
-    STRATEGY" note above _label_box. *bond_width_px*, *font_size_px*,
-    *wedge_sep_px* and *double_bond_gap_px* are all taken as-is: the caller
+    STRATEGY" note above _label_box. *bond_width_px*, *font_size_px* and
+    *double_bond_gap_px* are all taken as-is: the caller
     (ChemCanvas) is expected to have already resolved them against the
     interactive zoom level, independent of *scale*.
 
@@ -1332,9 +1390,7 @@ def render_chemvector(
     # ZOOM-ONLY — all pre-resolved by the caller against ChemCanvas._eff_zoom
     lw = max(1.1, bond_width_px)
     font_size = max(6.0, font_size_px)
-    sep = wedge_sep_px
     double_gap = double_bond_gap_px
-    hash_spacing = hash_spacing_px
 
     visible = {i for i in range(len(mol.atoms)) if i in positions}
     if not show_hydrogens:
@@ -1431,9 +1487,13 @@ def render_chemvector(
             for k in range(n):
                 aromatic_ring_bond_idxs.add(pair_to_bi[(ring[k], ring[(k + 1) % n])])
 
+    keepout: Dict[int, KeepOut] = {
+        i: _label_keepout(*to_canvas(i), box, font_size, lw) for i, box in label_box_by_atom.items()
+    }
+
     paint_group = dwg.g(id="chem_paint")  # added first — paint sits behind bonds and atoms
     bonds_group = dwg.g(id="chem_bonds")
-    mask_group = dwg.g(id="chem_masks")
+    mask_group = dwg.g(id="chem_label_tints")
     text_group = dwg.g(id="chem_labels")
 
     for bi, bond in enumerate(mol.bonds):
@@ -1459,18 +1519,17 @@ def render_chemvector(
             dwg, bonds_group, ax, ay, bx, by,
             order=order, kind=info.get("kind", "none"),
             apex_is_i=(info.get("apex", bond.i) == bond.i),
-            bond_color=bond_color, lw=lw, sep=sep, double_gap=double_gap,
+            bond_color=bond_color, lw=lw, gap=double_gap,
             inside_canvas=inside_canvas, is_cc=is_cc,
-            label_box_i=label_box_by_atom.get(bond.i),
-            label_box_j=label_box_by_atom.get(bond.j),
-            hash_spacing=hash_spacing,
+            ko_i=keepout.get(bond.i), ko_j=keepout.get(bond.j),
         )
 
     for a, (rcx, rcy) in shown_ring_bonds:
-        # Plain line from the ring center; the substituent's label padding
-        # (drawn later, on top) erases its end like any other bond's.
-        bonds_group.add(dwg.line(start=(rcx, rcy), end=to_canvas(a), stroke=bond_color,
-                                  stroke_width=lw, stroke_linecap="round"))
+        # Plain line from the ring center, stopping short of the substituent's label.
+        seg = _clip_to_keepouts((rcx, rcy), to_canvas(a), None, keepout.get(a))
+        if seg is not None:
+            bonds_group.add(dwg.line(start=seg[0], end=seg[1], stroke=bond_color,
+                                      stroke_width=lw, stroke_linecap="round"))
 
     for ring in aromatic_rings:
         pts = [to_canvas(i) for i in ring]
@@ -1528,9 +1587,6 @@ def render_chemvector(
     except (ValueError, IndexError):
         lum = 1.0
     mono_label_color = "#000000" if lum >= 0.4 else "#ffffff"
-    label_mask = dwg.mask(id="chem_label_mask", maskUnits="userSpaceOnUse",
-                          x=0, y=0, width=canvas_w, height=canvas_h)
-    label_mask.add(dwg.rect(insert=(0, 0), size=(canvas_w, canvas_h), fill="white"))
     for i, (bx0, bx1, by0, by1) in label_box_by_atom.items():
         elem = mol.atoms[i].element
         x, y = to_canvas(i)
@@ -1543,32 +1599,16 @@ def render_chemvector(
         if label_boxes_out is not None:
             label_boxes_out[i] = (x + bx0, x + bx1, y + by0, y + by1)
 
-        # Erase bonds under the label first (the white/background padding).
-        # An individually ("leftover") selected atom gets its own solid-
-        # looking tint so the selection is visible on its own clean
-        # background. A ring-selected atom's padding is left untinted —
-        # only the ring polygon itself shows the selection, not a per-atom
-        # box on top of it (see the note above sel_rings). Painted rings are
-        # different: there the label needs to blend into the ring's solid
-        # color, or a plain white hole would show at every labeled vertex.
-        pad_fill = background
+        # Bonds already stop short of the letters (see _label_keepout), so
+        # nothing needs erasing here: a label gets a box behind it only to
+        # show an individual ("leftover") selection — a ring-selected atom is
+        # shown by the ring polygon alone (see the note above sel_rings).
         if i in sel_leftover:
-            pad_fill = _blend_hex(pad_fill, SELECTION_COLOR, 0.6)
-        ring_col = paint_ring_color_by_atom.get(i)
-        if ring_col:
-            pad_fill = _blend_hex(pad_fill, ring_col, RING_PAINT_OPACITY)
-        if export_mode:
-            # A transparent export can't paint a background-colored pad; cut
-            # the same box out of the bonds instead (see label_mask below).
-            label_mask.add(dwg.rect(insert=(x + bx0, y + by0), size=(bx1 - bx0, by1 - by0),
-                                    rx=0.23 * font_size, ry=0.23 * font_size, fill="black"))
-        else:
             mask_group.add(dwg.rect(insert=(x + bx0, y + by0), size=(bx1 - bx0, by1 - by0),
-                                    rx=0.23 * font_size, ry=0.23 * font_size, fill=pad_fill, stroke="none"))
+                                    rx=0.23 * font_size, ry=0.23 * font_size,
+                                    fill=_blend_hex(background, SELECTION_COLOR, 0.6), stroke="none"))
 
-        # The paint wash goes on top of that (already-tinted) padding, then
-        # the letter on top of the paint.
-
+        # The paint wash goes on top of that, then the letter on top of the paint.
         paint_col = paint_leftover.get(i)
         if paint_col and i not in paint_ring_atoms:
             mask_group.add(dwg.rect(insert=(x + bx0, y + by0), size=(bx1 - bx0, by1 - by0),
@@ -1599,14 +1639,11 @@ def render_chemvector(
             paint_group.add(dwg.circle(center=(x, y), r=vertex_r, fill=SELECTION_COLOR,
                                         opacity=0.9, stroke="none"))
         if paint_col:
-            # Under the bond lines here (implicit vertices have no erase
-            # circle), so sized generously to still peek out around them.
+            # Under the bond lines here (an implicit vertex has no label box
+            # keeping bonds away), so sized generously to peek out around them.
             paint_group.add(dwg.circle(center=(x, y), r=vertex_r * 1.3, fill=paint_col,
                                         opacity=PAINT_OPACITY, stroke="none"))
 
-    if export_mode and label_box_by_atom:
-        dwg.defs.add(label_mask)
-        bonds_group["mask"] = "url(#chem_label_mask)"
     dwg.add(paint_group)
     dwg.add(bonds_group)
     dwg.add(mask_group)
@@ -1802,9 +1839,7 @@ class ChemCanvas(QSvgWidget):
         # ZOOM-ONLY — all scaled by self._zoom on render, see _render_to_bytes
         self.bond_width_px = 3.4
         self.font_size_px = 26.0
-        self.wedge_sep_px = WEDGE_SEP_PX
         self.double_bond_gap_px = DOUBLE_BOND_GAP_PX
-        self.hash_spacing_px = HASH_SPACING_PX
         self.show_carbon_labels = False
         self.show_hydrogens = False
         self.label_color_mode = "cpk"   # "cpk" | "black" — atom letter colors
@@ -2036,9 +2071,7 @@ class ChemCanvas(QSvgWidget):
             # regardless of how compact the fit is, and grow/shrink together
             # (along with letters) as the user zooms in/out from there.
             bond_width_px=self.bond_width_px * self._eff_zoom,
-            wedge_sep_px=self.wedge_sep_px * self._eff_zoom,
             double_bond_gap_px=self.double_bond_gap_px * self._eff_zoom,
-            hash_spacing_px=self.hash_spacing_px * self._eff_zoom,
             font_family=self.font_family,
             font_size_px=self.font_size_px * self._eff_zoom,
             show_carbon_labels=self.show_carbon_labels,
