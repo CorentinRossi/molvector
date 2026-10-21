@@ -5431,6 +5431,13 @@ class MainWindow(QMainWindow):
         self._menu_build.addAction(act_clear_paint)
         self._shortcut_actions["clear_paint"] = act_clear_paint
 
+        self._menu_build.addSeparator()
+
+        # Same dialog as File → Open from Catalog… (which holds the shortcut).
+        act_build_catalog = QAction("Catalog…", self)
+        act_build_catalog.triggered.connect(self._open_from_catalog)
+        self._menu_build.addAction(act_build_catalog)
+
         # ── 2D Viewer (Chemvector) ──
         chem_menu = mb.addMenu("2D &Viewer")
 
