@@ -218,6 +218,43 @@ def _align_layout_to_view(mol: Molecule, positions: Positions2D, rot: np.ndarray
     return out, reflected
 
 
+def best_fit_plane_normal(mol: Molecule) -> Optional[np.ndarray]:
+    """Unit normal of *mol*'s least-squares plane (heavy atoms when there are
+    at least 3), or None for fewer than 3 atoms or a (near-)linear molecule."""
+    pts = [[a.x, a.y, a.z] for a in mol.atoms if a.element not in ("H", "D", "T")]
+    if len(pts) < 3:
+        pts = [[a.x, a.y, a.z] for a in mol.atoms]
+    if len(pts) < 3:
+        return None
+    centered = np.array(pts, dtype=float)
+    centered -= centered.mean(axis=0)
+    _, sv, vt = np.linalg.svd(centered, full_matrices=False)
+    if sv[1] < 1e-3 * max(sv[0], 1e-12):
+        return None
+    return vt[2]
+
+
+def face_plane_rotation(normal: np.ndarray, view_rot: np.ndarray) -> np.ndarray:
+    """
+    The camera rotation that turns the plane with unit *normal* (molecule
+    coordinates) to face the screen, by the smallest turn from *view_rot*:
+    the side already facing the viewer stays in front and the in-plane
+    angle is kept as far as possible.
+    """
+    n_view = view_rot @ normal
+    target = np.array([0.0, 0.0, 1.0])
+    if n_view[2] < 0:
+        target = -target
+    axis = np.cross(n_view, target)
+    s_ = float(np.linalg.norm(axis))
+    if s_ < 1e-10:
+        return np.array(view_rot, dtype=float)
+    axis /= s_
+    c_ = float(np.dot(n_view, target))
+    K = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
+    return (np.eye(3) + s_ * K + (1.0 - c_) * (K @ K)) @ view_rot
+
+
 def generate_2d_layout(mol: Molecule, planarity_tolerance: float = PLANARITY_TOLERANCE,
                        view_rot: Optional[np.ndarray] = None, projection: bool = False,
                        plane: Optional[Tuple[np.ndarray, np.ndarray]] = None) -> Tuple[Positions2D, BondInfo]:
@@ -2970,18 +3007,7 @@ class ChemCanvas(QSvgWidget):
         n = float(np.linalg.norm(normal))
         if n < 1e-10:
             return False
-        n_view = self.view_rot @ (normal / n)
-        target = np.array([0.0, 0.0, 1.0])
-        if n_view[2] < 0:
-            target = -target
-        axis = np.cross(n_view, target)
-        s_ = float(np.linalg.norm(axis))
-        rot = self.view_rot
-        if s_ > 1e-10:
-            axis /= s_
-            c_ = float(np.dot(n_view, target))
-            K = np.array([[0, -axis[2], axis[1]], [axis[2], 0, -axis[0]], [-axis[1], axis[0], 0]])
-            rot = (np.eye(3) + s_ * K + (1.0 - c_) * (K @ K)) @ self.view_rot
+        rot = face_plane_rotation(normal / n, self.view_rot)
         self.view_rot = rot
         origin = self._atoms_centroid()
         self._plane = (normal / n, p[0])

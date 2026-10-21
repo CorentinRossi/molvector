@@ -90,7 +90,8 @@ from molvector.render import (
     center_positions, ATOMIC_MASSES, mulliken_gradient_color,
     MULLIKEN_NEGATIVE_COLOR, MULLIKEN_ZERO_COLOR, MULLIKEN_POSITIVE_COLOR,
 )
-from molvector.chemvector import ChemCanvas, HAS_RDKIT, check_aromaticity
+from molvector.chemvector import (ChemCanvas, HAS_RDKIT, check_aromaticity,
+                                  best_fit_plane_normal, face_plane_rotation)
 from molvector import native_guard
 
 # ── shortcut modifier prefix ─────────────────────────────────────────────────
@@ -7304,7 +7305,25 @@ class MainWindow(QMainWindow):
         """
         self._chem_view_dirty = True
         if self._chem_mode:
+            if reset_view:
+                self._face_molecule_plane()
             self._sync_chem_view(keep_view=not reset_view)
+
+    def _face_molecule_plane(self):
+        """
+        Turn the shared camera so the molecule's plane faces the screen, for
+        the 2D view to be drawn in plane rather than as a tilted projection:
+        the plane chosen with Align plane while it still applies, else the
+        best-fit plane. The smallest turn is used, keeping the in-plane angle.
+        """
+        mol = self._canvas.molecule
+        if mol is None or not mol.atoms:
+            return
+        plane = None if self._chem_view_dirty else self._chem_canvas._plane
+        normal = plane[0] if plane is not None else best_fit_plane_normal(mol)
+        if normal is None:
+            return
+        self._canvas._rot = face_plane_rotation(np.asarray(normal, dtype=float), self._canvas._rot)
 
     def _sync_chem_view(self, force: bool = False, keep_view: bool = False):
         """Push the current 3D molecule + appearance into the Chemvector canvas."""
@@ -7347,6 +7366,7 @@ class MainWindow(QMainWindow):
 
         if enabled:
             shared_zoom = self._canvas._zoom
+            self._face_molecule_plane()
             self._sync_chem_view()  # a refit inside may reset zoom; the shared zoom wins
             self._on_chem_zoom_changed(shared_zoom)
             self._chem_canvas._zoom = shared_zoom
