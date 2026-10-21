@@ -3277,17 +3277,23 @@ class QuickExportDialog(QDialog):
 
 
 class CatalogDialog(QDialog):
-    """File → Open from Catalog…: search the bundled molecule catalog with a 2D preview."""
+    """File → Open from Catalog…: search the bundled molecule catalog with a preview.
+
+    The preview matches the main window's active view: a Chemvector 2D
+    depiction, or with *view3d* (the 3D MoleculeCanvas) a ball-and-stick
+    rendering in that canvas' current style.
+    """
 
     # Filters: one row of toggle buttons per catalog facet (catalog.FACETS).
     # Checked buttons in one row are alternatives (OR); rows combine with AND.
     # Each button shows how many molecules it would give and is disabled at 0.
     PREVIEW_W, PREVIEW_H = 360, 300
 
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, view3d=None):
         super().__init__(parent)
         from molvector import catalog
         self._catalog = catalog
+        self._view3d = view3d
         self.selected_record = None
         self.setWindowTitle("Open from Catalog")
         self.resize(900, 620)
@@ -3358,11 +3364,14 @@ class CatalogDialog(QDialog):
         body.addLayout(left, 1)
 
         right = QVBoxLayout()
-        # The SVG is rendered without a background (export mode: no name
-        # caption either), so the frame provides a white card behind it.
+        # The 2D SVG is rendered without a background (export mode: no name
+        # caption either), so the frame provides the card behind it: white,
+        # or the 3D canvas' own background.
+        preview_bg = view3d.background if view3d is not None else "#ffffff"
         preview_frame = QFrame()
         preview_frame.setObjectName("catalogPreview")
-        preview_frame.setStyleSheet("#catalogPreview { background: #ffffff; border-radius: 6px; }")
+        preview_frame.setStyleSheet(
+            f"#catalogPreview {{ background: {preview_bg}; border-radius: 6px; }}")
         frame_layout = QVBoxLayout(preview_frame)
         frame_layout.setContentsMargins(0, 0, 0, 0)
         self._preview = QSvgWidget()
@@ -3484,6 +3493,35 @@ class CatalogDialog(QDialog):
         self._info.setText("<br>".join(lines))
 
     def _preview_svg(self, rec) -> bytes:
+        if self._view3d is not None:
+            return self._preview_svg_3d(rec)
+        return self._preview_svg_2d(rec)
+
+    def _preview_svg_3d(self, rec) -> bytes:
+        c = self._view3d
+        mol = self._catalog.to_molecule(rec)
+        centered = np.array([[a.x, a.y, a.z] for a in mol.atoms])
+        centered -= centered.mean(axis=0)
+        # Same fit and default (face-on) view as MoleculeCanvas.load_molecule.
+        max_extent = float(np.max(np.linalg.norm(centered, axis=1))) + 1.5
+        scale = 0.40 * min(self.PREVIEW_W, self.PREVIEW_H) / max_extent
+        m_normal = np.linalg.svd(centered)[2][-1] if len(centered) >= 3 else None
+        svg = render_molecule(
+            mol, rot_matrix_override=np.eye(3),
+            canvas_w=self.PREVIEW_W, canvas_h=self.PREVIEW_H, scale=scale,
+            atom_scale=c.atom_scale,
+            # Bond width is in screen pixels: shrink it with the preview.
+            bond_width_px=c.bond_width_px * min(1.0, scale / max(c.base_scale, 1e-6)),
+            bond_style=c.bond_style, bond_color=c.bond_color,
+            background=c.background, color_overrides=c.color_overrides or None,
+            atom_border_mode=c.atom_border_mode, atom_border_scale=c.atom_border_scale,
+            atom_border_width=c.atom_border_width, lighting_intensity=c.lighting_intensity,
+            light_position=c.light_position, roughness=c.roughness,
+            m_normal_override=m_normal, output_path=None, export_mode=True,
+        )
+        return svg.encode("utf-8") if isinstance(svg, str) else svg
+
+    def _preview_svg_2d(self, rec) -> bytes:
         from molvector.chemvector import generate_2d_layout, render_chemvector, DOUBLE_BOND_GAP_PX
         mol = self._catalog.to_molecule(rec)
         # A flat depiction of a cage is unreadable: show the 3D projection.
@@ -6041,7 +6079,7 @@ class MainWindow(QMainWindow):
 
     def _open_from_catalog(self):
         try:
-            dlg = CatalogDialog(self)
+            dlg = CatalogDialog(self, view3d=None if self._chem_mode else self._canvas)
         except Exception as e:
             log_path = _log_error("Failed to open the molecule catalog", e)
             self.show_notification("Could not read the molecule catalog.", "error", 0, log_file=log_path)
