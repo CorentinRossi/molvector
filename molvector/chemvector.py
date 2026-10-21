@@ -644,10 +644,10 @@ def _point_in_polygon(px: float, py: float, pts: List[Tuple[float, float]]) -> b
 
 def _annotate_double_bond_insets(mol: Molecule, positions: Positions2D, bond_info: BondInfo) -> None:
     """
-    For every C=C double bond, store bond_info[bi]["inside"]: a unit vector,
-    in layout space, saying which side the bond's short inner line should
-    sit on. Other double bonds (C=O, C=N, ...) keep the plain symmetric
-    double-line style and are left unannotated — see _draw_bond.
+    For every double bond, store bond_info[bi]["inside"]: a unit vector, in
+    layout space, saying which side the bond's short inner line should sit
+    on when it is drawn offset rather than centered (that choice depends on
+    the drawn labels and is made in render_chemvector — see _draw_bond).
 
       * Ring bond — "inside" points from the bond toward its smallest
         containing ring's centroid (see _smallest_ring_via_edge).
@@ -663,8 +663,6 @@ def _annotate_double_bond_insets(mol: Molecule, positions: Positions2D, bond_inf
 
     for bi, b in enumerate(mol.bonds):
         if bond_info.get(bi, {}).get("order", b.order) != 2:
-            continue
-        if mol.atoms[b.i].element != "C" or mol.atoms[b.j].element != "C":
             continue
         if b.i not in positions or b.j not in positions:
             continue
@@ -1207,7 +1205,7 @@ def _clip_to_keepouts(p0, p1, ko_start: Optional[KeepOut], ko_end: Optional[Keep
 def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: bool,
                bond_color: str, lw: float, gap: float,
                inside_canvas: Optional[Tuple[float, float]] = None,
-               is_cc: bool = False,
+               centered: bool = False,
                ko_i: Optional[KeepOut] = None,
                ko_j: Optional[KeepOut] = None):
     """
@@ -1215,7 +1213,8 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
     clipped at the keep-out of a labeled end (ko_i / ko_j), so all bonds stop
     the same distance from the letters. All spacing derives from one unit,
     *gap* — the center-to-center distance of parallel lines:
-      * double bond: two lines *gap* apart (C=C: the second one inset);
+      * double bond: two lines *gap* apart — centered on the bond, or (not
+        *centered*) the bond line plus a second one inset on its inside;
       * triple bond: three lines *gap* apart;
       * wedge / hash: the wide end is 1.5 gaps across (+ the line width),
         and hash marks are one gap apart, like a double bond's two lines.
@@ -1295,10 +1294,11 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
         line((ax, ay), (bx, by))
         return
 
-    if order == 2 and is_cc:
-        # C=C: the endpoint-to-endpoint line carries the connectivity; the
-        # second line is shorter, inset toward the ring interior (or away
-        # from the other substituents on a chain).
+    if order == 2 and not centered:
+        # Ring or inner chain bond (any elements): the endpoint-to-endpoint
+        # line carries the connectivity; the second line is shorter, inset
+        # toward the ring interior (or away from the other substituents on a
+        # chain), and reaches the keep-out of a labeled end.
         line((ax, ay), (bx, by))
         if inside_canvas is not None and (inside_canvas[0] or inside_canvas[1]):
             inside_sign = 1.0 if (px * inside_canvas[0] + py * inside_canvas[1]) >= 0 else -1.0
@@ -1308,8 +1308,8 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
         return
 
     if order == 2:
-        # Any other double bond (C=O, C=N, N=O, S=O, ...): two full-length
-        # lines centered on the bond.
+        # Terminal (=O, =S, =NH, =CH2, ...) or labeled at both ends: two
+        # full-length lines centered on the bond.
         offset_line(-gap / 2.0, 0.0)
         offset_line(gap / 2.0, 0.0)
         return
@@ -1550,14 +1550,18 @@ def render_chemvector(
             # direction vector transforms the same way, minus translation.
             inside_canvas = (layout_inside[0], -layout_inside[1])
 
-        is_cc = mol.atoms[bond.i].element == "C" and mol.atoms[bond.j].element == "C"
+        # Double bonds are drawn by position, not by element: centered when
+        # one end is terminal (no other drawn bond) or both ends carry a
+        # label; otherwise offset, inset on the "inside" side.
+        centered = (visible_degree.get(bond.i, 0) <= 1 or visible_degree.get(bond.j, 0) <= 1
+                    or (bond.i in keepout and bond.j in keepout))
 
         _draw_bond(
             dwg, bonds_group, ax, ay, bx, by,
             order=order, kind=info.get("kind", "none"),
             apex_is_i=(info.get("apex", bond.i) == bond.i),
             bond_color=bond_color, lw=lw, gap=double_gap,
-            inside_canvas=inside_canvas, is_cc=is_cc,
+            inside_canvas=inside_canvas, centered=centered,
             ko_i=keepout.get(bond.i), ko_j=keepout.get(bond.j),
         )
 
