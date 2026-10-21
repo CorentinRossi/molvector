@@ -351,6 +351,11 @@ def get_stylesheet(theme_name: str) -> str:
         padding: 4px;
     }}
     QPushButton:pressed{{ background:{t['ACCENT']}; }}
+    QPushButton#facetButton {{ padding:4px 10px; }}
+    QPushButton#facetButton:checked {{
+        background:{t['ACCENT']}; color:white; border-color:{t['ACCENT']};
+    }}
+    QPushButton#facetButton:disabled {{ color:{t['BORDER']}; }}
     QPushButton#accent {{
         background:#1e4080; border-color:{t['ACCENT']}; color:#fff;
     }}
@@ -3274,15 +3279,9 @@ class QuickExportDialog(QDialog):
 class CatalogDialog(QDialog):
     """File → Open from Catalog…: search the bundled molecule catalog with a 2D preview."""
 
-    # Tag filters offered as toggle buttons, in display order (only those
-    # present in the catalog are shown). A record must carry every checked tag.
-    FILTER_TAGS = [
-        ("catacondensed", "Catacondensed"), ("pericondensed", "Pericondensed"),
-        ("benzenoid", "Benzenoid"), ("planar", "Planar"), ("nonplanar", "Non-planar"),
-        ("fullerene", "Fullerene"), ("bowl", "Bowl"), ("helicene", "Helicene"),
-        ("acene", "Acene"), ("epa16", "EPA 16"), ("astro", "Astro"),
-        ("substituted", "Substituted"), ("heterocycle", "Heterocycle"),
-    ]
+    # Filters: one row of toggle buttons per catalog facet (catalog.FACETS).
+    # Checked buttons in one row are alternatives (OR); rows combine with AND.
+    # Each button shows how many molecules it would give and is disabled at 0.
     PREVIEW_W, PREVIEW_H = 360, 300
 
     def __init__(self, parent=None):
@@ -3291,7 +3290,7 @@ class CatalogDialog(QDialog):
         self._catalog = catalog
         self.selected_record = None
         self.setWindowTitle("Open from Catalog")
-        self.resize(820, 540)
+        self.resize(900, 620)
 
         layout = QVBoxLayout(self)
         self._search = QLineEdit()
@@ -3300,20 +3299,52 @@ class CatalogDialog(QDialog):
         self._search.textChanged.connect(self._refresh)
         layout.addWidget(self._search)
 
-        present = set(catalog.all_tags())
-        tag_grid = QGridLayout()
-        tag_grid.setHorizontalSpacing(4)
-        tag_grid.setVerticalSpacing(4)
-        self._tag_buttons = {}
-        shown = [(t, label) for t, label in self.FILTER_TAGS if t in present]
-        per_row = (len(shown) + 1) // 2
-        for k, (tag, label) in enumerate(shown):
-            btn = QPushButton(label)
-            btn.setCheckable(True)
-            btn.toggled.connect(self._refresh)
-            self._tag_buttons[tag] = btn
-            tag_grid.addWidget(btn, k // per_row, k % per_row)
-        layout.addLayout(tag_grid)
+        # Options no catalog entry has (e.g. anions) are not shown at all.
+        totals = catalog.facet_counts()
+        filter_grid = QGridLayout()
+        filter_grid.setHorizontalSpacing(4)
+        filter_grid.setVerticalSpacing(4)
+        self._facet_buttons = {}         # facet -> {value: (button, label)}
+        n_cols = max(len(options) for _, _, options in catalog.FACETS)
+        row = 0
+        for facet, facet_label, options in catalog.FACETS:
+            shown = [o for o in options if totals[facet][o[0]] > 0]
+            if not shown:
+                continue
+            title = QLabel(facet_label)
+            title.setObjectName("dim")
+            filter_grid.addWidget(title, row, 0)
+            buttons = {}
+            for col, (value, label, tip) in enumerate(shown, start=1):
+                btn = QPushButton(label)
+                btn.setObjectName("facetButton")
+                btn.setCheckable(True)
+                btn.setToolTip(tip)
+                btn.toggled.connect(self._refresh)
+                buttons[value] = (btn, label)
+                filter_grid.addWidget(btn, row, col)
+            self._facet_buttons[facet] = buttons
+            row += 1
+
+        ring_lo, ring_hi = catalog.ring_range()
+        filter_grid.addWidget(QLabel("Rings"), row, 0)
+        filter_grid.itemAtPosition(row, 0).widget().setObjectName("dim")
+        ring_row = QHBoxLayout()
+        self._ring_min = QSpinBox()
+        self._ring_max = QSpinBox()
+        for box, value in ((self._ring_min, ring_lo), (self._ring_max, ring_hi)):
+            box.setRange(ring_lo, ring_hi)
+            box.setValue(value)
+            box.valueChanged.connect(self._on_ring_range_changed)
+        ring_row.addWidget(self._ring_min)
+        ring_row.addWidget(QLabel("to"))
+        ring_row.addWidget(self._ring_max)
+        ring_row.addStretch(1)
+        btn_clear = QPushButton("Clear Filters")
+        btn_clear.clicked.connect(self._clear_filters)
+        ring_row.addWidget(btn_clear)
+        filter_grid.addLayout(ring_row, row, 1, 1, n_cols)
+        layout.addLayout(filter_grid)
 
         body = QHBoxLayout()
         left = QVBoxLayout()
@@ -3356,20 +3387,62 @@ class CatalogDialog(QDialog):
         self._refresh()
         self._search.setFocus()
 
+    def _filters(self):
+        return {facet: [v for v, (btn, _) in buttons.items() if btn.isChecked()]
+                for facet, buttons in self._facet_buttons.items()}
+
+    def _rings(self):
+        return (self._ring_min.value(), self._ring_max.value())
+
+    def _on_ring_range_changed(self, _value):
+        # Keep min <= max: moving one past the other drags the other along.
+        if self._ring_min.value() > self._ring_max.value():
+            other = self._ring_max if self.sender() is self._ring_min else self._ring_min
+            other.blockSignals(True)
+            other.setValue(self.sender().value())
+            other.blockSignals(False)
+        self._refresh()
+
+    def _clear_filters(self):
+        for buttons in self._facet_buttons.values():
+            for btn, _ in buttons.values():
+                btn.blockSignals(True)
+                btn.setChecked(False)
+                btn.blockSignals(False)
+        lo, hi = self._catalog.ring_range()
+        for box, value in ((self._ring_min, lo), (self._ring_max, hi)):
+            box.blockSignals(True)
+            box.setValue(value)
+            box.blockSignals(False)
+        self._refresh()
+
     def _refresh(self, *_):
-        tags = [t for t, btn in self._tag_buttons.items() if btn.isChecked()]
-        hits = self._catalog.search(self._search.text(), tags)
+        query, filters, rings = self._search.text(), self._filters(), self._rings()
+        counts = self._catalog.facet_counts(query, filters, rings)
+        for facet, buttons in self._facet_buttons.items():
+            for value, (btn, label) in buttons.items():
+                n = counts[facet][value]
+                btn.setText(f"{label}  {n}")
+                # A checked button stays enabled so it can always be unchecked.
+                btn.setEnabled(n > 0 or btn.isChecked())
+
+        hits = self._catalog.search(query, filters, rings)
+        current = self.selected_record["id"] if self.selected_record else None
         self._list.blockSignals(True)
         self._list.clear()
-        for rec in hits:
+        keep_row = 0
+        for row, rec in enumerate(hits):
             item = QListWidgetItem(f"{rec['name']}    {rec['formula']}")
             item.setData(Qt.ItemDataRole.UserRole, rec["id"])
             self._list.addItem(item)
+            if rec["id"] == current and query == getattr(self, "_last_query", None):
+                keep_row = row
         self._list.blockSignals(False)
+        self._last_query = query
         total = len(self._catalog.records())
         self._count.setText(f"{len(hits)} of {total} molecules")
         if hits:
-            self._list.setCurrentRow(0)
+            self._list.setCurrentRow(keep_row)   # currentItemChanged shows it
         else:
             self._show_record(None)
 
@@ -3395,7 +3468,9 @@ class CatalogDialog(QDialog):
             lines.append("<i>" + ", ".join(rec["synonyms"]) + "</i>")
         lines.append(f"{len(rec['atoms'])} atoms ({n_heavy} heavy), {rec['rings']} rings, "
                      f"charge {rec['charge']}, multiplicity {rec['multiplicity']}")
-        lines.append("Tags: " + ", ".join(rec["tags"]))
+        order = {facet: k for k, (facet, _, _) in enumerate(self._catalog.FACETS)}
+        tags = sorted(rec["tags"], key=lambda t: order.get(t.partition(":")[0], len(order)))
+        lines.append(" · ".join(self._catalog.tag_label(t) for t in tags))
         src = rec["geometry_source"]
         if src.startswith("pubchem-3d:"):
             src = f"PubChem 3D conformer (CID {src.split(':', 1)[1]})"
@@ -3412,7 +3487,7 @@ class CatalogDialog(QDialog):
         from molvector.chemvector import generate_2d_layout, render_chemvector, DOUBLE_BOND_GAP_PX
         mol = self._catalog.to_molecule(rec)
         # A flat depiction of a cage is unreadable: show the 3D projection.
-        positions, bond_info = generate_2d_layout(mol, projection="fullerene" in rec["tags"])
+        positions, bond_info = generate_2d_layout(mol, projection="topology:cage" in rec["tags"])
         heavy = [positions[i] for i, a in enumerate(mol.atoms) if a.element != "H" and i in positions]
         pts = heavy or list(positions.values())
         xs = [p[0] for p in pts]

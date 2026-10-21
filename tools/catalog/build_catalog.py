@@ -11,7 +11,7 @@ access to PubChem the first time a molecule is seen).
 
 For each row of seed.csv:
   1. RDKit sanitize -> canonical SMILES, InChIKey (dedupe key), formula,
-     ring count, charge, spin multiplicity, structural tags.
+     ring count, charge, spin multiplicity, facet tags ("<facet>:<value>").
   2. Geometry: PubChem's 3D conformer (looked up by InChIKey, then by name,
      accepted only if its InChIKey matches); otherwise RDKit ETKDG + MMFF94;
      cages that ETKDG cannot embed (fullerenes) start from a spectral
@@ -236,23 +236,65 @@ def orient(xyz: np.ndarray) -> np.ndarray:
 
 # ── structural classification ────────────────────────────────────────────────
 
-def structure_tags(mol) -> list:
-    tags = []
-    elements = {a.GetSymbol() for a in mol.GetAtoms()}
+# Seed-file tags: curated collections (exported as "collection:<tag>") and
+# "nonplanar", a geometry hint (bowls, helicenes, twisted biphenyls) that is
+# checked against, not exported: the shape facet is computed from geometry.
+COLLECTION_TAGS = {"epa16", "astro", "acene", "helicene", "bowl"}
+SEED_HINTS = {"nonplanar"}
+
+
+def facet_tags(mol, planar: bool) -> list:
+    """Computed "<facet>:<value>" tags. Every record gets exactly one topology,
+    shape and charge value, and at least one composition value."""
     rings = [set(r) for r in mol.GetRingInfo().AtomRings() if len(r) <= 8]
-    if elements <= {"C", "H"}:
-        tags.append("hydrocarbon")
-        if rings and all(len(r) == 6 for r in rings) and all(
-                a.GetIsAromatic() for a in mol.GetAtoms() if a.GetSymbol() == "C"):
-            tags.append("benzenoid")
-    fused = any(len(r1 & r2) >= 2 for i, r1 in enumerate(rings) for r2 in rings[i + 1:])
-    if fused:
-        per_atom = {}
-        for r in rings:
-            for a in r:
-                per_atom[a] = per_atom.get(a, 0) + 1
-        tags.append("pericondensed" if max(per_atom.values()) >= 3 else "catacondensed")
-    return tags
+    per_atom = {}
+    for r in rings:
+        for a in r:
+            per_atom[a] = per_atom.get(a, 0) + 1
+    heavy = [a for a in mol.GetAtoms() if a.GetAtomicNum() > 1]
+    elements = {a.GetSymbol() for a in heavy}
+    hydrocarbon = elements == {"C"}
+
+    # Topology of the ring system (rings of <= 8 atoms: kekulene's cavity is
+    # not a ring). Cage: an all-carbon, hydrogen-free closed shell, every atom
+    # shared by three rings (fullerenes); cata/peri applies to the other fused
+    # systems: pericondensed when some atom is shared by three rings.
+    if hydrocarbon and heavy and sum(a.GetTotalNumHs() for a in heavy) == 0 \
+            and all(per_atom.get(a.GetIdx(), 0) >= 3 for a in heavy):
+        topology = "cage"
+    elif not any(len(r1 & r2) >= 2 for i, r1 in enumerate(rings) for r2 in rings[i + 1:]):
+        topology = "unfused"
+    else:
+        topology = "pericondensed" if max(per_atom.values()) >= 3 else "catacondensed"
+
+    # Composition (several may apply).
+    in_ring = set(per_atom)
+    ring_heavy = [a for a in heavy if a.GetIdx() in in_ring]
+    composition = set()
+    if any(a.GetIdx() not in in_ring for a in heavy):
+        composition.add("substituted")
+    if any(a.GetSymbol() != "C" for a in ring_heavy):
+        composition.add("heteroatom")
+    # A saturated ring CH2 (not a radical CH, which stays conjugated).
+    if any(a.GetSymbol() == "C" and a.GetTotalNumHs() >= 2 for a in ring_heavy):
+        composition.add("hydro")
+    # Plain hydrocarbon frameworks: benzenoid when every ring is a hexagon.
+    if hydrocarbon and not composition:
+        composition.add("benzenoid" if all(len(r) == 6 for r in rings) else "nonbenzenoid")
+
+    charge = Chem.GetFormalCharge(mol)
+    radical = sum(a.GetNumRadicalElectrons() for a in mol.GetAtoms()) > 0
+    if radical:
+        electronic = "radical"
+    elif charge > 0:
+        electronic = "cation"
+    elif charge < 0:
+        electronic = "anion"
+    else:
+        electronic = "closed-shell"
+
+    return ([f"topology:{topology}", f"shape:{'planar' if planar else 'nonplanar'}",
+             f"charge:{electronic}"] + [f"composition:{c}" for c in sorted(composition)])
 
 
 def expect_planar(mol, seed_tags) -> bool:
@@ -342,12 +384,14 @@ def make_record(seed, mol, inchikey, cid, geo, source):
 
     xyz = orient(geo.GetConformer().GetPositions())
     bond_order = {Chem.BondType.SINGLE: 1, Chem.BondType.DOUBLE: 2, Chem.BondType.TRIPLE: 3}
-    tags = list(seed["tags"]) + structure_tags(mol)
+    unknown = set(seed["tags"]) - COLLECTION_TAGS - SEED_HINTS
+    if unknown:
+        raise ValueError(f"unknown seed tag(s) {sorted(unknown)}")
     heavy = [a.GetIdx() for a in geo.GetAtoms() if a.GetAtomicNum() > 1]
     out_of_plane = float(np.max(np.abs(xyz[heavy, 2]))) if heavy else 0.0
     planar = len(heavy) >= 3 and out_of_plane <= PLANAR_TOL
-    if planar:
-        tags.append("planar")
+    tags = facet_tags(mol, planar) + [f"collection:{t}" for t in seed["tags"]
+                                      if t in COLLECTION_TAGS]
 
     record = {
         "id": slug(seed["name"]),

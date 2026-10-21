@@ -11,8 +11,15 @@ python tools/catalog/build_catalog.py --refresh  # re-download everything from P
 ```
 
 - `seed.csv`: hand-maintained list: name, SMILES, tags (`;`-separated) and
-  synonyms (`|`-separated). Structural tags (benzenoid, catacondensed,
-  pericondensed, planar, hydrocarbon) are derived automatically.
+  synonyms (`|`-separated). Seed tags are only the curated collections
+  (`epa16`, `astro`, `acene`, `helicene`, `bowl`) and the geometry hint
+  `nonplanar`; anything else is rejected.
+- Records carry `"<facet>:<value>"` tags that drive the dialog's filters
+  (`molvector/catalog.py`, `FACETS`). Computed by the build: `topology`
+  (unfused / catacondensed / pericondensed / cage), `shape` (planar /
+  nonplanar, from the final geometry), `composition` (benzenoid /
+  nonbenzenoid / hydro / heteroatom / substituted) and `charge`
+  (closed-shell / cation / anion / radical); `collection:*` comes from the seed.
 - `pubchem_cache.json.gz`: every PubChem PUG REST response the build has used
   (including "not found"). Keeping it committed means a rebuild needs no
   network access and reproduces the catalog byte for byte.
