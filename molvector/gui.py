@@ -3409,8 +3409,7 @@ class CatalogDialog(QDialog):
         self._info.setText("<br>".join(lines))
 
     def _preview_svg(self, rec) -> bytes:
-        from molvector.chemvector import (generate_2d_layout, render_chemvector,
-                                          DOUBLE_BOND_GAP_PX, WEDGE_SEP_PX, HASH_SPACING_PX)
+        from molvector.chemvector import generate_2d_layout, render_chemvector, DOUBLE_BOND_GAP_PX
         mol = self._catalog.to_molecule(rec)
         # A flat depiction of a cage is unreadable: show the 3D projection.
         positions, bond_info = generate_2d_layout(mol, projection="fullerene" in rec["tags"])
@@ -3428,8 +3427,7 @@ class CatalogDialog(QDialog):
             canvas_w=self.PREVIEW_W, canvas_h=self.PREVIEW_H, scale=scale,
             center=((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0),
             bond_width_px=max(1.0, 3.4 * f), font_size_px=max(8.0, 26.0 * f),
-            double_bond_gap_px=DOUBLE_BOND_GAP_PX * f, wedge_sep_px=WEDGE_SEP_PX * f,
-            hash_spacing_px=HASH_SPACING_PX * f, export_mode=True,
+            double_bond_gap_px=DOUBLE_BOND_GAP_PX * f, export_mode=True,
         )
         return svg.encode("utf-8")
 
