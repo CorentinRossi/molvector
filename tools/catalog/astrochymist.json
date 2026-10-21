@@ -1,0 +1,3736 @@
+{
+ "source": "https://www.astrochymist.org/astrochymist_ism.html",
+ "fetched": "2026-10-21",
+ "detections": [
+  {
+   "formula": "CH^+",
+   "name": "methylidyne cation",
+   "year": 1937,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1937PASP...49...26D",
+   "paper_title": "Interstellar Neutral Potassium and Neutral Calcium",
+   "paper_ref": "T. Dunham, Jr., Publ Astron Soc Pac 49:26-28 (1937)"
+  },
+  {
+   "formula": "CH",
+   "name": "methylidyne",
+   "year": 1937,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1937ApJ....86..483S",
+   "paper_title": "Considerations Regarding Interstellar Molecules",
+   "paper_ref": "P. Swings and L. Rosenfeld, ApJ 86:483-486 (1937)"
+  },
+  {
+   "formula": "CN",
+   "name": "cyano radical",
+   "year": 1940,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1940PASP...52..187M",
+   "paper_title": "Evidence for the Molecular Origin of Some Hitherto Unidentified Interstellar Lines",
+   "paper_ref": "A. McKellar, Publ Astron Soc Pac 52:187-192 (1940)"
+  },
+  {
+   "formula": "OH",
+   "name": "hydroxyl radical",
+   "year": 1963,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1963Natur.200..829W",
+   "paper_title": "Radio Observations of OH in the Interstellar Medium",
+   "paper_ref": "S. Weinreb, A. H. Barrett, M. L. Meeks, and J. C. Henry, Nature 200:829-831 (1963)"
+  },
+  {
+   "formula": "NH3",
+   "name": "ammonia",
+   "year": 1968,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1968PhRvL..21.1701C",
+   "paper_title": "Detection of NH3 Molecules in the Interstellar Medium by Their Microwave Emission",
+   "paper_ref": "A. C. Cheung, D. M. Rank, C. H. Townes, D. D. Thornton, and W. J. Welch, Phys Rev Lett 25:1701-1705 (1968)"
+  },
+  {
+   "formula": "H2O",
+   "name": "water",
+   "year": 1969,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1969Natur.221..626C",
+   "paper_title": "Delection of Water in Interstellar Regions by its Microwave Radiation",
+   "paper_ref": "A. C. Cheung, D. M. Rank, C. H. Townes, D. D. Thornton, and W. J. Welch, Nature 221:626 (1969)"
+  },
+  {
+   "formula": "H2CO",
+   "name": "formaldehyde",
+   "year": 1969,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1969PhRvL..22..679S",
+   "paper_title": "Microwave Detection of Interstellar Formaldehyde",
+   "paper_ref": "L. E. Snyder, D. Buhl, B. Zuckerman, and P. Palmer, Phys Rev Lett 22:679-681 (1969)"
+  },
+  {
+   "formula": "CO",
+   "name": "carbon monoxide",
+   "year": 1970,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1970ApJ...161L..43W",
+   "paper_title": "Carbon Monoxide in the Orion Nebula",
+   "paper_ref": "R. W. Wilson, K. B. Jefferts, and A. A. Penzias, ApJ 161:L43-L44 (1970)"
+  },
+  {
+   "formula": "H2",
+   "name": "hydrogen",
+   "year": 1970,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1970ApJ...161L..81C",
+   "paper_title": "Rocket Observation of Interstellar Molecular Hydrogen",
+   "paper_ref": "G. R. Carruthers, ApJ 161:L81-L85 (1970)"
+  },
+  {
+   "formula": "HCO^+",
+   "name": "formyl cation",
+   "year": 1970,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "http://www.nature.com/nature/journal/v228/n5268/abs/228267a0.html",
+   "paper_title": "Unidentified Interstellar Microwave Line",
+   "paper_ref": "D. Buhl and L. E. Snyder, Nature 228:267 (1970)"
+  },
+  {
+   "formula": "CH3OH",
+   "name": "methanol",
+   "year": 1970,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1970ApJ...162L.203B",
+   "paper_title": "Detection of Methyl Alcohol in Sagittarius",
+   "paper_ref": "J. A. Ball, C. A. Gottlieb, A. E. Lilley, and H. E. Radford, ApJ 162:L203-L210 (1970)"
+  },
+  {
+   "formula": "HC3N",
+   "name": "cyanoacetylene",
+   "year": 1971,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1971ApJ...163L..35T",
+   "paper_title": "Detection of Interstellar Cyanoacetylene",
+   "paper_ref": "B. E. Turner, ApJ 163:L35-L39 (1971)"
+  },
+  {
+   "formula": "HCN",
+   "name": "hydrogen cyanide",
+   "year": 1971,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1971ApJ...163L..47S",
+   "paper_title": "Observations of Radio Emission from Interstellar Hydrogen Cyanide",
+   "paper_ref": "L. E. Snyder and D. Buhl, ApJ 163:L47-L52 (1971)"
+  },
+  {
+   "formula": "trans-HCOOH",
+   "name": "formic acid (It would be more appropriate to use anti than trans .)",
+   "year": 1971,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1971ApJ...163L..41Z",
+   "paper_title": "Microwave Detection of Interstellar Formic Acid",
+   "paper_ref": "B. Zuckerman, J. A. Ball, and C. A. Gottlieb, ApJ 163:L41-L45 (1971)"
+  },
+  {
+   "formula": "SiO",
+   "name": "silicon monoxide",
+   "year": 1971,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1971ApJ...167L..97W",
+   "paper_title": "Discovery of Interstellar Silicon Monoxide",
+   "paper_ref": "R. W. Wilson, A. A. Penzias, K. B. Jefferts, N. Kutner, and P. Thaddeus, ApJ 167:L97-L100 (1971)"
+  },
+  {
+   "formula": "CS",
+   "name": "carbon monosulfide",
+   "year": 1971,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1971ApJ...168L..53P",
+   "paper_title": "Interstellar Carbon Monosulfide",
+   "paper_ref": "A. A. Penzias, P. M. Solomon, R. W. Wilson, A. A. Penzias, and K. B. Jefferts, ApJ 168:L53-L58 (1971)"
+  },
+  {
+   "formula": "CH3CN",
+   "name": "methyl cyanide",
+   "year": 1971,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1971ApJ...168L.107S",
+   "paper_title": "Detection of Millimeter Emission Lines from Interstellar Methyl Cyanide",
+   "paper_ref": "P. M. Solomon, K. B. Jefferts, A. A. Penzias, and R. W. Wilson, ApJ 168:L107-L110 (1971)"
+  },
+  {
+   "formula": "OCS",
+   "name": "carbonyl sulfide",
+   "year": 1971,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1971ApJ...168L.111J",
+   "paper_title": "Detection of Interstellar Carbonyl Sulfide",
+   "paper_ref": "K. B. Jefferts, A. A. Penzias, P. M. Solomon, and P. M. Solomon, ApJ 168:L111-L113 (1971)"
+  },
+  {
+   "formula": "NH2CHO",
+   "name": "formamide",
+   "year": 1971,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1971ApJ...169L..39R",
+   "paper_title": "Microwave Detection of Interstellar Formamide",
+   "paper_ref": "R. H. Rubin, G. W. Swenson, Jr., R. C. Solomon, and H. L. Flygare, ApJ 169:L39-L44 (1971)"
+  },
+  {
+   "formula": "HNC",
+   "name": "hydrogen isocyanide",
+   "year": 1972,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1972NYASA.194...17S",
+   "paper_title": "Detection of Several New Interstellar Molecules",
+   "paper_ref": "L. E. Snyder and D. Buhl, Ann N Y Acad Sci 146:13 (1972)"
+  },
+  {
+   "formula": "H2S",
+   "name": "hydrogen sulfide",
+   "year": 1972,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1972ApJ...176L..73T",
+   "paper_title": "Interstellar Hydrogen Sulfide",
+   "paper_ref": "P. Thaddeus, M. L. Kutner, A. A. Penzias, R. W. Wilson, and K. B. Jefferts, ApJ 176:L73-L76 (1972)"
+  },
+  {
+   "formula": "HNCO",
+   "name": "isocyanic acid",
+   "year": 1972,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1972ApJ...177..619S",
+   "paper_title": "Interstellar Isocyanic Acid",
+   "paper_ref": "L. E. Snyder and D. Buhl, ApJ 177:619-623 (1972)"
+  },
+  {
+   "formula": "CH3CHO",
+   "name": "acetaldehyde",
+   "year": 1973,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1973mge..conf..181G",
+   "paper_title": "Detection of Acetaldehyde in Sagittarius",
+   "paper_ref": "C. A. Gottlieb, Molecules in the Galactic Environment (eds. M. A. Gordon and L. E. Snyder), Wiley-Interscience, New York, 181-186 (1973)"
+  },
+  {
+   "formula": "CH3CCH",
+   "name": "methylacetylene prop-2-yne",
+   "year": 1973,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1973mge..conf..187B",
+   "paper_title": "The Detection of a MM-Wave Transition of Methlacetylene",
+   "paper_ref": "D. Buhl and L. E. Snyder, Molecules in the Galactic Environment (eds. M. A. Gordon and L. E. Snyder), Wiley-Interscience, New York, 187-195 (1973)"
+  },
+  {
+   "formula": "CH2NH",
+   "name": "methanimine",
+   "year": 1973,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1973ApL....13..119G",
+   "paper_title": "Discovery of Interstellar Methanimine (Formaldimine)",
+   "paper_ref": "P. D. Godfrey, R. D. Brown, B. J. Robinson, and M. W. Sinclair, Astrophys Lett 13:119 (1973)"
+  },
+  {
+   "formula": "H2CS",
+   "name": "thioformaldehyde",
+   "year": 1973,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1973AuJPh..26...85S",
+   "paper_title": "Detection of Interstellar Thioformaldehyde",
+   "paper_ref": "M. W. Sinclair, N. Fourikis, J. C. Ribes, B. J. Robinson, R. D. Brown, and P. D. Godfrey, Aust J Phys 26:85-91 (1973)"
+  },
+  {
+   "formula": "SO",
+   "name": "sulfur monoxide",
+   "year": 1973,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1973ApJ...184L..59G",
+   "paper_title": "Interstellar Sulfur Monoxide",
+   "paper_ref": "C. A. Gottlieb and J. Ball, ApJ 184:L59-L64 (1973)"
+  },
+  {
+   "formula": "CH3OCH3",
+   "name": "dimethyl ether",
+   "year": 1974,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1974ApJ...191L..79S",
+   "paper_title": "Radio Detection of Interstellar Dimethyl Ether",
+   "paper_ref": "L. E. Snyder, D. Buhl, P. R. Schwartz, F. O. Clark, D. R. Johnson, F. J. Lovas and P. T. Giguere, ApJ 191:L79-L82 (1974)"
+  },
+  {
+   "formula": "CH3NH2",
+   "name": "methylamine",
+   "year": 1974,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1974ApJ...191L.135K",
+   "paper_title": "Detection of Interstellar Methylamine",
+   "paper_ref": "N. Kaifu, M. Morimoto, K. Nagane, K. Akabane, T. Iguchi, and K. Takagi, ApJ 191:L135-L137 (1974)"
+  },
+  {
+   "formula": "N2H^+",
+   "name": "protonated nitrogen",
+   "year": 1974,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1974ApJ...193L..83T",
+   "paper_title": "U93.174 - A New Interstellar Line with Quadrupole Hyperfine Splitting",
+   "paper_ref": "B. E. Turner, ApJ 193:L83-L87 (1974)"
+  },
+  {
+   "formula": "C2H",
+   "name": "ethynyl radical",
+   "year": 1974,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1974ApJ...193L.115T",
+   "paper_title": "The Ethynyl Radical C2H - A New Interstellar Molecule",
+   "paper_ref": "K. D. Tucker, M. L. Kutner, and P. Thaddeus, ApJ 193:L115-L119 (1974)"
+  },
+  {
+   "formula": "CH2CHCN",
+   "name": "vinylcyanide",
+   "year": 1975,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1975ApJ...195L.127G",
+   "paper_title": "The Detection of Interstellar Vinyl Cyanide (Acrylonitrile)",
+   "paper_ref": "F. F. Gardner and G. Winnewisser, ApJ 195:L127-L130 (1975)"
+  },
+  {
+   "formula": "CH3CH2OH",
+   "name": "ethanol",
+   "year": 1975,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1975ApJ...196L..99Z",
+   "paper_title": "Detection of Interstellar trans -Ethyl Alcohol",
+   "paper_ref": "B. Zuckerman, B. E. Turner, D. R. Johnson, F. O. Clark, F. J. Lovas, N. Fourikis, P. Palmer, M. Morris, A. E. Lilley, J. A. Ball, C. A. Gottlieb, and H. Penfield, ApJ 196:L99-L102 (1975)"
+  },
+  {
+   "formula": "HCOOCH3",
+   "name": "syn -methyl formate",
+   "year": 1975,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1975ApJ...197L..29B",
+   "paper_title": "Discovery of Interstellar Methyl Formate",
+   "paper_ref": "R. D. Brown, J. G. Crofts, P. D. Godfrey, F. F. Gardner, B. J. Robinson, and J. B. Whiteoak, ApJ 197:L29-L31 (1975)"
+  },
+  {
+   "formula": "SO2",
+   "name": "sulfur dioxide",
+   "year": 1975,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1975ApJ...198L..81S",
+   "paper_title": "Radio Detection of Interstellar Sulfur Dioxide",
+   "paper_ref": "L. E. Snyder, J. M. Hollis, B. L. Ulich, F. J. Lovas, D. R. Johnson, and D. Buhl, ApJ 198:L81-L84 (1975)"
+  },
+  {
+   "formula": "SiS",
+   "name": "silicon monosulfide",
+   "year": 1975,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1975ApJ...199L..47M",
+   "paper_title": "Detection of Interstellar SiS and a Study of the IRC +10216 Molecular Envelope",
+   "paper_ref": "M. Morris, W. Gilmore, P. Palmer, B. E. Turner, and B. Zuckerman, ApJ 199:L47-L51 (1975)"
+  },
+  {
+   "formula": "NS",
+   "name": "nitrogen monosulfide",
+   "year": 1975,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1975ApJ...200L.147G",
+   "paper_title": "Detection of Interstellar Nitrogen Sulfide",
+   "paper_ref": "C. A. Gottlieb, J. A. Ball, E. W. Gottlieb, C. J. Lada, and H. Penfield, ApJ 200:L147-L149 (1975)"
+  },
+  {
+   "formula": "NH2CN",
+   "name": "cyanamide",
+   "year": 1975,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1975ApJ...201L.149T",
+   "paper_title": "Microwave Detection of Interstellar Cyanamide",
+   "paper_ref": "B. E. Turner, H. S. Liszt, N. Kaifu, and A. G. Kisliakov, ApJ 201:L149-L:152 (1975)"
+  },
+  {
+   "formula": "HC5N",
+   "name": "cyanodiacetylene",
+   "year": 1976,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1976ApJ...205L.173A",
+   "paper_title": "Detection of the Heavy Interstellar Molecule Cyanodiacetylene",
+   "paper_ref": "L. W. Avery, N. W. Broten, J. M. McLeod, T. Oka, and H. W. Kroto, ApJ 205:L173-L175 (1976)"
+  },
+  {
+   "formula": "HCO",
+   "name": "formyl radical",
+   "year": 1976,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1976ApJ...208L..91S",
+   "paper_title": "Radio Detection of the Interstellar Formyl Radical",
+   "paper_ref": "L. E. Snyder, J. M. Hollis, and B. L. Ulich, ApJ 208:L91-L94 (1976)"
+  },
+  {
+   "formula": "C2H2",
+   "name": "acetylene",
+   "year": 1976,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1976Natur.264..345R",
+   "paper_title": "Circumstellar acetylene in the infrared spectrum of IRC + 10 216",
+   "paper_ref": "S. T. Ridgway, D. N. B. Hall, R. S. Wojslaw, S. G. Kleinmann, and D. A. Weinberger, Nature 464:345-346 (1976)"
+  },
+  {
+   "formula": "C3N",
+   "name": "cyanoethynyl radical",
+   "year": 1977,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1977ApJ...212L..81M",
+   "paper_title": "Tentative Detection of the C3N Radical",
+   "paper_ref": "M. Guélin and P. Thaddeus, ApJ 212:L81-L85 (1977)"
+  },
+  {
+   "formula": "H2CCO",
+   "name": "ketene",
+   "year": 1977,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1977ApJ...213L..75T",
+   "paper_title": "Microwave Detection of Interstellar Ketene",
+   "paper_ref": "B. E. Turner, ApJ 213:L75-L79 (1977)"
+  },
+  {
+   "formula": "C2",
+   "name": "dicarbon",
+   "year": 1977,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1977ApJ...216L..49S",
+   "paper_title": "Detection of C2 in the interstellar spectrum of Cygnus OB2 number 12(VI Cygni Number 12)",
+   "paper_ref": "S. P. Souza and B. L. Lutz, ApJ 216:L49-L51 (1977)"
+  },
+  {
+   "formula": "HNO",
+   "name": "nitrosyl hydride",
+   "year": 1977,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1977ApJ...217L.105U",
+   "paper_title": "Radio Detection of Nitroxyl (HNO): The First Interstellar NO Bond",
+   "paper_ref": "B. L. Ulich, J. M. Hollis, and L. E. Snyder, ApJ 217:L105-L107 (1977)"
+  },
+  {
+   "formula": "CH3CH2CN",
+   "name": "ethyl cyanide",
+   "year": 1977,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1977ApJ...218..370J",
+   "paper_title": "Detection of Interstellar Ethyl Cyanide",
+   "paper_ref": "D. R. Johnson, F. J. Lovas, C. A. Gottlieb, E. W. Gottlieb, M. M. Litvak, M. Guélin, and P. Thaddeus, ApJ 218:370-376 (1977)"
+  },
+  {
+   "formula": "HC7N",
+   "name": "cyanotriacetylene",
+   "year": 1978,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1978ApJ...219L.133K",
+   "paper_title": "The Detection of Cyanohexatriyne in Heiles's Cloud 2",
+   "paper_ref": "H. W. Kroto, C. Kirby, D. R. M. Walton, L. W. Avery, N. W. Broten, J. M. MacLeod, and T. Oka, ApJ 219:L133-L137 (1978)"
+  },
+  {
+   "formula": "HC9N",
+   "name": "cyanotetraacetylene",
+   "year": 1978,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1978ApJ...223L.105B",
+   "paper_title": "The Detection of HC9N in Interstellar Space",
+   "paper_ref": "N. W. Broten, T. Oka, L. W. Avery, J. M. MacLeod, and H. W. Kroto, ApJ 223:L105-L107 (1978)"
+  },
+  {
+   "formula": "C4H",
+   "name": "butadiynyl radical",
+   "year": 1978,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1978ApJ...224L..27G",
+   "paper_title": "Detection of the C4H Radical toward IRC +10216",
+   "paper_ref": "M. Guélin, S. Green, and P. Thaddeus, ApJ 224:L27-L30 (1978)"
+  },
+  {
+   "formula": "NO",
+   "name": "nitric oxide",
+   "year": 1978,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1978ApJ...224L..73L",
+   "paper_title": "Microwave Detection of Interstellar NO",
+   "paper_ref": "H. S. Liszt and B. E. Turner, ApJ 224:L73-L76 (1978)"
+  },
+  {
+   "formula": "CH3SH",
+   "name": "methyl mercaptan",
+   "year": 1979,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1979ApJ...234L.139L",
+   "paper_title": "Interstellar Methyl Mercaptan",
+   "paper_ref": "R. A. Linke, M. A. Frerking, and P. Thaddeus, ApJ 234:L139-L142 (1979)"
+  },
+  {
+   "formula": "HNCS",
+   "name": "isothiocyanic acid",
+   "year": 1979,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1979ApJ...234L.143F",
+   "paper_title": "Interstellar Isothiocyanic Acid",
+   "paper_ref": "M. A. Frerking, R. A. Linke, and P. Thaddeus, ApJ 234:L143-L145 (1979)"
+  },
+  {
+   "formula": "C2H4",
+   "name": "ethylene",
+   "year": 1983,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1981ApJ...244L.103B",
+   "paper_title": "Ethylene in IRC +10216",
+   "paper_ref": "A. L. Betz, ApJ 244:L103-L105 (1981)"
+  },
+  {
+   "formula": "HCS^+",
+   "name": "",
+   "year": 1981,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1981ApJ...246L..41T",
+   "paper_title": "Three New \"Nonterrestrial\" Molecules",
+   "paper_ref": "P. Thaddeus, M. Guélin, and R. A. Linke, ApJ 246:L41-L45 (1971)"
+  },
+  {
+   "formula": "HOCO^+",
+   "name": "",
+   "year": 1981,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1981ApJ...246L..41T",
+   "paper_title": "Three New \"Nonterrestrial\" Molecules",
+   "paper_ref": "P. Thaddeus, M. Guélin, and R. A. Linke, ApJ 246:L41-L45 (1981)"
+  },
+  {
+   "formula": "HOC^+",
+   "name": "",
+   "year": 1983,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1983ApJ...270..583W",
+   "paper_title": "The [HCO^+]/[HOC^+] Abundance Ratio in Molecular Clouds",
+   "paper_ref": "R. C. Woods, C. S. Gudeman, R. L. Dickman, P. F. Goldsmith, G. R. Huguenin, W. M. Irvine, Å. Hjalmarson, L.-Å. Nyman, and H. Olofsson, ApJ 270:583-588 (1983)"
+  },
+  {
+   "formula": "CH3C3N",
+   "name": "",
+   "year": 1984,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1984ApJ...276L..25B",
+   "paper_title": "The Detection of Interstellar Methylcyanoacetylene",
+   "paper_ref": "N. W. Broten, J. M. MacLeod, L. W. Avery, W. M. Irvine, B. Höglund, P. Friberg, and Å. Hjalmarson, ApJ 276:L25-L29 (1984)"
+  },
+  {
+   "formula": "SiH4",
+   "name": "",
+   "year": 1984,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1984ApJ...279L..55G",
+   "paper_title": "Silane in IRC +10216",
+   "paper_ref": "D. M. Goldhaber and A. L. Betz, ApJ 279:L55-L58 (1977)"
+  },
+  {
+   "formula": "CH3C4H",
+   "name": "",
+   "year": 1984,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1984A%26A...134L..11W",
+   "paper_title": "Detection of Interstellar Methyldiacetylene (CH3C4H) in the Dark Dust Cloud TMC 1",
+   "paper_ref": "C. M. Walmsley, P. R. Jewell, L. E. Snyder, and G. Winnewisser, A&A 134:L11-L14 (1984)"
+  },
+  {
+   "formula": "C3O",
+   "name": "",
+   "year": 1985,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1984Natur.310..125M",
+   "paper_title": "A New Interstellar Molecule - Tricarbon Monoxide",
+   "paper_ref": "H. E. Matthews, W. M. Irvine, P. Friberg, R. D. Brown, and P. D. Godfrey, Nature 310:125-126 (1984)"
+  },
+  {
+   "formula": "c-SiC2",
+   "name": "",
+   "year": 1984,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1984ApJ...283L..45T",
+   "paper_title": "Identification of the SiCC Radical toward IRC +10216 - The First Molecular Ring in an Astronomical Source",
+   "paper_ref": "P. Thaddeus, S. E. Cummins, and R. A. Linke, ApJ 283:L45-L48 (1984)"
+  },
+  {
+   "formula": "C3H",
+   "name": "",
+   "year": 1985,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1985ApJ...294L..49T",
+   "paper_title": "Astronomical Identification of the C3H Radical",
+   "paper_ref": "P. Thaddeus, C. A. Gottlieb, Å. Hjalmarson, L. E. B. Johansson, W. M. Irvine, P. Friberg, and R. A. Linke, ApJ 294:L49-L53 (1985)"
+  },
+  {
+   "formula": "HCl",
+   "name": "",
+   "year": 1985,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1985ApJ...295..501B",
+   "paper_title": "Chlorine in Dense Interstellar Clouds - The Abundance of HCl in OMC-1",
+   "paper_ref": "G. A. Blake, J Keene, and T. G. Phillips, ApJ 295:501-506 (1985)"
+  },
+  {
+   "formula": "c-C3H2",
+   "name": "",
+   "year": 1985,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1985ApJ...299L..63T",
+   "paper_title": "Laboratory and Astronomical Identification of Cyclopropenylidene, C3H2",
+   "paper_ref": "P. Thaddeus, J. M. Vrtilek, and C. A. Gottlieb, ApJ 299:L63-L66 (1985)"
+  },
+  {
+   "formula": "C6H",
+   "name": "",
+   "year": 1986,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1986PASJ...38..911S",
+   "paper_title": "Detection of the Interstellar C6H Radical",
+   "paper_ref": "H. Suzuki, M. Ohishi, N. Kaifu, S.-I. Ishikawa, and T. Kasuga, Publ Astron Soc Japan 38:911-917 (1986)"
+  },
+  {
+   "formula": "HCNH^+",
+   "name": "",
+   "year": 1986,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1986ApJ...302L..31Z",
+   "paper_title": "HCNH^+: A New Interstellar Molecular Ion",
+   "paper_ref": "L. M. Ziurys and B. E. Turner, ApJ 302:L31-L36 (1986)"
+  },
+  {
+   "formula": "MgNC",
+   "name": "",
+   "year": 1986,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1986A%26A...157L..17G",
+   "paper_title": "A New Free Radical in IRC +10216",
+   "paper_ref": "M. Guélin, J. Cernicharo, C. Kahane, and J. Gomez-Gonzales, A&A 157:L17-L20 (1986)"
+  },
+  {
+   "formula": "C5H",
+   "name": "",
+   "year": 1986,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1986A%26A...164L...1C",
+   "paper_title": "Tentative Detection of the C5H Radical",
+   "paper_ref": "J. Cernicharo, C. Kahane, J. Gómez-González, M. Guélin, A&A 164, L1-L4 (1986)"
+  },
+  {
+   "formula": "H3O^+",
+   "name": "",
+   "year": 1986,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1986A%26A...166L..15W",
+   "paper_title": "A Search for Interstellar H3O^+",
+   "paper_ref": "A. Wootten, F. Boulanger, M. Bogey, F. Combes, P. J. Encrenaz, M. Gerin, and L. Ziurys, A&A 166:L15-L18 (1986)"
+  },
+  {
+   "formula": "C2S",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987ApJ...317L.115S",
+   "paper_title": "Laboratory Detection and Astronomical Identification of a New Free Radical, CCS (^3Σ^–)",
+   "paper_ref": "S. Saito, K. Kawaguchi, S. Yamamoto, M. Ohishi, H. Suzuki, and N. Kaifu, ApJ 317:L115-L119 (1987)"
+  },
+  {
+   "formula": "C3S",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987ApJ...317L.111K",
+   "paper_title": "Detection of intense unidentified lines in TMC-1",
+   "paper_ref": "N. Kaifu, H. Suzuki, M. Ohishi, T. Miyaji, S. Ishikawa, T. Kasuga, and M. Morimoto, ApJ 317:L111-L114 (1987)"
+  },
+  {
+   "formula": "(CH3)2CO",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987A%26A...180L..13C",
+   "paper_title": "Acetone in Interstellar Space",
+   "paper_ref": "F. Combes, M. Gerin, A. Wooten, G. Wlodarczak, F. Clausset, and P. I. Encrenaz, A&A 180:L13-L16 (1987)"
+  },
+  {
+   "formula": "NaCl",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987A%26A...183L..10C",
+   "paper_title": "Metals in IRC +10216 - Detection of NaCl, AlCl, and KCl, and Tentative Detection of AlF",
+   "paper_ref": "J. Cernicharo and M. Guélin, A&A 183:L10-L12 (1987)"
+  },
+  {
+   "formula": "AlCl",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987A%26A...183L..10C",
+   "paper_title": "Metals in IRC +10216 - Detection of NaCl, AlCl, and KCl, and Tentative Detection of AlF",
+   "paper_ref": "J. Cernicharo and M. Guélin, A&A 183:L10-L12 (1987)"
+  },
+  {
+   "formula": "KCl",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987A%26A...183L..10C",
+   "paper_title": "Metals in IRC +10216 - Detection of NaCl, AlCl, and KCl, and Tentative Detection of AlF",
+   "paper_ref": "J. Cernicharo and M. Guélin, A&A 183:L10-L12 (1987)"
+  },
+  {
+   "formula": "AlF",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987A%26A...183L..10C",
+   "paper_title": "Metals in IRC +10216 - Detection of NaCl, AlCl, and KCl, and Tentative Detection of AlF",
+   "paper_ref": "J. Cernicharo and M. Guélin, A&A 1832:L10-L12 (1987)"
+  },
+  {
+   "formula": "c-C3H",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987ApJ...322L..55Y",
+   "paper_title": "Laboratory and Astronomical Detection of the Cyclic C3H Radical",
+   "paper_ref": "S. Yamamoto, S. Saito, M. Ohishi, H. Suzuki, S.-I. Ishikawa, N. Kaifu, and A. Murakami, ApJ 322:L55-L58 (1987)"
+  },
+  {
+   "formula": "PN",
+   "name": "",
+   "year": 1987,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1987ApJ...321L..75T",
+   "paper_title": "Detection of Interstellar PN - The First Identified Phosphorus Compound in the Interstellar Medium",
+   "paper_ref": "B. E. Turner and J. Bally, ApJ 321:L75-L79 (1987)"
+  },
+  {
+   "formula": "CH3NC",
+   "name": "",
+   "year": 1988,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1988A%26A...189L...1C",
+   "paper_title": "Tentative Detection of CH3NC towards Sgr B2",
+   "paper_ref": "J. Cernicharo, C. Kahane, M. Guélin, and J. Gomez-Gonzalez, A&A 189:L1-L2 (1988)"
+  },
+  {
+   "formula": "C3",
+   "name": "",
+   "year": 1988,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1988Sci...241.1319H",
+   "paper_title": "Detection of C3 in the Circumstellar Shell of IRC +10216",
+   "paper_ref": "K. H. Hinkle, J. J. Keady, and P. F. Bernath, Science 241:1319-1322 (1988)"
+  },
+  {
+   "formula": "CH2CN",
+   "name": "",
+   "year": 1988,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1988ApJ...334L.107I",
+   "paper_title": "Identification of the Interstellar Cyanomethyl Radical (CH2CN) in the Molecular Clouds TMC-1 and Sagittarius B2",
+   "paper_ref": "W. M. Irvine, P. Friberg, Å. Hjalmarson, S. Ishikawa, N. Kaifu, K. Kawaguchi, S. C. Madden, H. E. Matthews, M. Ohishi, S. Saito, H. Suzuki, P. Thaddeus, B. E. Turner, S. Yamamoto, and L. M. Ziurys, ApJ 334:L107-L111 (1988)"
+  },
+  {
+   "formula": "HC2CHO",
+   "name": "",
+   "year": 1988,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1988ApJ...335L..89I",
+   "paper_title": "A New Interstellar Polyatomic Molecule: Detection of Propynal in the Cold Cloud TMC-1",
+   "paper_ref": "W. M. Irvine, R. D. Brown, D. M. Craig, P. Friberg, P. D. Godfrey, N. Kaifu, H. E. Matthews, M. Ohishi, H. Suzuki, and H. Takeo, ApJ 335:L89-L93 (1988)"
+  },
+  {
+   "formula": "C5",
+   "name": "",
+   "year": 1989,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1989Sci...244..562B",
+   "paper_title": "Detection of C5 in the circumstellar shell of IRC +10216",
+   "paper_ref": "P. F. Bernath, K. H. Hinkle, and J. J. Keady, Science 244:562-564 (1989)"
+  },
+  {
+   "formula": "SiC",
+   "name": "",
+   "year": 1989,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1989ApJ...341L..25C",
+   "paper_title": "Astonomical and Laboratory Detection of the SiC Radical",
+   "paper_ref": "J. Cernicharo, C. A. Gottlieb, M. Guélin, P. Thaddeus, P. and J. M. Vrtilek, ApJ 341:L25-L28 (1989)"
+  },
+  {
+   "formula": "SiC4",
+   "name": "",
+   "year": 1989,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1989ApJ...345L..83O",
+   "paper_title": "Detection of a New Circumstellar Carbon Chain Molecule, C4Si",
+   "paper_ref": "M. Ohishi, N. Kaifu, K. Kawaguchi, A. Murakami, S. Saito, S. Yamamoto, S.-I. Ishikawa, Y. Fujita, S. Shiratori, and W. M. Irvine, ApJ 345:L83-L86 (1989)"
+  },
+  {
+   "formula": "CO2",
+   "name": "",
+   "year": 1989,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1989A%26A...223L...5D",
+   "paper_title": "The Discovery of Interstellar Carbon Dioxide",
+   "paper_ref": "L. B. D'Hendecourt and M. Jourdain de Muizon, A&A 223:L5-L8 (1989)"
+  },
+  {
+   "formula": "CH2",
+   "name": "",
+   "year": 1989,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1989ApJ...346..794H",
+   "paper_title": "A search for methylene in the Orion nebula",
+   "paper_ref": "J. M. Hollis, P. R. Jewell, P. R. and F. J. Lovas, ApJ 346:794-798 (1989)"
+  },
+  {
+   "formula": "CP",
+   "name": "",
+   "year": 1990,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1990A%26A...230L...9G",
+   "paper_title": "Free CP in IRC +10216",
+   "paper_ref": "M. Guélin, J. Cernicharo, G. Paubert, and B. E. Turner, A&A 230:L9-L11 (1990)"
+  },
+  {
+   "formula": "H2CCC",
+   "name": "",
+   "year": 1991,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1991ApJ...368L..39C",
+   "paper_title": "Astronomical Detection of H2CCC",
+   "paper_ref": "J. Cernicharo, C. A. Gottlieb, M Guélin, T. C. Killian, G. Paubert, P. Thaddeus, and J. M. Vrtilek, ApJ 368:L39-L41 (1991)"
+  },
+  {
+   "formula": "H2CCCC",
+   "name": "",
+   "year": 1991,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1991ApJ...368L..43C",
+   "paper_title": "Astronomical Detection of H2CCCC",
+   "paper_ref": "J. Cernicharo, C. A. Gottlieb, M Guélin, T. C. Killian, P. Thaddeus, and J. M. Vrtilek, ApJ 368:L43-L45 (1991)"
+  },
+  {
+   "formula": "HCCN",
+   "name": "",
+   "year": 1991,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1991A%26A...244L..21G",
+   "paper_title": "Astronomical Detection of the HCCN Radical - Toward a New Family of Carbon-Chain Molecules?",
+   "paper_ref": "M. Guélin and J. Cernicharo, A&A 244:L21-L24 (1991)"
+  },
+  {
+   "formula": "NH",
+   "name": "",
+   "year": 1991,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1991ApJ...376L..49M",
+   "paper_title": "Discovery of Interstellar NH",
+   "paper_ref": "D. M. Meyer and K. C. Roth, ApJ 376:L49-L52 (1991)"
+  },
+  {
+   "formula": "CH4",
+   "name": "",
+   "year": 1991,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1991ApJ...376..556L",
+   "paper_title": "Discovery of Interstellar Methane - Observations of Gaseous and Solid CH4 Absorption Toward Young Stars in Molecular Clouds",
+   "paper_ref": "J. H. Lacy, J. S. Carr, N. J. Evans II, F. Baas, J. M. Achtermann, and J. F. Arens, ApJ 376:556-560 (1991)"
+  },
+  {
+   "formula": "C2O",
+   "name": "",
+   "year": 1991,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1991ApJ...380L..39O",
+   "paper_title": "Detection of a New Carbon-chain Molecule, CCO",
+   "paper_ref": "M. Ohishi, H. Suzuki, S.-I. Ishikawa, C. Yamada, H. Kanamori, W. M. Irvine, R. D. Brown, P. D. Godfrey, and N. Kaifu. ApJ 380:L39-L42 (1991)"
+  },
+  {
+   "formula": "HCCNC",
+   "name": "",
+   "year": 1992,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1992ApJ...386L..51K",
+   "paper_title": "Detection of Isocyanoacetylene HCCNC in TMC-1",
+   "paper_ref": "K. Kawaguchi, M. Ohishi, S.-I. Ishikawa, and N. Kaifu, ApJ 386:L51-L53 (1992)"
+  },
+  {
+   "formula": "SiN",
+   "name": "",
+   "year": 1992,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1992ApJ...388L..35T",
+   "paper_title": "Detection of SiN in IRC +10216",
+   "paper_ref": "B. E. Turner, ApJ 388:L35-L38 (1992)"
+  },
+  {
+   "formula": "HNCCC",
+   "name": "",
+   "year": 1992,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1992ApJ...396L..49K",
+   "paper_title": "Detection of HNCCC in TMC-1",
+   "paper_ref": "K. Kawaguchi, S. Takano, M. Ohishi, S.-I. Ishikawa, K. Miyazawa, N. Kaifu, K. Yamashita, S. Yamamoto, S. Saito, Y. Ohshima, and Y. Endo, ApJ 396:L49-L51 (1992)."
+  },
+  {
+   "formula": "SO^+",
+   "name": "",
+   "year": 1992,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1992ApJ...396L.107T",
+   "paper_title": "Detection of Interstellar SO^+ - A Diagnostic of Dissociative Shock Chemistry",
+   "paper_ref": "B. E. Turner, ApJ 396:L107-L110 (1992)"
+  },
+  {
+   "formula": "NH2",
+   "name": "",
+   "year": 1993,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1993ApJ...416L..83V",
+   "paper_title": "Detection of the Interstellar NH2 Radical",
+   "paper_ref": "E. F. van Dishoeck, D. J. Jansen, P. Schilke, and T. G. Phillips, ApJ 416:L83-L86 (1993)"
+  },
+  {
+   "formula": "CO^+",
+   "name": "",
+   "year": 1993,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1993ApJ...419L..97L",
+   "paper_title": "Detection of the Carbon Monoxide Ion (CO^+) in the Interstellar Medium and a Planetary Nebula",
+   "paper_ref": "W. B. Latter, C. K. Walker, and P. R. Maloney, ApJ 419:L97-L100 (1993)"
+  },
+  {
+   "formula": "HC3NH^+",
+   "name": "",
+   "year": 1994,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1994ApJ...420L..95K",
+   "paper_title": "Detection of a New Molecular Ion HC3NH^+ in TMC-1",
+   "paper_ref": "K. Kawaguchi, Y. Kasai, S.-I. Ishikawa, M. Ohishi, N. Kaifu, and T. Amano, ApJ 420:L95-L97(1994)"
+  },
+  {
+   "formula": "H2CN",
+   "name": "",
+   "year": 1994,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1994ApJ...427L..51O",
+   "paper_title": "Detection of a New Interstellar Molecule, H2CN",
+   "paper_ref": "M. Ohishi, D. McGonagle, W. M. Irvine, and S. Yamamoto, ApJ 427:L51-L54 (1994)"
+  },
+  {
+   "formula": "NaCN",
+   "name": "",
+   "year": 1994,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1994ApJ...426L..97T",
+   "paper_title": "Detection of Sodium Cyanide (NaCN) in IRC 10216",
+   "paper_ref": "B. E. Turner, T. C. Steimle, and L. Meerts, ApJ 426:L97-L100 (1994)"
+  },
+  {
+   "formula": "N2O",
+   "name": "",
+   "year": 1994,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1994ApJ...436L.181Z",
+   "paper_title": "Detection of Interstellar N2O: A New Molecule Containing an N-O Bond",
+   "paper_ref": "L. M. Ziurys, A. J. Apponi, J. M. Hollis, and L. E. Snyder, ApJ 436:L181-L184 (1994)"
+  },
+  {
+   "formula": "MgCN",
+   "name": "",
+   "year": 1995,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1995ApJ...445L..47Z",
+   "paper_title": "Detection of MgCN in IRC +10216: A New Metal-Bearing Free Radical",
+   "paper_ref": "L. M. Ziurys, A. J. Apponi, M. Guélin, and J. Cernicharo, ApJ 445:L47-L50 (1995)"
+  },
+  {
+   "formula": "C8H",
+   "name": "",
+   "year": 1996,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1996A%26A...309L..27C",
+   "paper_title": "Discovery of the C8H Radical",
+   "paper_ref": "J. Cernicharo and M. Guélin, A&A 309:L27-L30 (1996)"
+  },
+  {
+   "formula": "H3^+",
+   "name": "",
+   "year": 1996,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1996Natur.384..334G",
+   "paper_title": "Detection of H3^+ in Interstellar Space",
+   "paper_ref": "T. R. Geballe and T. Oka, Nature 384:334-335 (1996)"
+  },
+  {
+   "formula": "H2COH^+",
+   "name": "",
+   "year": 1996,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1996ApJ...471L..61O",
+   "paper_title": "Detection of a New Interstellar Molecular Ion, H2COH^+ (Protonated Formaldehyde)",
+   "paper_ref": "M. Ohishi, S. Ishikawa, T. Amano, H. Oka, W. M. Irvine, J. E. Dickens, L. M. Ziurys, and A. J. Apponi, ApJ 471:L61-L64 (1996)"
+  },
+  {
+   "formula": "C7H",
+   "name": "",
+   "year": 1997,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1997A%26A...317L...1G",
+   "paper_title": "Detection of a New Linear Carbon Chain Radical: C7H",
+   "paper_ref": "M. Guélin, J. Cernicharo, M. J. Travers, M. C. McCarthy, C. A. Gottlieb, P. Thaddeus, M. Ohishi, S. Saito, and S. Yamamoto, A&A 317:L1-L4 (1997)"
+  },
+  {
+   "formula": "CH3COOH",
+   "name": "",
+   "year": 1997,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1997ApJ...480L..71M",
+   "paper_title": "Detection and Confirmation of Interstellar Acetic Acid",
+   "paper_ref": "D. M. Mehringer, L. E. Snyder, Y. Miao, and F. Lovas, ApJ 480:L71-L74 (1997)"
+  },
+  {
+   "formula": "H2C6",
+   "name": "",
+   "year": 1997,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1997ApJ...480L..63L",
+   "paper_title": "First Astronomical Detection of the Cumulene Carbon Chain Molecule H2C6 in TMC-1",
+   "paper_ref": "W. D. Langer, T. Velusamy, T. B. H. Kuiper, R. Peng, M. C. McCarthy, M. J. Travers, A. Kovács, C. A. Gottlieb, and P. Thaddeus, ApJ 480:L63-L66 (1997)"
+  },
+  {
+   "formula": "HF",
+   "name": "",
+   "year": 1997,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1997ApJ...488L.141N",
+   "paper_title": "Discovery of Interstellar Hydrogen Fluoride",
+   "paper_ref": "D. A. Neufeld, J. Zmuidzinas, P. Schilke, and T. G. Phillips, ApJ 488:L141-L144 (1997)"
+  },
+  {
+   "formula": "c-C2H4O",
+   "name": "",
+   "year": 1997,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1997ApJ...489..753D",
+   "paper_title": "Detection of Interstellar Ethylene Oxide (c-C2H4O)",
+   "paper_ref": "J. E. Dickens, W. M. Irvine, M. Ohishi, M. Ikeda, S. Ishikawa, A. Nummelin, and A. Hjalmarson, ApJ 489:753-757 (1997)"
+  },
+  {
+   "formula": "LiH",
+   "name": "",
+   "year": 1998,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1998A%26A...334L..81C",
+   "paper_title": "Search for LiH in the ISM towards B0218+357",
+   "paper_ref": "F. Combes and T. Wiklind, A&A 334:L81-L84 (1998)"
+  },
+  {
+   "formula": "C5N",
+   "name": "",
+   "year": 1998,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1998A%26A...335L...1G",
+   "paper_title": "Astronomical Detection of the Cyanobutadiynyl Radical C5N",
+   "paper_ref": "M. Guélin, N. Neininger, and J. Cernicharo, A&A 355:L1-L4 (1998)"
+  },
+  {
+   "formula": "c-SiC3",
+   "name": "",
+   "year": 1999,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/1999ApJ...516L.103A",
+   "paper_title": "Astronomical Detection of Rhomboidal SIC3",
+   "paper_ref": "A. J. Apponi, M. C. McCarthy, C. A. Gottlieb, and P. Thaddeus, ApJ 516:L103-L106 (1999)"
+  },
+  {
+   "formula": "CH3",
+   "name": "methyl radical",
+   "year": 2000,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2000ApJ...535L.111F",
+   "paper_title": "Detection of Interstellar CH3",
+   "paper_ref": "H. Feuchtgruber, F. P. Helmich, E. F. van Dishoeck, and C. M. Wright, ApJ 535:L111-L114 (2000)"
+  },
+  {
+   "formula": "CH2OHCHO",
+   "name": "",
+   "year": 2000,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2000ApJ...540L.107H",
+   "paper_title": "Interstellar Glycolaldehyde: The First Sugar",
+   "paper_ref": "J. M. Hollis, F. J. Lovas, and P. R. Jewell, ApJ 540:L107-L110 (2000)"
+  },
+  {
+   "formula": "SiCN",
+   "name": "",
+   "year": 2000,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2000A%26A...363L...9G",
+   "paper_title": "Astronomical Detection of the Free Radical SiCN",
+   "paper_ref": "M. Guélin, S. Muller, J. Cernicharo, A. J. Apponi, M. C. McCarthy, C. A. Gottlieb, and P. Thaddeus, A&A 369:L9-L12 (2000)"
+  },
+  {
+   "formula": "C4H2",
+   "name": "diacetylene",
+   "year": 2001,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2001ApJ...546L.123C",
+   "paper_title": "Infrared Space Observatory's Discovery of C4H2, C6H2, and Benzene in CRL 618",
+   "paper_ref": "J. Cernicharo, A. M. Heras, A. G. G. M. Tielens, J. R. Pardo, F. Herpin, M. Guélin, and L. B. F. M. Waters, ApJ 546:L123-L126 (2001)"
+  },
+  {
+   "formula": "C6H2",
+   "name": "triacetylene",
+   "year": 2001,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2001ApJ...546L.123C",
+   "paper_title": "Infrared Space Observatory's Discovery of C4H2, C6H2, and Benzene in CRL 618",
+   "paper_ref": "J. Cernicharo, A. M. Heras, A. G. G. M. Tielens, J. R. Pardo, F. Herpin, M. Guélin, and L. B. F. M. Waters, ApJ 546:L123-L126 (2001)"
+  },
+  {
+   "formula": "C6H6",
+   "name": "benzene",
+   "year": 2001,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2001ApJ...546L.123C",
+   "paper_title": "Infrared Space Observatory's Discovery of C4H2, C6H2, and Benzene in CRL 618",
+   "paper_ref": "J. Cernicharo, A. M. Heras, A. G. G. M. Tielens, J. R. Pardo, F. Herpin, M. Guélin, and L. B. F. M. Waters, ApJ 546:L123-L126 (2001)"
+  },
+  {
+   "formula": "c-C2H5N",
+   "name": "aziridine",
+   "year": 2001,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2001AcSpe..57..643D",
+   "paper_title": "Searches for New Interstellar Molecules, including a Tentative Detection of Aziridine and a Possible Detection of Propenal",
+   "paper_ref": "J. E. Dickens, W. M. Irvine, A. Nummelin, H. Møllendal, S. Saito, S. Thorwirth, and Å Hjalmarson. Spectrochimica Acta A 57:643-660 (2001)."
+  },
+  {
+   "formula": "CH2CHOH",
+   "name": "vinyl alcohol",
+   "year": 2001,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2001ApJ...561L.207T",
+   "paper_title": "Microwave Detection of Interstellar Vinyl Alcohol, CH2CHOH",
+   "paper_ref": "B. E. Turner and A. J. Apponi, ApJ 561:L207-L210 (2001)"
+  },
+  {
+   "formula": "AlNC",
+   "name": "",
+   "year": 2002,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2002ApJ...564L..45Z",
+   "paper_title": "More Metal Cyanide Species: Detection of AlNC ( X ^1Σ^+) toward IRC +10216",
+   "paper_ref": "L. M. Ziurys, C. Savage, J. L. Highberger, A. J. Apponi, M. Guélin, and J.Cernicharo, ApJ 564:L45-L48 (2002)"
+  },
+  {
+   "formula": "FeO",
+   "name": "",
+   "year": 2002,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2002ApJ...566L.109W",
+   "paper_title": "Detection of FeO toward Sagittarius B2",
+   "paper_ref": "C. M. Walmsley, R. Bachiller, G. Pineau des Forêts, and P. Schilke, ApJ 566:L109-L112 (2002)"
+  },
+  {
+   "formula": "HOCH2CH2OH",
+   "name": "",
+   "year": 2002,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2002ApJ...571L..59H",
+   "paper_title": "Interstellar Antifreeze: Ethylene Glycol",
+   "paper_ref": "J. M. Hollis, F. J. Lovas, P. R. Jewell, and L. H. Coudert, ApJ 571:L59-L62 (2002)"
+  },
+  {
+   "formula": "NH2CH2COOH^",
+   "name": "",
+   "year": 2003,
+   "tentative": false,
+   "disputed": true,
+   "paper_url": "https://www.astrochymist.org/astrochymist_nondetections.html",
+   "paper_title": "non-detections",
+   "paper_ref": "page."
+  },
+  {
+   "formula": "C14H10",
+   "name": "",
+   "year": 2004,
+   "tentative": false,
+   "disputed": true,
+   "paper_url": "https://scixplorer.org/abs/2004ApJ...606L..65V",
+   "paper_title": "Discovery of Blue Luminescence in the Red Rectangle: Possible Fluorescence from Neutral Polycyclic Aromatic Hydrocarbon Molecules?",
+   "paper_ref": "U. P. Vijh, A. N. Witt, and J. D. Gordon, ApJ 606:L65-L68 (2004) This detection has been disputed:"
+  },
+  {
+   "formula": "N2",
+   "name": "",
+   "year": 2004,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2004Natur.429..636K",
+   "paper_title": "The Interstellar N2 Abundance Towards HD 124314 from Far-Ultraviolet Observations",
+   "paper_ref": "D. C. Knauth, B.-G. Andersson, S. R. McCandliss, and H. W. Moos, Nature 409:636-638 (2004)"
+  },
+  {
+   "formula": "CH2CHCHO",
+   "name": "",
+   "year": 2004,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2004ApJ...610L..21H",
+   "paper_title": "Green Bank Telescope Detection of New Interstellar Aldehydes: Propenal and Propanal",
+   "paper_ref": "J. M. Hollis, P. R. Jewell, F. J. Lovas, A. Remijan, and H. Møllendal, ApJ 610:L21-L24 (2004)"
+  },
+  {
+   "formula": "CH3CH2CHO",
+   "name": "",
+   "year": 2004,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2004ApJ...610L..21H",
+   "paper_title": "Green Bank Telescope Detection of New Interstellar Aldehydes: Propenal and Propanal",
+   "paper_ref": "J. M. Hollis, P. R. Jewell, F. J. Lovas, A. Remijan, and H. Møllendal, ApJ 610:L21-L24 (2004)"
+  },
+  {
+   "formula": "SiNC",
+   "name": "",
+   "year": 2004,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2004A%26A...426L..49G",
+   "paper_title": "Detection of the SiNC Radical in IRC +10216",
+   "paper_ref": "M. Guélin, S. Muller, J. Cernicharo, M. C. McCarthy, and P. Thaddeus, A&A 426:L49-L52 (2004)"
+  },
+  {
+   "formula": "HC4N",
+   "name": "",
+   "year": 2004,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2004ApJ...615L.145C",
+   "paper_title": "Detection of the Linear Radical HC4N in IRC +10216",
+   "paper_ref": "J. Cernicharo, M. Guélin, and J. R. Pardo, ApJ 615:L145-L148 (2004)"
+  },
+  {
+   "formula": "c-C2H3N",
+   "name": "2H-azirine",
+   "year": 2004,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2004AdSpR..33...31K",
+   "paper_title": "Searches for interstellar molecules of potential prebiotic importances",
+   "paper_ref": "Y.-J. Kuan, S. B. Charnley, H.-C. Huang, Z. Kisiel, P. Ehrenfreund, W.-L. Tseng, and C.-H. Yan. Adv Space Res 33:31-39 (2004). (Note: The"
+  },
+  {
+   "formula": "CO(CH2OH)2",
+   "name": "",
+   "year": 2005,
+   "tentative": false,
+   "disputed": true,
+   "paper_url": "https://scixplorer.org/abs/2005ApJ...624L..33W",
+   "paper_title": "1,3-Dihydroxyacetone in Sagittarius B2(N-LMH): The First Interstellar Ketose",
+   "paper_ref": "S. L. Widicus Weaver and G. A. Blake, ApJ 624:L33-L36 (2005) This detection has been disputed:"
+  },
+  {
+   "formula": "CH2CCHCN",
+   "name": "",
+   "year": 2006,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2006ApJ...637L..37L",
+   "paper_title": "Hyperfine Structure Identification of Interstellar Cyanoallene toward TMC-1",
+   "paper_ref": "F. J. Lovas, A. J. Remijan, J. M. Hollis, P. R. Jewell, and L. E. Snyder, ApJ 637:L37-L40 (2006)"
+  },
+  {
+   "formula": "c-H2C3O",
+   "name": "",
+   "year": 2006,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2006ApJ...642..933H",
+   "paper_title": "Cyclopropenone (c-H2C3O): A New Interstellar Ring Molecule",
+   "paper_ref": "J. M. Hollis, A. J. Remijan, P. R. Jewell, and F. J. Lovas. ApJ 642:933-939 (2006)"
+  },
+  {
+   "formula": "CH3CONH2",
+   "name": "",
+   "year": 2006,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2006ApJ...643L..25H",
+   "paper_title": "Detection of Acetamide (CH3CONH2): The Largest Interstellar Molecule with a Peptide Bond",
+   "paper_ref": "J. M. Hollis, F. J. Lovas, A. J. Remijan, P. R. Jewell, V. V. Ilyushin, and I. Kleiner. ApJ 643:L25-L28 (2006)"
+  },
+  {
+   "formula": "CH3C6H",
+   "name": "",
+   "year": 2006,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2006ApJ...643L..37R",
+   "paper_title": "Methyltriacetylene (CH3C6H) toward TMC-1: The Largest Detected Symmetric Top",
+   "paper_ref": "A. J. Remijan, J. M. Hollis, L. E. Snyder, P. R. Jewell, and F. J. Lovas. ApJ 643:L37-L40 (2006)"
+  },
+  {
+   "formula": "CH2CNH",
+   "name": "",
+   "year": 2006,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2006ApJ...645L.137L",
+   "paper_title": "Detection of Ketenimine (CH2CNH) in Sagittarius B2(N) Hot Cores",
+   "paper_ref": "F. J. Lovas, J. M. Hollis, A. J. Remijan, and P. R. Jewell. ApJ 645:L137-L140 (2006)"
+  },
+  {
+   "formula": "CF^+",
+   "name": "",
+   "year": 2006,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2006A%26A...454L..37N",
+   "paper_title": "Discovery of Interstellar CF^+",
+   "paper_ref": "D. A. Neufeld, P. Schilke, K. M. Menten, M. G. Wolfire, J. H. Black, F. Schuller, H. S. P. Müller, S. Thorwirth, R. Güsten, and S. Philipp. A&A 454:L37-L40 (2006)."
+  },
+  {
+   "formula": "CH3C5N",
+   "name": "",
+   "year": 2006,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2006ApJ...647..412S",
+   "paper_title": "Confirmation of Interstellar Methylcyanodiacetylene (CH3C5N)",
+   "paper_ref": "L. E. Snyder, J. M. Hollis, P. R. Jewell, F. J. Lovas, and A. Remijan. ApJ 647:412-417 (2006)."
+  },
+  {
+   "formula": "C6H^–",
+   "name": "",
+   "year": 2006,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2006ApJ...652L.141M",
+   "paper_title": "Laboratory and Astronomical Identification of the Negative Molecular Ion C6H^–",
+   "paper_ref": "M. C. McCarthy, C. A. Gottlieb, H. Gupta, and P. Thaddeus. ApJ 652:L141-L144 (2006)"
+  },
+  {
+   "formula": "C4H^–",
+   "name": "",
+   "year": 2007,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2007A%26A...467L..37C",
+   "paper_title": "Astronomical Detection of C4H^–, the Second Interstellar Anion",
+   "paper_ref": "J. Cernicharo, M. Guélin, M. Agúndez, K. Kawaguchi, M. McCarthy, and P. Thaddeus. A&A 467:L37-L40 (2007)"
+  },
+  {
+   "formula": "HCP",
+   "name": "",
+   "year": 2007,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2007ApJ...662L..91A",
+   "paper_title": "Discovery of Phosphaethyne (HCP) in Space: Phosphorus Chemistry in Circumstellar Envelopes",
+   "paper_ref": "M. Agúndez, J. Cernicharo, and M. Guélin. ApJ 662:L91-L94 (2007)"
+  },
+  {
+   "formula": "C8H^–",
+   "name": "",
+   "year": 2007,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2007ApJ...664L..43B",
+   "paper_title": "Detection of the Carbon Chain Negative Ion C8H^– in TMC-1",
+   "paper_ref": "S. Brünken, H. Gupta, C. A. Gottlieb, M. C. McCarthy, and P. Thaddeus, ApJ 664:L43-L46 (2007)"
+  },
+  {
+   "formula": "CH2CHCH3",
+   "name": "",
+   "year": 2007,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2007ApJ...665L.127M",
+   "paper_title": "Discovery of Interstellar Propylene (CH2CHCH3): Missing Links in Interstellar Gas-Phase Chemistry",
+   "paper_ref": "N. Marcelino, J. Cernicharo, M. Agúndez, E. Roueff, M. Gerin, J. Martín-Pintado, R. Mauersberger, and C. Thum. ApJ 665:L127-L130 (2007)"
+  },
+  {
+   "formula": "PO",
+   "name": "",
+   "year": 2007,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2007ApJ...666L..29T",
+   "paper_title": "Identification of Phosphorus Monoxide ( X ^2Π r ) in VY Canis Majoris: Detection of the First P-O Bond in Space",
+   "paper_ref": "E. D. Tenenbaum, N. J. Woolf, and L. M. Ziurys. ApJ 666:L29-L32 (2007)"
+  },
+  {
+   "formula": "CNCHO",
+   "name": "",
+   "year": 2008,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2008ApJ...675L..85R",
+   "paper_title": "Detection of Interstellar Cyanoformaldehyde (CNCHO)",
+   "paper_ref": "A. J. Remijan, J. M. Hollis, F. J. Lovas, W. D. Stork, P. R. Jewell, and D. S. Meier. ApJ 675:L85-L88 (2008)"
+  },
+  {
+   "formula": "CCP",
+   "name": "",
+   "year": 2008,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2008ApJ...677L.101H",
+   "paper_title": "Detection of the CCP Radical ( X ^2Π r ) in IRC +10216: A New Interstellar Phosphorus-containing Species",
+   "paper_ref": "D. T. Halfen, D. J. Clouthier, and L. M. Ziurys. ApJ 677:L101-L104 (2008)"
+  },
+  {
+   "formula": "C3N^–",
+   "name": "",
+   "year": 2008,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2008ApJ...677.1132T",
+   "paper_title": "Laboratory and Astronomical Detection of the Negative Molecular Ion C3N^–",
+   "paper_ref": "P. Thaddeus, C. A. Gottlieb, H. Gupta, S. Brünken, M. C. McCarthy, M. Agúndez, M. Guélin, and J. Cernicharo. ApJ 677:1132-1139 (2008)"
+  },
+  {
+   "formula": "NH2CH2CN",
+   "name": "aminoacetonitrile",
+   "year": 2008,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2008A%26A...482..179B",
+   "paper_title": "Detection of amino acetonitrile in Sgr B2(N)",
+   "paper_ref": "A. Belloche, K. M. Menten, C. Comito, H. S. P. Müller, P. Schilke, J. Ott, S. Thorwirth, and C. Hieret. A&A 482:179-196 (2008)"
+  },
+  {
+   "formula": "PH3",
+   "name": "",
+   "year": 2008,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2008A%26A...485L..33A",
+   "paper_title": "Tentative detection of phosphine in IRC +10216",
+   "paper_ref": "M. Agúndez, J. Cernicharo, J. R. Pardo, M. Guélin, and T. G. Phillips. A&A 485:L33-L36 (2008)"
+  },
+  {
+   "formula": "C5N^–",
+   "name": "",
+   "year": 2008,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2008ApJ...688L..83C",
+   "paper_title": "Detection of C5N^– and Vibrationally Excited C6H in IRC +10216",
+   "paper_ref": "J. Cernicharo, M. Guélin, M. Agúndez, M. C. McCarthy, and P. Thaddeus, ApJ 688:L83-L86 (2008)"
+  },
+  {
+   "formula": "HCNO",
+   "name": "",
+   "year": 2009,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2009ApJ...690L..27M",
+   "paper_title": "Discovery of Fulminic Acid, HCNO, in Dark Clouds",
+   "paper_ref": "N. Marcelino, J. Cernicharo, B. Tercero, and E. Roueff, ApJ 690:L27-L30 (2009)"
+  },
+  {
+   "formula": "AlO",
+   "name": "",
+   "year": 2009,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2009ApJ...694L..59T",
+   "paper_title": "Millimeter Detection of AlO (X^2Σ^+): Metal Oxide Chemistry in the Envelope of VY Canis Majoris",
+   "paper_ref": "E. D. Tenenbaum and L. M. Ziurys, ApJ 693:L59-L63 (2009)"
+  },
+  {
+   "formula": "HOCN",
+   "name": "cyanic acid",
+   "year": 2009,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2009ApJ...697..880B",
+   "paper_title": "Laboratory Detection of HOCN and Tentative Identification in Sgr B2",
+   "paper_ref": "S. Brünken, C. A. Gottlieb, M. C. McCarthy, and P. Thaddeus, ApJ 697:880-885 (2009)"
+  },
+  {
+   "formula": "C2H5OCHO",
+   "name": "",
+   "year": 2009,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2009A%26A...499..215B",
+   "paper_title": "Increased Complexity in Interstellar Chemistry: Detection and Chemical Modeling of Ethyl Formate and n-Propyl Cyanide in Sagittarius B2(N)",
+   "paper_ref": "A. Belloche, R. T. Garrod, H. S. P. Müller, K. M. Menten, C. Comito, and P. Schilke, A&A 499:215-232 (2009)."
+  },
+  {
+   "formula": "n-C3H7CN",
+   "name": "",
+   "year": 2009,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2009A%26A...499..215B",
+   "paper_title": "Increased Complexity in Interstellar Chemistry: Detection and Chemical Modeling of Ethyl Formate and n-Propyl Cyanide in Sagittarius B2(N)",
+   "paper_ref": "A. Belloche, R. T. Garrod, H. S. P. Müller, K. M. Menten, C. Comito, and P. Schilke, A&A 499:215-232 (2009)."
+  },
+  {
+   "formula": "HSCN",
+   "name": "thiocyanic acid",
+   "year": 2009,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2009ApJ...702L.124H",
+   "paper_title": "Detection of a New Interstellar Molecule: Thiocyanic Acid HSCN",
+   "paper_ref": "D. T. Halfen, L. M. Ziurys, S. Brünken, C. A. Gottlieb, M. C. McCarthy, and P. Thaddeus, ApJ 702:L124-L127 (2009)."
+  },
+  {
+   "formula": "AlOH",
+   "name": "",
+   "year": 2010,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010ApJ...712L..93T",
+   "paper_title": "Exotic Metal Molecules in Oxygen-rich Envelopes: Detection of AlOH (X^1Σ^+) in VY Canis Majoris",
+   "paper_ref": "E. D. Tenenbaum and L. M. Ziurys, ApJ 712:L93-L97(2010)."
+  },
+  {
+   "formula": "CN^–",
+   "name": "",
+   "year": 2010,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010A%26A...517L...2A",
+   "paper_title": "Astronomical Identification of CN^–, the Smallest Observed Molecular Anion",
+   "paper_ref": "M. Agúndez, J. Cernicharo, M. Guélin, C. Kahane, E. Roueff, J. Klos, F. J. Aoiz, F. Lique, N. Marcelino, J. R. Goicoechea, M. González García, C. A. Gottlieb, M. C. McCarthy, and P. Thaddeus. A&A 517:L2 (2010)."
+  },
+  {
+   "formula": "H2O^+",
+   "name": "",
+   "year": 2010,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010A%26A...518L.111O",
+   "paper_title": "Detection of interstellar oxidaniumyl: Abundant H2O^+ towards the star-forming regions DR21, Sgr B2, and NGC6334",
+   "paper_ref": "V. Ossenkopf and 102 co-authors. A&A 518:Llll (2010)."
+  },
+  {
+   "formula": "OH^+",
+   "name": "",
+   "year": 2010,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010A%26A...518A..26W",
+   "paper_title": "First interstellar detection of OH^+",
+   "paper_ref": "F. Wyrowski, K. M. Menten, R. Güsten and A. Belloche. A&A 518:A26 (2010)."
+  },
+  {
+   "formula": "H2Cl^+",
+   "name": "",
+   "year": 2010,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010A%26A...521L...9L",
+   "paper_title": "Herschel/HIFI discovery of interstellar chloronium (H2Cl^+)",
+   "paper_ref": "D. C. Lis and 91 co-authors. A&A 521:L9 (2010)."
+  },
+  {
+   "formula": "C60",
+   "name": "",
+   "year": 2010,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010Sci...329.1180C",
+   "paper_title": "Detection of C60 and C70 in a Young Planetary Nebula",
+   "paper_ref": "J. Cami, J. Bernard-Salas, E. Peeters, and S. E. Malek, Science 329:1180-1192 (2010)."
+  },
+  {
+   "formula": "C70",
+   "name": "",
+   "year": 2010,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010Sci...329.1180C",
+   "paper_title": "Detection of C60 and C70 in a Young Planetary Nebula",
+   "paper_ref": "J. Cami, J. Bernard-Salas, E. Peeters, and S. E. Malek, Science 329:1180-1192 (2010)."
+  },
+  {
+   "formula": "C14H10^+",
+   "name": "",
+   "year": 2010,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010MNRAS.407.2157I",
+   "paper_title": "A Search for Interstellar Anthracene towards the Perseus Anomalous Microwave Emission Region",
+   "paper_ref": "S. Iglesias-Groth, A. Manchado, R. Rebolo, J. I. González Hernández, D. A. Garcí- Hernández, and D. L. Lambert, MNRAS 407:2157-2165 (2010)"
+  },
+  {
+   "formula": "KCN",
+   "name": "",
+   "year": 2010,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2010ApJ...725L.181P",
+   "paper_title": "Identification of KCN in IRC+10216: Evidence for Selective Cyanide Chemistry",
+   "paper_ref": "R. L. Pulliam, C. Savage, M. Agúndez, J. Cernicharo, M. Guélin, and L. M. Ziurys. ApJ 727:L181 (2010)."
+  },
+  {
+   "formula": "SH^+",
+   "name": "",
+   "year": 2011,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2011A%26A...525A..77M",
+   "paper_title": "Submillimeter absorption from SH^+, a new widespread interstellar radical, ^13CH^+ and HCl",
+   "paper_ref": "K. M. Menten, F. Wyrowski, A. Belloche, R. Güsten, L. Dedes, and H. S. P. Müller. A&A 525:A77 (2011)."
+  },
+  {
+   "formula": "FeCN",
+   "name": "",
+   "year": 2011,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2011ApJ...733L..36Z",
+   "paper_title": "Detection of FeCN (X ^4&Deltai) in IRC +10216: A New Interstellar Molecule",
+   "paper_ref": "L. N. Zack, D. T. Halfen, and L. M. Ziurys. ApJ 733:L36 (2011)."
+  },
+  {
+   "formula": "HOOH",
+   "name": "",
+   "year": 2011,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2011A%26A...531L...8B",
+   "paper_title": "Detection of interstellar hydrogen peroxide",
+   "paper_ref": "P. Bergman, B. Parise, R. Liseau, B. Larsson, H. Olofsson, K. M. Menten and R. Güsten A&A 531, L8 (2011)."
+  },
+  {
+   "formula": "O2",
+   "name": "",
+   "year": 2011,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2011ApJ...737...96G",
+   "paper_title": "Herschel Measurements of Molecular Oxygen in Orion",
+   "paper_ref": "P. F. Goldsmith and 34 co-authors, ApJ 737:96 (2011) see also:"
+  },
+  {
+   "formula": "HO2",
+   "name": "",
+   "year": 2012,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2012A%26A...541L..11P",
+   "paper_title": "Detection of the hydroperoxyl radical HO2 toward ρ Ophiuchi A. Additional constraints on the water chemical network",
+   "paper_ref": "B. Parise, P. Bergman, and F. Du, A&A 541:L11 (2012)"
+  },
+  {
+   "formula": "HCl^+",
+   "name": "",
+   "year": 2012,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2012ApJ...751L..37D",
+   "paper_title": "Herschel /HIFI Discovery of HCl^+ in the Interstellar Medium",
+   "paper_ref": "M. De Luca, H. Gupta, D. Neufeld, M. Gerin, D. Teyssier, B. J. Drouin, J. C. Pearson, D. C. Lis, R. Monje, T. G. Phillips, J. R. Goicoechea, B. Godard, E. Falgarone, A. Coutens, and T. A. Bell, ApJ 751:L37 (2012)"
+  },
+  {
+   "formula": "SH",
+   "name": "",
+   "year": 2012,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2012A%26A...542L...6N",
+   "paper_title": "Discovery of interstellar mercapto radicals (SH) with the GREAT instrument on SOFIA",
+   "paper_ref": "D. A. Neufeld, E. Falgarone, M. Gerin, B. Godard, E. Herbst, G. Pineau des Forêts, A. I. Vasyunin, R. Güsten, H. Wiesemeyer, and O. Ricken, A&A 542:L6 (2012)"
+  },
+  {
+   "formula": "CH3OCHO",
+   "name": "anti-methyl formate methyl formate",
+   "year": 2012,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2012ApJ...755..153N",
+   "paper_title": "Laboratory and Tentative Interstellar Detection of Trans-Methyl Formate Using the Publicly Available Green Bank Telescope Primos Survey",
+   "paper_ref": "J. L. Neill, M. T. Muckle, D. P. Zaleski, A. L. Steber, B. H. Pate, V. Lattanzi, S. Spezzano, M. C. McCarthy, and A. J. Remijan. ApJ 755, 143 (2012)"
+  },
+  {
+   "formula": "HNCNH",
+   "name": "methanediimine",
+   "year": 2012,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2012ApJ...758L..33M",
+   "paper_title": "Interstellar Carbodiimide (HNCNH): A New Astronomical Detection from the GBT PRIMOS Survey via Maser Emission Features",
+   "paper_ref": "B. A. McGuire, R. A. Loomis, C. M. Charness, J. F. Corby, G. A. Blake, J. M. Hollis, F. J. Lovas, P. R. Jewell, and A. J. Remijan, ApJ 758:L33 (2012)"
+  },
+  {
+   "formula": "CH3O",
+   "name": "",
+   "year": 2012,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2012ApJ...759L..43C",
+   "paper_title": "Discovery of the Methoxy Radical, CH3O, toward B1: Dust Grain and Gas-phase Chemistry in Cold Dark Clouds",
+   "paper_ref": "J. Cernicharo, N. Marcelino, E. Roueff, M. Gerin, A. Jiménez-Escobar, and G. M. Muñoz Caro, ApJ 759:L43 (2012)"
+  },
+  {
+   "formula": "l- C3H^+",
+   "name": "",
+   "year": 2012,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2012A%26A...548A..68P",
+   "paper_title": "The IRAM-30 m line survey of the Horsehead PDR. II. First detection of the l-C3H^+ hydrocarbon cation",
+   "paper_ref": "J. Pety, P. Gratier, V. Guzmán, E. Roueff, M. Gerin, J. R. Goicoechea, S. Bardeau, A. Sievers, F. Le Petit, J. Le Bourlot, A. Belloche, and D. Talbi, A&A 548:A68 (2012) Detection disputed:"
+  },
+  {
+   "formula": "C60^+",
+   "name": "",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013A%26A...550L...4B",
+   "paper_title": "Interstellar C60^+",
+   "paper_ref": "O. Berné, G. Mulas, and C. Joblin, A&A 550:L4 (2013) See also:"
+  },
+  {
+   "formula": "CH3CHNH",
+   "name": "",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013ApJ...765L...9L",
+   "paper_title": "The Detection of Interstellar Ethanimine (CH3CHNH) from Observations taken during the GBT PRIMOS Survey",
+   "paper_ref": "R. A. Loomis, D. P. Zaleski, A. L. Steber, J. L. Neill, M. T. Muckle, B. J. Harris, J. M. Hollis, P. R. Jewell, V. Lattanzi, F. J. Lovas, O. Martinez, Jr., M. C. McCarthy, A. J. Remijan, and B. H. Pate, ApJL 765:L10 (2013)"
+  },
+  {
+   "formula": "E-HNCHCN",
+   "name": "E-cyanomethanimine",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013ApJ...765L..10Z",
+   "paper_title": "Detection of E-cyanomethanimine towards Sagittarius B2(N) in the Green Bank Telescope PRIMOS Survey",
+   "paper_ref": "D. P. Zaleski, N. A. Seifert, A. L. Steber, M. T. Muckle, R. A. Loomis, J. F. Corby, O. Martinez, Jr., K. N. Crabtree, P. R. Jewell, J. M. Hollis, F. J. Lovas, D. Vasquez, J. Nyiramahirwe, N. Sciortino, K. Johnson, M. C. McCarthy, A. J. Remijan, and B. H. Pate, ApJ 765:L9 (2013)"
+  },
+  {
+   "formula": "TiO",
+   "name": "titanium monoxide",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013A%26A...551A.113K",
+   "paper_title": "Pure rotational spectra of TiO and TiO2 in VY Canis Majoris",
+   "paper_ref": "T. Kamiński, C. A. Gottlieb, K. M. Menten, N. A. Patel, K. H. Young, S. Brünken, H. S. P. Müller, M. C. McCarthy, J. M. Winters, and L. Decin, A&A 551:A113 (2013)"
+  },
+  {
+   "formula": "TiO2",
+   "name": "titanium dioxide",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013A%26A...551A.113K",
+   "paper_title": "Pure rotational spectra of TiO and TiO2 in VY Canis Majoris",
+   "paper_ref": "T. Kamiński, C. A. Gottlieb, K. M. Menten, N. A. Patel, K. H. Young, S. Brünken, H. S. P. Müller, M. C. McCarthy, J. M. Winters, and L. Decin, A&A 551:A113 (2013)"
+  },
+  {
+   "formula": "CH3COOCH3",
+   "name": "methyl acetate",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013ApJ...770L..13T",
+   "paper_title": "Discovery of Methyl Acetate and Gauche Ethyl Formate in Orion",
+   "paper_ref": "B. Tercero, I. Kleiner, J. Cernicharo, H. V. L. Nguyen, A. López, and G. M. Muñoz Caro. ApJ 770:L13 (2013)"
+  },
+  {
+   "formula": "NH3D^+",
+   "name": "ammonium ion",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013ApJ...771L..10C",
+   "paper_title": "Detection of the Ammonium Ion in Space",
+   "paper_ref": "J. Cernicharo, B. Tercero, A. Fuente, J. L. Domenech, M. Cueto, E. Carrasco, V. J. Herrero, I. Tanarro, N. Marcelino, E. Roeff, M. Gerin, and J. Pearson. ApJ 771:L10 (2013)"
+  },
+  {
+   "formula": "C6H5OH",
+   "name": "phenol",
+   "year": 2013,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013JMoSp.289...13K",
+   "paper_title": "The millimeter wave tunneling-rotational spectrum of phenol",
+   "paper_ref": "L. Kolesniková, A. M. Daly, J. L. Alonso, B. Tercero, and J. Cernicharo. J Mol Spectrosc 289:13 (2013)."
+  },
+  {
+   "formula": "HMgNC",
+   "name": "hydromagnesium isocyanide",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013ApJ...775..133C",
+   "paper_title": "Laboratory and Astronomical Discovery of Hydromagnesium Isocyanide",
+   "paper_ref": "C. Cabezas, J. Cernicharo, J. L. Alonso, M. Agúndez, S. Mata, M. Guélin, and I. Peña. ApJ 775:133 (2013)"
+  },
+  {
+   "formula": "H2NCO^+",
+   "name": "N-protonated HNCO",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013ApJ...778L...1G",
+   "paper_title": "Laboratory Measurements and Tentative Astronomical Identification of H2NCO^+",
+   "paper_ref": "H. Gupta, C. A. Gottlieb, V. Lattanzi, J. C. Pearson, and M. C. McCarthy. ApJ 778:L1 (2013)"
+  },
+  {
+   "formula": "ArH^+",
+   "name": "protonated Ar",
+   "year": 2013,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2013Sci...342.1343B",
+   "paper_title": "Detection of a Noble Gas Molecular Ion, ^36ArH^+, in the Crab Nebula",
+   "paper_ref": "M. J. Barlow, B. M. Swinyard, P. J. Owen, J. Cernicharo, H. L. Gomez, R. J. Ivison, O. Krause, T. L. Lim, M. Matsuura, S. Miller, G. Olofsson, and E. T. Polehampton. Science 342:1343-1345 (2013)"
+  },
+  {
+   "formula": "CH3CH2SH",
+   "name": "ethyl mercaptan",
+   "year": 2014,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014ApJ...784L...7K",
+   "paper_title": "Spectroscopic Characterization and Detection of Ethyl Mercaptan in Orion",
+   "paper_ref": "L. Kolesniková, B. Tercero, J. Cernicharo, J. L. Alonso, A. M. Daly, B. P. Gordon, and S. T. Shipman. ApJ 784:L7 (2014)"
+  },
+  {
+   "formula": "i -C3H7CN",
+   "name": "isopropyl cyanide",
+   "year": 2014,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014Sci...345.1584B",
+   "paper_title": "Detection of a branched alkyl molecule in the interstellar medium: iso-propyl cyanide",
+   "paper_ref": "A. Belloche, R. T. Garrod, H. S. P. Müller, K. M. Menten. Science 345:1584-1587 (2014)"
+  },
+  {
+   "formula": "C5S",
+   "name": "",
+   "year": 2014,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014A%26A...570A..45A",
+   "paper_title": "New molecules in IRC +10216: confirmation of C5S and tentative identification of MgCCH, NCCP, and SiH3CN",
+   "paper_ref": "M. Agúndez, J. Cernicharo and M. Guélin. A&A 570:A45 (2014)"
+  },
+  {
+   "formula": "MgCCH",
+   "name": "magnesium monoacetylide",
+   "year": 2014,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014A%26A...570A..45A",
+   "paper_title": "New molecules in IRC +10216: confirmation of C5S and tentative identification of MgCCH, NCCP, and SiH3CN",
+   "paper_ref": "M. Agúndez, J. Cernicharo and M. Guélin. A&A 570:A45 (2014)"
+  },
+  {
+   "formula": "NCCP",
+   "name": "cyanophosphaethyne",
+   "year": 2014,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014A%26A...570A..45A",
+   "paper_title": "New molecules in IRC +10216: confirmation of C5S and tentative identification of MgCCH, NCCP, and SiH3CN",
+   "paper_ref": "M. Agúndez, J. Cernicharo and M. Guélin. A&A 570:A45 (2014)"
+  },
+  {
+   "formula": "SiH3CN",
+   "name": "silyl cyanide",
+   "year": 2014,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014A%26A...570A..45A",
+   "paper_title": "New molecules in IRC +10216: confirmation of C5S and tentative identification of MgCCH, NCCP, and SiH3CN",
+   "paper_ref": "M. Agúndez, J. Cernicharo and M. Guélin. A&A 570:A45 (2014)"
+  },
+  {
+   "formula": "CCN",
+   "name": "cyanomethylidyne",
+   "year": 2014,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014ApJ...795L...1A",
+   "paper_title": "Detection of CCN (X^2Πr) in IRC+10216: Constraining Carbon-chain Chemistry",
+   "paper_ref": "J. K. Anderson and L. M. Ziurys. ApJ 795:L1 (2014)"
+  },
+  {
+   "formula": "NO^+",
+   "name": "nitrosylium cation",
+   "year": 2011,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014ApJ...795...40C",
+   "paper_title": "Tentative Detection of the Nitrosylium Ion in Space",
+   "paper_ref": "J. Cernicharo, S. Bailleux, E. Alekseev, A. Fuente, E. Roueff, M. Gerin, B. Tercero, S. P. Treviño-Morales, N. Marcelino, R. Bachiller, and B. Lefloch. ApJ 795:40 (2014)."
+  },
+  {
+   "formula": "NNOH^+",
+   "name": "protonated NNO",
+   "year": 2011,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2014ApJ...795...40C",
+   "paper_title": "Tentative Detection of the Nitrosylium Ion in Space",
+   "paper_ref": "J. Cernicharo, S. Bailleux, E. Alekseev, A. Fuente, E. Roueff, M. Gerin, B. Tercero, S. P. Treviño-Morales, N. Marcelino, R. Bachiller, and B. Lefloch. ApJ 795:40 (2014)."
+  },
+  {
+   "formula": "HCCO",
+   "name": "ketenyl",
+   "year": 2015,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2015A%26A...577L...5A",
+   "paper_title": "Discovery of interstellar ketenyl (HCCO), a surprisingly abundant radical",
+   "paper_ref": "M. Agúndez, J. Cernicharo, and M. Guélin. A&A 577:L5 (2015)"
+  },
+  {
+   "formula": "SiCSi",
+   "name": "disilicon carbide",
+   "year": 2015,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2015ApJ...806L...3C",
+   "paper_title": "Discovery of SiCSi in IRC+10216: A Missing Link between Gas and Dust Carriers of Si-C Bonds",
+   "paper_ref": "J. Cernicharo, M. C. McCarthy, C. A. Gottlieb, M. Agúndez, L. Velilla Prieto, J. H. Baraban, P. B. Changala, M. Guélin, C. Kahane, M. A. Martin- Drumel, N. A. Patel, N. J. Reilly, J. F. Stanton, G. Quintana-Lacaci, S. Thorwirth, and K. H. Young. ApJ 806:L3 (2015)"
+  },
+  {
+   "formula": "C60^+",
+   "name": "buckyball cation",
+   "year": 2015,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2015Natur.523..322C",
+   "paper_title": "Laboratory confirmation of C60^+ as the carrier of two diffuse interstellar bands",
+   "paper_ref": "E. K. Campbell, M. Holz, D. Gerlich and J. P. Maier. Nature 523:322-323 (2015)"
+  },
+  {
+   "formula": "NCCNH^+",
+   "name": "protonated cyanogen",
+   "year": 2015,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2015A%26A...579L..10A",
+   "paper_title": "Probing non-polar interstellar molecules through their protonated form: Detection of protonated cyanogen (NCCNH^+)",
+   "paper_ref": "M. Agúndez, J. Cernicharo, P. de Vicente, N. Marcelino, E. Roueff, A. Fuente, M. Gerin, M. Guélin, C. Albo, A. Barcia, L. Barbas, R. Bolaño, F. Colomer, M. C. Diez, J. D. Gallego, J. Gómez-González, I. López-Fernández, J. A. López-Fernández2, J. A. López-Pérez, I. Malo, J. M. Serna, and F. Tercero. A&A 579:L10 (2015)"
+  },
+  {
+   "formula": "CrO",
+   "name": "chromium monoxide",
+   "year": 2015,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2015A%26A...580A..34K",
+   "paper_title": "Post-outburst spectra of a stellar-merger remnant of V1309 Scorpii: from a twin of V838 Monocerotis to a clone of V4332 Sagittarii",
+   "paper_ref": "T. Kamiński, E. Mason, R. Tylenda, and M. R. Schmidt. A&A 580:A34 (2015)."
+  },
+  {
+   "formula": "CH3NCO",
+   "name": "methyl isocyanate",
+   "year": 2015,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2015ApJ...812L...5H",
+   "paper_title": "Interstellar Detection of Methyl Isocyanate CH3NCO in Sgr B2(N): A Link from Molecular Clouds to Comets",
+   "paper_ref": "D. T. Halfen, V. V. Ilyushin, and L. M. Ziurys. ApJ 812:L5 (2015)"
+  },
+  {
+   "formula": "t-C2H5OCH3",
+   "name": "trans ethyl methyl ether",
+   "year": 2015,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2015A%26A...582L...1T",
+   "paper_title": "Searching for trans ethyl methyl ether in Orion KL",
+   "paper_ref": "B. Tercero, J. Cernicharo, A. López, N. Brouillet, L. Kolesniková, R. A. Motiyenko, L. Margulès, J. L. Alonso, and J.-C. Guillemin. A&A 582:L1 (2015)."
+  },
+  {
+   "formula": "CH3CHCH2O",
+   "name": "propylene oxide",
+   "year": 2016,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2016Sci...352.1449M",
+   "paper_title": "Discovery of the interstellar chiral molecule propylene oxide (CH3CHCH2O)",
+   "paper_ref": "B. A. McGuire, P. B. Carroll, R. A. Loomis, I. A. Finneran, P. R. Jewell, A. J. Remijan, and G. A. Blake. Science 352:1449-1552 (2016)"
+  },
+  {
+   "formula": "cis-HCOOH",
+   "name": "formic acid (It would be more appropriate to use syn than cis .)",
+   "year": 2016,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2016A%26A...596L...1C",
+   "paper_title": "Trans-cis molecular photoswitching in interstellar space",
+   "paper_ref": "S. Cuadrado, J. R. Goicoechea, O. Roncero, A. Aguado, B. Tercero, and J. Cernicharo. A&A 595:L1 (2016)."
+  },
+  {
+   "formula": "CH3NHCHO",
+   "name": "N-methylformamide",
+   "year": 2017,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2017A%26A...601A..49B",
+   "paper_title": "Rotational spectroscopy, tentative interstellar detection, and chemical modeling of N-methylformamide",
+   "paper_ref": "A. Belloche, A. A. Meshcheryakov, R. T. Garrod, V. V. Ilyushin, E. A. Alekseev, R. A. Motiyenko, L. Margulès, H. S. P. Müller, and K. M. Menten. A&A 601:A49 (2017)."
+  },
+  {
+   "formula": "HC5O",
+   "name": "",
+   "year": 2017,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2017ApJ...843L..28M",
+   "paper_title": "Detection of Interstellar HC5O in TMC-1 with the Green Bank Telescope",
+   "paper_ref": "B. A. McGuire, A. M. Burkhardt, C. N. Shingledecker, S. V. Kalenskii, E. Herbst, A. J. Remijan, and M. C. McCarthy. ApJL 843:L28 (2017)."
+  },
+  {
+   "formula": "CH3Cl",
+   "name": "chloromethane",
+   "year": 2017,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2017NatAs...1..703F",
+   "paper_title": "Protostellar and cometary detections of organohalogens",
+   "paper_ref": "E. C. Fayolle, K. I. Öberg, J. K. Jørgensen, K. Altwegg, H. Calcutt, H. S. P. Müller, M. Rubin, M. H. D. van der Wiel, P. Bjerkeli, T. L. Bourke, A. Coutens, E. F. van Dishoeck, M. N. Drozdovskaya, R. T. Garrod, N. F. W. Ligterink, M. V. Persson, S. F. Wampfler & the ROSINA team. Nature Astron 1:702-708 (2017)."
+  },
+  {
+   "formula": "CH3SiH3",
+   "name": "methyl silane",
+   "year": 2017,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2017A%26A...606L...5C",
+   "paper_title": "Discovery of methyl silane and confirmation of silyl cyanide in IRC +10216",
+   "paper_ref": "J. Cernicharo, M. Agúndez, L. Velilla Prieto, M. Guélin, J. R. Pardo, C. Kahane, C. Marka, C. Kramer, S. Navarro, G. Quintana-Lacaci, J. P. Fonfría, N. Marcelino, B. Tercero, E. Moreno, S. Massalkhi, M. Santander-García, M. C. McCarthy, C. A. Gottlieb, and J. L. Alonso. A&A 606:L5 (2017)."
+  },
+  {
+   "formula": "HC7O",
+   "name": "1-oxo-hepta-2,4,6-triynyl",
+   "year": 2017,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2017ApJ...850..187C",
+   "paper_title": "Deep K-band Observations of TMC-1 with the Green Bank Telescope: Detection of HC7O, Nondetection of HC11N, and a Search for New Organic Molecules",
+   "paper_ref": "M. A. Cordiner, S. B. Charnley, Z. Kisiel, B. A. McGuire, and Y.-J. Kuan. ApJ 850:194 (2017)."
+  },
+  {
+   "formula": "CH3OCH2OH",
+   "name": "methoxymethanol",
+   "year": 2017,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2017ApJ...851L..46M",
+   "paper_title": "ALMA Detection of Interstellar Methoxymethanol (CH3OCH2OH)",
+   "paper_ref": "B. A. McGuire, C. N. Shingledecker, E. R. Willis, A. M. Burkhardt, S. El-Abd, R. A. Motiyenko, C. L. Brogan, T. R. Hunter, L. Margulès, J.-C. Guillemin, R. T. Garrod, E. Herbst, and A. J. Remijan. ApJL 851:L46 (2017)."
+  },
+  {
+   "formula": "S2H",
+   "name": "",
+   "year": 2017,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2017ApJ...851L..49F",
+   "paper_title": "First Detection of Interstellar S2H",
+   "paper_ref": "A. Fuente, J. R. Goicoechea, J. Pety, R. Le Gal, R. Martín-Doménech, P. Gratier, V. Guzmán, E. Roueff, J. C. Loison, G. M. Muñoz Caro, V. Wakelam, M. Gerin, P. Riviere-Marichalar, and T. Vidal. ApJL 851:L49 (2017)."
+  },
+  {
+   "formula": "c-C6H5CN",
+   "name": "benzonitrile",
+   "year": 2018,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2018Sci...359..202M",
+   "paper_title": "Detection of the aromatic molecule benzonitrile (c-C6H5CN) in the interstellar medium",
+   "paper_ref": "B. A. McGuire, A. M. Burkhardt, S. Kalenskii, C. N. Shingledecker, A. J. Remijan, E. Herbst, and M. C. McCarthy. Science 359:202-205 (2018)."
+  },
+  {
+   "formula": "NS^+",
+   "name": "nitrogen sulfide cation",
+   "year": 2018,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2018ApJ...853L..22C",
+   "paper_title": "Discovery of the Ubiquitous Cation NS^+ in Space Confirmed by Laboratory Spectroscopy",
+   "paper_ref": "J. Cernicharo, B. Lefloch, M. Agúndez, S. Bailleux, L. Margulès, E. Roueff, R. Bachiller, N. Marcelino, B. Tercero, C. Vastel, and E. Caux. ApJL 853:L22 (2018)."
+  },
+  {
+   "formula": "HCS",
+   "name": "thioformyl radical",
+   "year": 2018,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2018A%26A...611L...1A",
+   "paper_title": "Detection of interstellar HCS and its metastable isomer HSC: new pieces in the puzzle of sulfur chemistry",
+   "paper_ref": "M. Agúndez, N. Marcelino, J. Cernicharo and M. Tafafa. A&A 611:L1 (2018)."
+  },
+  {
+   "formula": "HSC",
+   "name": "isothioformyl radical",
+   "year": 2018,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2018A%26A...611L...1A",
+   "paper_title": "Detection of interstellar HCS and its metastable isomer HSC: new pieces in the puzzle of sulfur chemistry",
+   "paper_ref": "M. Agúndez, N. Marcelino, J. Cernicharo and M. Tafafa. A&A 611:L1 (2018)."
+  },
+  {
+   "formula": "NCO",
+   "name": "isocyanato radical",
+   "year": 2018,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2018A%26A...612L..10M/abstract",
+   "paper_title": "Discovery of the elusive radical NCO and confirmation of H2NCO^+ in space",
+   "paper_ref": "N. Marcelino, M. Agúndez, J. Cernicharo, E. Roueff, and M. Tafalla. A&A 612:L10 (2018)."
+  },
+  {
+   "formula": "Z-HNCHCN",
+   "name": "Z-cyanomethanimine",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019MNRAS.483L.114R/abstract",
+   "paper_title": "Abundant Z-cyanomethanimine in the interstellar medium: paving the way to the synthesis of adenine",
+   "paper_ref": "V. M. Rivilla, J. Martín-Pintado, I. Jiménez-Serra, S. Zeng, S. Martín, J. Armijos-Abendaño, M. A Requena-Torres, R. Aladro, and D. Riquelme. MNRASL 483:L114-L119 (2019)."
+  },
+  {
+   "formula": "HOCH2CN",
+   "name": "glycolonitrile",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019MNRAS.484L..43Z/abstract",
+   "paper_title": "First detection of the pre-biotic molecule glycolonitrile (HOCH2CN) in the interstellar medium",
+   "paper_ref": "S. Zeng, D. Quénard, I. Jiménez-Serra, J. Martín-Pintado, V. M. Rivilla, L. Testi, and R. Martín-Doménech. MNRASL 484:L43-L48 (2019)."
+  },
+  {
+   "formula": "trans-HONO",
+   "name": "nitrous acid",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019A%26A...623L..13C",
+   "paper_title": "The ALMA-PILS survey: First detection of nitrous acid (HONO) in the interstellar medium",
+   "paper_ref": "A. Coutens, N. F. W. Ligterink, J.-C. Loison, V. Wakelam, H. Calcutt, M. N. Drozdovskaya, J. K. Jørgensen, H. S. P. Müller, E. F. van Dishoeck, and S. F. Wampfler. A&A 623:L13 (2019)."
+  },
+  {
+   "formula": "VO",
+   "name": "vanadium oxide",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019ApJ...874L..26H/abstract",
+   "paper_title": "The Unexpected Spectrum of the Innermost Ejecta of the Red Hypergiant VY CMa",
+   "paper_ref": "R. M. Humphreys, L. M. Ziurys, J. J. Bernal, M. S. Gordon, L. A. Helton, K. Ishibashi, T. J. Jones, A. M. S. Richards, and W. Vlemmings. ApJ 874:L26 (2019)."
+  },
+  {
+   "formula": "HeH^+",
+   "name": "helium hydride ion",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019Natur.568..357G/abstract",
+   "paper_title": "Astrophysical detection of the helium hydride ion HeH^+",
+   "paper_ref": "R. Güsten, H. Wiesemeyer, D. Neufeld, K. M. Menten, U. U. Graf, K. Jacobs, B. Klein, O. Ricken, C. Risacher, and J. Stutzki. Nature 568:357-359 (2019)."
+  },
+  {
+   "formula": "CaNC",
+   "name": "calcium isocyanide",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019A%26A...627L...4C/abstract",
+   "paper_title": "Discovery of the first Ca-bearing molecule in space: CaNC",
+   "paper_ref": "J. Cernicharo, L. Velilla-Prieto, M. Agúndez, J. R. Pardo, J. P. Fonfría, G. Quintana-Lacaci, C. Cabezas, C. Bermúdez, and M. Guélin. A&A 627:L4 (2019)"
+  },
+  {
+   "formula": "(NH2)2CO",
+   "name": "urea",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019A%26A...628A..10B/abstract",
+   "paper_title": "Re-exploring Molecular Complexity with ALMA (ReMoCA): interstellar detection of urea",
+   "paper_ref": "A. Belloche, R. T. Garrod, H. S. P. Müller, K. M. Menten, I. Medvedev, J. Thomas, and Z. Kisiel. A&A 628:A10 (2019)"
+  },
+  {
+   "formula": "MgC3N",
+   "name": "magnesium monocyanoacetylide",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019A%26A...630L...2C/abstract",
+   "paper_title": "Discovery of two new magnesium-bearing species in IRC+10216: MgC3N and MgC4H",
+   "paper_ref": "J. Cernicharo, C. Cabezas, J. R. Pardo, M. Agúndez, C. Bermúdez, L. Velilla-Prieto, F. Tercero, J. A. López-Pérez, J. D. Gallego, J. P. Fonfría, G. Quintana-Lacaci, M. Guélin, and Y. Endo. A&A 630:L2 (2019)."
+  },
+  {
+   "formula": "MgC4H",
+   "name": "magnesium monobutadiynide",
+   "year": 2019,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2019A%26A...630L...2C/abstract",
+   "paper_title": "Discovery of two new magnesium-bearing species in IRC+10216: MgC3N and MgC4H",
+   "paper_ref": "J. Cernicharo, C. Cabezas, J. R. Pardo, M. Agúndez, C. Bermúdez, L. Velilla-Prieto, F. Tercero, J. A. López-Pérez, J. D. Gallego, J. P. Fonfría, G. Quintana-Lacaci, M. Guélin, and Y. Endo. A&A 630:L2 (2019)."
+  },
+  {
+   "formula": "NH2OH",
+   "name": "hydroxylamine",
+   "year": 2020,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2020ApJ...899L..28R/abstract",
+   "paper_title": "Prebiotic Precursors of the Primordial RNA World in Space: Detection of NH2OH",
+   "paper_ref": "V. M. Rivilla, J. Martín-Pintado, I. Jiménez-Serra, S. Martín, L. F. Rodríguez-Almeida, M. A. Requena-Torres, F. Rico-Villas, S. Zeng, and C. Briones. ApJL 899:L28 (2020)."
+  },
+  {
+   "formula": "CH3COCH2OH",
+   "name": "hydroxyacetone",
+   "year": 2020,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2020RAA....20..125Z/abstract",
+   "paper_title": "Detection of hydroxyacetone in protostar IRAS 16293-2422 B",
+   "paper_ref": "Y. Zhou, D.-H. Quan, X. Zhang, and S.-L. Qin. Res Astron Astrophys 20:125 (2020)."
+  },
+  {
+   "formula": "Z-HNCHCCH",
+   "name": "Z-propargylimine",
+   "year": 2020,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2020A%26A...640A..98B/abstract",
+   "paper_title": "Propargylimine in the laboratory and in space: millimetre-wave spectroscopy and its first detection in the ISM",
+   "paper_ref": "L. Bizzocchi, D. Prudenzano, V. M. Rivilla, A. Pietropolli-Charmet, B. M. Giuliano, P. Caselli, J. Martín-Pintado, I. Jiménez-Serra, S. Martín, M. A. Requena-Torres, F. Rico-Villas, S. Zeng and J.-C. Guillemin. A&A 640:A98 (2020)."
+  },
+  {
+   "formula": "HC4NC",
+   "name": "isocyano- diacetylene",
+   "year": 2020,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2020ApJ...900L...9X/abstract",
+   "paper_title": "Detection of Interstellar HC4NC and an Investigation of Isocyanopolyyne Chemistry under TMC-1 Conditions",
+   "paper_ref": "C. Xue, E. R. Willis, R. A. Loomis, K. L. K. Lee, A. M. Burkhardt, C. N. Shingledecker, S. B. Charnley, M. A. Cordiner, S. Kalenskii, M. C. McCarthy, E. Herbst, A. J. Remijan, and B. A. McGuire. ApJL 900:L9 (2020)."
+  },
+  {
+   "formula": "HCCCH2CN",
+   "name": "propargyl cyanide",
+   "year": 2020,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2020ApJ...900L..10M",
+   "paper_title": "Early Science from GOTHAM: Project Overview, Methods, and the Detection of Interstellar Propargyl Cyanide (HCCCH2CN) in TMC-1",
+   "paper_ref": "B. A. McGuire, A. M. Burkhardt, R. A. Loomis, C. N. Shingledecker, K. L. K. Lee, S. B. Charnley, M. A. Cordiner, E. Herbst, S. Kalenskii, E. Momjian, E. R. Willis, C. Xue, A. J. Remijan, and M. C. McCarthy. ApJL 900:L10 (2020)."
+  },
+  {
+   "formula": "HC3O^+",
+   "name": "protonated C3O",
+   "year": 2020,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2020A%26A...642L..17C/abstract",
+   "paper_title": "Discovery of HC3O^+ in space: The chemistry of O-bearing species in TMC-1",
+   "paper_ref": "J. Cernicharo, N. Marcelino, M. Agúndez, Y. Endo, C. Cabezas, C. Bermúdez, B. Tercero, and P. de Vicente. A&A 642:L17 (2020)."
+  },
+  {
+   "formula": "HC5NH^+",
+   "name": "protonated cyanodiacetylene",
+   "year": 2020,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2020A%26A...643L...6M/abstract",
+   "paper_title": "Tentative detection of HC5NH^+ in TMC-1",
+   "paper_ref": "N. Marcelino, M. Agúndez, B. Tercero, C. Cabezas, C. Bermúdez, J. D. Gallego, P. deVicente, and J. Cernicharo. A&A 643:L6 (2020)."
+  },
+  {
+   "formula": "c-C5H5CN",
+   "name": "1-cyano- cyclopentadiene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021NatAs...5..176M/abstract",
+   "paper_title": "Interstellar detection of the highly polar five-membered ring cyanocyclopentadiene",
+   "paper_ref": "M. C. McCarthy, K. L. K. Lee, R. A. Loomis, A. M. Burkhardt, C. N. Shingledecker, S. B. Charnley, M. A. Cordiner, E. Herbst, S. Kalenskii, E. R. Willis, C. Xue, A. J. Remijan, and B. A. McGuire. Nature Astron 5:176-180 (2021)."
+  },
+  {
+   "formula": "HC11N",
+   "name": "cyanopenta- acetylene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021NatAs...5..188L/abstract",
+   "paper_title": "An investigation of spectral line stacking techniques and application to the detection of HC11N",
+   "paper_ref": "R. A. Loomis, A. M. Burkhardt, C. N. Shingledecker, S. B. Charnley, M. A. Cordiner, E. Herbst, S. Kalenskii, K. L. K. Lee, E. R. Willis, C. Xue, A. J. Remijan, M. C. McCarthy, and B. A. McGuire. Nature Astron 5, 188-196 (2021)."
+  },
+  {
+   "formula": "HC≡CCH=CHC≡N",
+   "name": "trans-cyanovinyl- acetylene",
+   "year": 2021,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021ApJ...908L..11L/abstract",
+   "paper_title": "Discovery of Interstellar trans-cyanovinylacetylene (HC≡CCH=CHC≡N) and vinylcyanoacetylene (H2C=CHC3N) in GOTHAM Observations of TMC-1",
+   "paper_ref": "K. L. K. Lee, R. A. Loomis, A. M. Burkhardt, I. R. Cooke, C. Xue, M. A. Siebert, C. N. Shingledecker, A. Remijan, S. B. Charnley, M. C. McCarthy, and B. A. McGuire. ApJL 908:L11 (2021)."
+  },
+  {
+   "formula": "H2C=CHC3N",
+   "name": "vinylcyanoacetylene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021ApJ...908L..11L/abstract",
+   "paper_title": "Discovery of Interstellar trans-cyanovinylacetylene (HC≡CCH=CHC≡N) and vinylcyanoacetylene (H2C=CHC3N) in GOTHAM Observations of TMC-1",
+   "paper_ref": "K. L. K. Lee, R. A. Loomis, A. M. Burkhardt, I. R. Cooke, C. Xue, M. A. Siebert, C. N. Shingledecker, A. Remijan, S. B. Charnley, M. C. McCarthy, and B. A. McGuire. ApJL 908:L11 (2021)."
+  },
+  {
+   "formula": "HC3S^+",
+   "name": "protonated C3S",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...646L...3C/abstract",
+   "paper_title": "Space and laboratory discovery of HC3S^+",
+   "paper_ref": "J. Cernicharo, C. Cabezas, Y. Endo, N. Marcelino, M. Agúndez, B. Tercero, J. D. Gallego, and P. de Vicente. A&A 646:L3 (2021)."
+  },
+  {
+   "formula": "CH3CO^+",
+   "name": "acetyl cation",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...646L...7C/abstract",
+   "paper_title": "Discovery of the acetyl cation, CH3CO^+, in space and in the laboratory",
+   "paper_ref": "J. Cernicharo, C. Cabezas, S. Bailleux, L. Margulès, R. Motiyenko, L. Zou, Y. Endo, C. Bermúdez, M. Agúndez, N. Marcelino, B. Lefloch, B. Tercero, and P. de Vicente. A&A 646:L7 (2021)."
+  },
+  {
+   "formula": "c-C5H5CN",
+   "name": "2-cyano- cyclopentadiene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021ApJ...910L...2L/abstract",
+   "paper_title": "Interstellar Detection of 2-cyanocyclopentadiene, C5H5CN, a Second Five-membered Ring toward TMC-1",
+   "paper_ref": "K. L. K. Lee, P. B. Changala, R. A. Loomis, A. M. Burkhardt, C. Xue, M. A. Cordiner, S. B. Charnley, M. C. McCarthy, and B. A. McGuire. ApJL 910:L2 (2021)."
+  },
+  {
+   "formula": "C10H7CN",
+   "name": "1-cyanonaphthalene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021Sci...371.1265M/abstract",
+   "paper_title": "Detection of two interstellar polycyclic aromatic hydrocarbons via spectral matched filtering",
+   "paper_ref": "B. A. McGuire, R. A. Loomis, A. M. Burkhardt, K. L. K. Lee, C. N. Shingledecker, S. B. Charnley, I. R. Cooke, M. A. Cordiner, E. Herbst, S. Kalenskii, M. A. Siebert, E. R. Willis, C. Xue, A. J. Remijan, and M. C. McCarthy. Science 371:1265 (2021)."
+  },
+  {
+   "formula": "C10H7CN",
+   "name": "2-cyanonaphthalene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021Sci...371.1265M/abstract",
+   "paper_title": "Detection of two interstellar polycyclic aromatic hydrocarbons via spectral matched filtering",
+   "paper_ref": "B. A. McGuire, R. A. Loomis, A. M. Burkhardt, K. L. K. Lee, C. N. Shingledecker, S. B. Charnley, I. R. Cooke, M. A. Cordiner, E. Herbst, S. Kalenskii, M. A. Siebert, E. R. Willis, C. Xue, A. J. Remijan, and M. C. McCarthy. Science 371:1265 (2021)."
+  },
+  {
+   "formula": "CH2CHCCH",
+   "name": "vinyl acetylene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...647L...2C/abstract",
+   "paper_title": "Discovery of CH2CHCCH and detection of HCCN, HC4N, CH3CH2CN, and, tentatively, CH3CH2CCH in TMC-1",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, N. Marcelino, B. Tercero, J. R. Pardo, J. D. Gallego, F. Tercero, J. A. López-Pérez, and P. de Vicente. A&A 647:L2 (2021)."
+  },
+  {
+   "formula": "CH3CH2CCH",
+   "name": "1-butyne",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...647L...2C/abstract",
+   "paper_title": "Discovery of CH2CHCCH and detection of HCCN, HC4N, CH3CH2CN, and, tentatively, CH3CH2CCH in TMC-1",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, N. Marcelino, B. Tercero, J. R. Pardo, J. D. Gallego, F. Tercero, J. A. López-Pérez, and P. de Vicente. A&A 647:L2 (2021)."
+  },
+  {
+   "formula": "H2CCCHCCH",
+   "name": "allenyl acetylene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...647L...3C/abstract",
+   "paper_title": "Discovery of allenyl acetylene, H2CCCHCCH, in TMC-1 - A study of the isomers of C5H4",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, B. Tercero, N. Marcelino, J. R. Pardo, F. Tercero, J. D. Gallego, J. A. López-Pérez, and P. deVicente. A&A 647:L3 (2021)."
+  },
+  {
+   "formula": "CH2CCH",
+   "name": "propargyl radical",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...647L..10A/abstract",
+   "paper_title": "Discovery of the propargyl radical (CH2CCH) in TMC-1: One of the most abundant radicals ever found and a key species for cyclization to benzene in cold dark clouds",
+   "paper_ref": "M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, J. D. Gallego, P. de Vicente, and J. Cernicharo. A&A 647:L10 (2021)."
+  },
+  {
+   "formula": "NCS",
+   "name": "thiocyanato radical",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...648L...3C/abstract",
+   "paper_title": "TMC-1, the starless core sulfur factory: Discovery of NCS, HCCS, H2CCS, H2CCCS, and C4S and detection of C5S",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, B. Tercero, J. R. Pardo, N. Marcelino, J. D. Gallego, F. Tercero, J. A. López-Pérez, and P. de Vicente. A&A 648:L3 (2021)."
+  },
+  {
+   "formula": "HCCS",
+   "name": "thioketenyl radical",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...648L...3C/abstract",
+   "paper_title": "TMC-1, the starless core sulfur factory: Discovery of NCS, HCCS, H2CCS, H2CCCS, and C4S and detection of C5S",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, B. Tercero, J. R. Pardo, N. Marcelino, J. D. Gallego, F. Tercero, J. A. López-Pérez, and P. de Vicente. A&A 648:L3 (2021)."
+  },
+  {
+   "formula": "H2CCS",
+   "name": "thioketene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...648L...3C/abstract",
+   "paper_title": "TMC-1, the starless core sulfur factory: Discovery of NCS, HCCS, H2CCS, H2CCCS, and C4S and detection of C5S",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, B. Tercero, J. R. Pardo, N. Marcelino, J. D. Gallego, F. Tercero, J. A. López-Pérez, and P. de Vicente. A&A 648:L3 (2021)."
+  },
+  {
+   "formula": "H2CCCS",
+   "name": "thiopropadienone",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...648L...3C/abstract",
+   "paper_title": "TMC-1, the starless core sulfur factory: Discovery of NCS, HCCS, H2CCS, H2CCCS, and C4S and detection of C5S",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, B. Tercero, J. R. Pardo, N. Marcelino, J. D. Gallego, F. Tercero, J. A. López-Pérez, and P. de Vicente. A&A 648:L3 (2021)."
+  },
+  {
+   "formula": "C4S",
+   "name": "tetracarbon sulfide",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...648L...3C/abstract",
+   "paper_title": "TMC-1, the starless core sulfur factory: Discovery of NCS, HCCS, H2CCS, H2CCCS, and C4S and detection of C5S",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, B. Tercero, J. R. Pardo, N. Marcelino, J. D. Gallego, F. Tercero, J. A. López-Pérez, and P. de Vicente. A&A 648:L3 (2021)."
+  },
+  {
+   "formula": "t -HC(O)SH",
+   "name": "trans -thioformic acid",
+   "year": 2021,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021ApJ...912L..11R/abstract",
+   "paper_title": "Thiols in the Interstellar Medium: First Detection of HC(O)SH and Confirmation of C2H5S",
+   "paper_ref": "L. F. Rodríguez-Almeida, I. Jiménez-Serra, V. M. Rivilla, J. Martín-Pintado, S. Zeng, B. Tercero, P. de Vicente, L. Colzi, F. Rico-Villas, S. Martín, and M. A. Requena-Torres. ApJL 912:L11 (2021)."
+  },
+  {
+   "formula": "c-C3HCCH",
+   "name": "ethynyl cyclopropenylidene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...649L..15C/abstract",
+   "paper_title": "Pure hydrocarbon cycles in TMC-1: Discovery of ethynyl cyclopropenylidene, cyclopentadiene, and indene",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, and P. de Vicente. A&A 649:L15 (2021)."
+  },
+  {
+   "formula": "c-C5H6",
+   "name": "cyclopentadiene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...649L..15C/abstract",
+   "paper_title": "Pure hydrocarbon cycles in TMC-1: Discovery of ethynyl cyclopropenylidene, cyclopentadiene, and indene",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, and P. de Vicente. A&A 649:L15 (2021)."
+  },
+  {
+   "formula": "c-C9H8",
+   "name": "indene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...649L..15C/abstract",
+   "paper_title": "Pure hydrocarbon cycles in TMC-1: Discovery of ethynyl cyclopropenylidene, cyclopentadiene, and indene",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, and P. de Vicente. A&A 649:L15 (2021)."
+  },
+  {
+   "formula": "NH2CH2CH2OH",
+   "name": "ethanolamine",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021PNAS..11801314R/abstract",
+   "paper_title": "Discovery in space of ethanolamine, the simplest phospholipid head group",
+   "paper_ref": "V. M. Rivilla, I. Jiménez-Serra, J. Martín-Pintado, C. Briones, L. F. Rodríguez-Almeida, F. Rico-Villas, B. Tercero, S. Zeng, L. Colzi, P. de Vicente, S. Martín, and M. A. Requena-Torres. Proc Nat Acad Sci 118:e2101314118 (2021)."
+  },
+  {
+   "formula": "H2C5",
+   "name": "pentatetraenylidene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...650L...9C/abstract",
+   "paper_title": "Cumulene carbenes in TMC-1: Astronomical discovery of l -H2C5",
+   "paper_ref": "C. Cabezas, B. Tercero, M. Agúndez, N. Marcelino, J. R. Pardo, P. de Vicente, and J. Cernicharo. A&A 650:L9 (2021)."
+  },
+  {
+   "formula": "HCSCN",
+   "name": "cyano- thioformaldehyde",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...650L..14C/abstract",
+   "paper_title": "The sulphur saga in TMC-1: Discovery of HCSCN and HCSCCH",
+   "paper_ref": "J. Cernicharo, C. Cabezas, Y. Endo, M. Agúndez, B. Tercero, J. R. Pardo, N. Marcelino, and P. de Vicente. A&A 650:L14 (2021)."
+  },
+  {
+   "formula": "HCSCCH",
+   "name": "propynethial",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...650L..14C/abstract",
+   "paper_title": "The sulphur saga in TMC-1: Discovery of HCSCN and HCSCCH",
+   "paper_ref": "J. Cernicharo, C. Cabezas, Y. Endo, M. Agúndez, B. Tercero, J. R. Pardo, N. Marcelino, and P. de Vicente. A&A 650:L14 (2021)."
+  },
+  {
+   "formula": "HNCN",
+   "name": "cyanomidyl radical",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021MNRAS.506L..79R/abstract",
+   "paper_title": "Detection of the cyanomidyl radical (HNCN): a new interstellar species with the NCN backbone",
+   "paper_ref": "V. M. Rivilla, I. Jiménez-Serra, J. García de la Concepción, J. Martín-Pintado, L. Colzi, L. F. Rodríguez-Almeida, B. Tercero, F. Rico-Villas, S. Zeng, S. Martín, M. A. Requena-Torres, and P. de Vicente. MNRASL 506:L79 (2021)."
+  },
+  {
+   "formula": "o -C6H4",
+   "name": "ortho-benzyne",
+   "year": 2021,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...652L...9C/abstract",
+   "paper_title": "Discovery of benzyne, o -C6H4, in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, M. Agúndez, R. I. Kaiser, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, and P. de Vicente. A&A 652:L9 (2021)."
+  },
+  {
+   "formula": "H2CCCHC3N",
+   "name": "cyanoacetyleneallene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...652L..12S",
+   "paper_title": "Detection of interstellar H2CCCHC3N - A possible link between chains and rings in cold cores",
+   "paper_ref": "C. N. Shingledecker, K. L. K. Lee, J. T. Wandishin, N. Balucani, A. M. Burkhardt, S. B. Charnley, R. Loomis, M. Schreffler, M. Siebert, M. C. McCarthy, and B. A. McGuire. A&A 652:L12 (2021)."
+  },
+  {
+   "formula": "MgC5N",
+   "name": "magnesium cyanodiacetylide",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...652L..13P/abstract",
+   "paper_title": "Magnesium radicals MgC5N and MgC6H in IRC +10216",
+   "paper_ref": "J. R. Pardo, C. Cabezas, J. P. Fonfría, M. Agúndez, B. Tercero, P. de Vicente, M. Guélin, and J. Cernicharo. A&A 652:L13 (2021)."
+  },
+  {
+   "formula": "MgC6H",
+   "name": "magnesium triacetylide",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...652L..13P/abstract",
+   "paper_title": "Magnesium radicals MgC5N and MgC6H in IRC +10216",
+   "paper_ref": "J. R. Pardo, C. Cabezas, J. P. Fonfría, M. Agúndez, B. Tercero, P. de Vicente, M. Guélin, and J. Cernicharo. A&A 652:L13 (2021)."
+  },
+  {
+   "formula": "C2H5CONH2",
+   "name": "propionamide",
+   "year": 2021,
+   "tentative": true,
+   "disputed": true,
+   "paper_url": "https://scixplorer.org/abs/2021ApJ...919....4L",
+   "paper_title": "Propionamide (C2H5CONH2): The Largest Peptide-like Molecule in Space",
+   "paper_ref": "J. Li, J. Wang, X. Lu, V. Ilyushin, R. A. Motiyenko, Q. Gou, E. A. Alekseev, D. Quan, L. Margulès, F. Gao, F. J. Lovas, Y. Wu, E. Bergin, S. Li, Z. Shen, F. Du, M. Li, S. Zheng, and X. Zheng. ApJ 919: 4 (2021). This detection has been disputed:"
+  },
+  {
+   "formula": "C2H3NH2",
+   "name": "vinylamine",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021ApJ...920L..27Z",
+   "paper_title": "Probing the Chemical Complexity of Amines in the ISM: Detection of Vinylamine (C2H3NH2) and Tentative Detection of Ethylamine (C2H5NH2)",
+   "paper_ref": "S. Zeng, I. Jiménez-Serra, V. M. Rivilla, J. Martín-Pintado, L. F. Rodríguez-Almeida, B. Tercero, P. de Vicente, F. Rico-Villas, L. Colzi, S. Martín, and M. A. Requena-Torres. ApJ 920:L27 (2021)."
+  },
+  {
+   "formula": "C2H5NH2",
+   "name": "ethylamine",
+   "year": 2021,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021ApJ...920L..27Z",
+   "paper_title": "Probing the Chemical Complexity of Amines in the ISM: Detection of Vinylamine (C2H3NH2) and Tentative Detection of Ethylamine (C2H5NH2)",
+   "paper_ref": "S. Zeng, I. Jiménez-Serra, V. M. Rivilla, J. Martín-Pintado, L. F. Rodríguez-Almeida, B. Tercero, P. de Vicente, F. Rico-Villas, L. Colzi, S. Martín, and M. A. Requena-Torres. ApJ 920:L27 (2021)."
+  },
+  {
+   "formula": "C2H5NCO",
+   "name": "ethyl isocyanate",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...654L...1R",
+   "paper_title": "First detection of C2H5NCO in the ISM and search of other isocyanates towards the G+0.693-0.027 molecular cloud",
+   "paper_ref": "L. F. Rodríguez-Almeida, V. M. Rivilla, I. Jiménez-Serra, M. Melosso, L. Colzi, S. Zeng, B. Tercero, P. de Vicente, S. Martín, M. A. Requena-Torres, F. Rico-Villas, and J. Martín-Pintado. A&A 654:L1 (2021)."
+  },
+  {
+   "formula": "CH2CCCN",
+   "name": "3-cyano propargyl",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...654L...9C",
+   "paper_title": "Discovery of interstellar 3-cyano propargyl radical, CH2CCCN",
+   "paper_ref": "C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, J. R. Pardo, P. de Vicente, and J. Cernicharo. A&A 654:L9 (2021)."
+  },
+  {
+   "formula": "H2NC",
+   "name": "",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...654A..45C",
+   "paper_title": "Interstellar detection of the simplest aminocarbyne H2NC: an ignored but abundant molecule",
+   "paper_ref": "C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, S. Cuadrado, and J. Cernicharo. A&A 654:A45 (2021)."
+  },
+  {
+   "formula": "c-C5H5CCH",
+   "name": "2-ethynyl-cyclopentadiene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...655L...1C",
+   "paper_title": "Discovery of two isomers of ethynyl cyclopentadiene in TMC-1: Abundances of CCH and CN derivatives of hydrocarbon cycles",
+   "paper_ref": "J. Cernicharo, M. Agúndez, R. I. Kaiser, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, and P. de Vicente. A&A 655:L1 (2021)."
+  },
+  {
+   "formula": "c-C5H5CCH",
+   "name": "1-ethynyl-cyclopentadiene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...655L...1C",
+   "paper_title": "Discovery of two isomers of ethynyl cyclopentadiene in TMC-1: Abundances of CCH and CN derivatives of hydrocarbon cycles",
+   "paper_ref": "J. Cernicharo, M. Agúndez, R. I. Kaiser, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, and P. de Vicente. A&A 655:L1 (2021)."
+  },
+  {
+   "formula": "C6H5CCH",
+   "name": "ethynyl benzene",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...655L...1C",
+   "paper_title": "Discovery of two isomers of ethynyl cyclopentadiene in TMC-1: Abundances of CCH and CN derivatives of hydrocarbon cycles",
+   "paper_ref": "J. Cernicharo, M. Agúndez, R. I. Kaiser, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, and P. de Vicente. A&A 655:L1 (2021)."
+  },
+  {
+   "formula": "HCCCO",
+   "name": "propynonyl radical",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...656L..21C",
+   "paper_title": "Discovery of HCCCO and C5O in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, R. Fuentetaja, J. R. Pardo, and P. de Vicente. A&A 656:L21 (2021)."
+  },
+  {
+   "formula": "C5O",
+   "name": "pentacarbon monoxide",
+   "year": 2021,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2021A%26A...656L..21C",
+   "paper_title": "Discovery of HCCCO and C5O in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, R. Fuentetaja, J. R. Pardo, and P. de Vicente. A&A 656:L21 (2021)."
+  },
+  {
+   "formula": "HCCS^+",
+   "name": "thioketenylium",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...657L...4C/abstract",
+   "paper_title": "Discovery of the elusive thioketenylium, HCCS^+, in TMC-1",
+   "paper_ref": "C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, Y. Endo, R. Fuentetaja, J. R. Pardo, P. de Vicente, and J. Cernicharo. A&A 657:L4 (2022)."
+  },
+  {
+   "formula": "C5H^+",
+   "name": "",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...657L..16C/",
+   "paper_title": "Discovery of C5H^+ and detection of C3H^+ in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, R. Fuentetaja, B. Tercero, N. Marcelino, Y. Endo, J. R. Pardo, and P. de Vicente. A&A 657:L16 (2022)."
+  },
+  {
+   "formula": "HC7NH^+",
+   "name": "protonated-HC7N",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...659L...8C",
+   "paper_title": "Discovery of a new molecular ion, HC7NH^+, in TMC-1",
+   "paper_ref": "C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, R. Fuentetaja, P. de Vicente, and J. Cernicharo. A&A 659:L8 (2022)."
+  },
+  {
+   "formula": "HCCNCH^+",
+   "name": "protonated-HCCNC",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...659L...9A",
+   "paper_title": "A new protonated molecule discovered in TMC-1: HCCNCH^+",
+   "paper_ref": "M. Agúndez, C. Cabezas, N. Marcelino, R. Fuentetaja, B. Tercero, P. de Vicente, and J. Cernicharo. A&A 659:L9 (2022)."
+  },
+  {
+   "formula": "Z-(CHOH)2",
+   "name": "Z-1,2-ethenediol",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022ApJ...929L..11R/abstract",
+   "paper_title": "Precursors of the RNA World in Space: Detection of (Z)-1,2-ethenediol in the Interstellar Medium, a Key Intermediate in Sugar Formation",
+   "paper_ref": "V. M. Rivilla, L. Colzi, I. Jiménez-Serra, J. Martín-Pintado, A. Megías, M. Melosso, L. Bizzocchi, &Aaacute;. López-Gallifa, A. Martínez-Henares, S. Massalkh, B. Tercero, P. de Vicente, J.-C. Guillemin, J. García de la Concepción, F. Rico-Villas, S. Zeng, S. Martín, M. A. Requena-Torres, F. Tonolo, S. Alessandrini, L. Dore, V. Barone, and C. Puzzarini. ApJL 929:L11 (2022)."
+  },
+  {
+   "formula": "PO^+",
+   "name": "phosphorus monoxide ion",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022FrASS...9.9288R",
+   "paper_title": "Ionize Hard: Interstellar PO^+ Detection",
+   "paper_ref": "V. M. Rivilla, J. García De La Concepción, I. Jiménez-Serra, J. Martín-Pintado, L. Colzi, B. Tercero, A. Megías, Á. López-Gallifa, A. Martínez-Henares, S. Massalkhi, S. Martín, S. Zeng, P. De Vicente, F. Rico-Villas, M. A. Requena-Torres, and G. Cosentino. Front Astron Space Sci:9, 829288 (2022)."
+  },
+  {
+   "formula": "HOCHCHCHO",
+   "name": "3-hydroxypropenal",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...660L...6C",
+   "paper_title": "The ALMA-PILS survey: First tentative detection of 3-hydroxypropenal (HOCHCHCHO) in the interstellar medium and chemical modeling of the C3H4O2 isomers",
+   "paper_ref": "A. Coutens, J.-C. Loison, A. Boulanger, E. Caux, H. S. P. Müller, V. Wakelam, S. Manigand, and J. K. Jørgensen. A&A 660:L6 (2022)."
+  },
+  {
+   "formula": "i-C3H7OH",
+   "name": "isopropanol",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...662A.110B",
+   "paper_title": "Interstellar detection and chemical modeling of iso-propanol and its normal isomer",
+   "paper_ref": "A. Belloche, R. T. Garrod, O. Zingsheim, H. S. P. Müller, and K. M. Menten. A&A 662:A110 (2022)."
+  },
+  {
+   "formula": "n-C3H7OH",
+   "name": "normal-propanol",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663A.181J",
+   "paper_title": "Precursors of fatty alcohols in the ISM: Discovery of n-propanol",
+   "paper_ref": "I. Jiménez-Serra, L. F. Rodríguez-Almeida, J. Martín-Pintado, V. M. Rivilla, M. Melosso, S. Zeng, L. Colzi, Y. Kawashima, E. Hirota, C. Puzzarini, B. Tercero, P. de Vicente, F. Rico-Villas, M. A. Requena-Torres, and S. Martín. A&A 663:A181 (2022)"
+  },
+  {
+   "formula": "c-C5H",
+   "name": "",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663L...2C",
+   "paper_title": "Discovery of the cyclic C5H radical in TMC-1",
+   "paper_ref": "C. Cabezas, M. Agúndez, R. Fuentetaja, Y. Endo, N. Marcelino, B. Tercero, J. R. Pardo, P. de Vicente, and J. Cernicharo. A&A 663:L2 (2022)."
+  },
+  {
+   "formula": "CH2CCHC4H",
+   "name": "allenyl diacetylene",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663L...3F",
+   "paper_title": "Discovery of CH2CCHC4H and a rigorous detection of CH2CCHC3N in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "R. Fuentetaja, C. Cabezas, M. Agúndez, B. Tercero, N. Marcelino, J. R. Pardo, P. de Vicente, and J. Cernicharo. A&A 663;L3 (2022)"
+  },
+  {
+   "formula": "t-CH3CHCHCN",
+   "name": "trans-crotononitrile",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663L...5C",
+   "paper_title": "Discovery of five cyano derivatives of propene with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, R. Fuentetaja, C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, J. R. Pardo, and P. de Vicente. A&A 663:L5 (2022)."
+  },
+  {
+   "formula": "c-CH3CHCHCN",
+   "name": "cis-crotononitrile",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663L...5C",
+   "paper_title": "Discovery of five cyano derivatives of propene with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, R. Fuentetaja, C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, J. R. Pardo, and P. de Vicente. A&A 663:L5 (2022)."
+  },
+  {
+   "formula": "CH2C(CH3)CN",
+   "name": "methacrylonitrile",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663L...5C",
+   "paper_title": "Discovery of five cyano derivatives of propene with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, R. Fuentetaja, C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, J. R. Pardo, and P. de Vicente. A&A 663:L5 (2022)."
+  },
+  {
+   "formula": "g-CH2CHCH2CN",
+   "name": "gauche-allyl cyanide",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663L...5C",
+   "paper_title": "Discovery of five cyano derivatives of propene with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, R. Fuentetaja, C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, J. R. Pardo, and P. de Vicente. A&A 663:L5 (2022)."
+  },
+  {
+   "formula": "c-CH2CHCH2CN",
+   "name": "cis-allyl cyanide",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663L...5C",
+   "paper_title": "Discovery of five cyano derivatives of propene with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, R. Fuentetaja, C. Cabezas, M. Agúndez, N. Marcelino, B. Tercero, J. R. Pardo, and P. de Vicente. A&A 663:L5 (2022)."
+  },
+  {
+   "formula": "c-C5H4CCH2",
+   "name": "fulvenallene",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...663L...9C",
+   "paper_title": "Discovery of fulvenallene in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, R. Fuentetaja, M. Agúndez, R. I. Kaiser, C. Cabezas, N. Marcelino, B. Tercero, J. R. Pardo, and P. de Vicente A&A 663:L9 (2022)."
+  },
+  {
+   "formula": "c-C9H7CN",
+   "name": "2-cyanoindene",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022ApJ...938L..12S",
+   "paper_title": "Discovery of Interstellar 2-Cyanoindene (2-C9H7CN) in GOTHAM Observations of TMC-1",
+   "paper_ref": "M. L. Sita, P. B. Changala, C. Xue, A. M. Burkhardt, C. N. Shingledecker, K. L. K. Lee, R. A. Loomis, E. Momjian, M. A. Siebert, D. Gupta, E. Herbst, A. J. Remijan, M. C. McCarthy, I. R. Cooke, and B. A. McGuire. ApJL 938:L12 (2022)."
+  },
+  {
+   "formula": "SiP",
+   "name": "silicon phosphide",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022ApJ...940L..11K",
+   "paper_title": "Laboratory and Astronomical Detection of the SiP Radical (X^2Π i ): More Circumstellar Phosphorus",
+   "paper_ref": "L. A. Koelemay, M. A. Burton, A. P. Singh, P. M. Sheridan, J. J. Bernal, and L. M. Ziurys. ApJL 940:L11 (2022)."
+  },
+  {
+   "formula": "HCCCHCCC",
+   "name": "ethynylbuta- trienylidene",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...667L...4F",
+   "paper_title": "Discovery of two new interstellar molecules with QUIJOTE: HCCCHCCC and HCCCCS",
+   "paper_ref": "R. Fuentetaja, M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, P. de Vicente, and J. Cernicharo. A&A 667:L4 (2022)."
+  },
+  {
+   "formula": "HCCCCS",
+   "name": "butadiynethionyl",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022A%26A...667L...4F",
+   "paper_title": "Discovery of two new interstellar molecules with QUIJOTE: HCCCHCCC and HCCCCS",
+   "paper_ref": "R. Fuentetaja, M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, P. de Vicente, and J. Cernicharo. A&A 667:L4 (2022)."
+  },
+  {
+   "formula": "MgC2",
+   "name": "magnesium dicarbide",
+   "year": 2022,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2022ApJ...940L..42C",
+   "paper_title": "Laboratory and Astronomical Discovery of Magnesium Dicarbide, MgC2",
+   "paper_ref": "P. B. Changala, H. Gupta, J. Cernicharo, J. R. Pardo, M. Ag&uacyte;ndez, C. Cabezas, B. Tercero, M. Guélin, and M. C. McCarthy. ApJL 940:L42 (2022)."
+  },
+  {
+   "formula": "NC4NH^+",
+   "name": "protonated dicyanoacetylene",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...669L...1A",
+   "paper_title": "Discovery of interstellar NC4NH^+: Dicyanopolyynes are indeed abundant in space",
+   "paper_ref": "M. Agúndez, C. Cabezas, N. Marcelino, R. Fuentetaja, B. Tercero, P. de Vicente, and J. Cernicharo A&A 669:L1 (2023)."
+  },
+  {
+   "formula": "CH2=CH-CH=NH",
+   "name": "allylimine",
+   "year": 2023,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...669A..93A",
+   "paper_title": "Laboratory spectroscopy of allylimine and tentative detection towards the G+0.693-0.027 molecular cloud",
+   "paper_ref": "D. Alberton, L. Bizzocchi, N. Jiang, M. Melosso, V. M. Rivilla, A. Pietropolli Charmet, B. M. Giuliano, P. Caselli, C. Puzzarini, S. Alessandrini, L. Dore, I. Jiménez-Serra, and J. Martín-Pintado. A&A 669:A93 (2023)."
+  },
+  {
+   "formula": "C10H^–",
+   "name": "decapentaynyl anion",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023ApJ...944L..45R",
+   "paper_title": "Astronomical Detection of the Interstellar Anion C10H^– toward TMC-1 from the GOTHAM Large Program on the Green Bank Telescope",
+   "paper_ref": "A. Remijan, H. N. Scolati, A. M. Burkhardt, P. B. Changala, S. B. Charnley, I. R. Cooke, M. A. Cordiner, H. Gupta, E. Herbst, K. L. K. Lee, R. A. Loomis, C. N. Shingledecker, M. A. Siebert, C. Xue, M. C. McCarthy, and B. A. McGuire. ApJL 944:L45 (2023)."
+  },
+  {
+   "formula": "C10H",
+   "name": "decapentaynyl radical",
+   "year": 2023,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023ApJ...944L..45R",
+   "paper_title": "Astronomical Detection of the Interstellar Anion C10H^– toward TMC-1 from the GOTHAM Large Program on the Green Bank Telescope",
+   "paper_ref": "A. Remijan, H. N. Scolati, A. M. Burkhardt, P. B. Changala, S. B. Charnley, I. R. Cooke, M. A. Cordiner, H. Gupta, E. Herbst, K. L. K. Lee, R. A. Loomis, C. N. Shingledecker, M. A. Siebert, C. Xue, M. C. McCarthy, and B. A. McGuire. ApJL 944:L45 (2023)."
+  },
+  {
+   "formula": "C7N^–",
+   "name": "cyanohexatriynyl anion",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...670L..19C",
+   "paper_title": "Discovery of the C7N^– anion in TMC-1 and IRC +10216",
+   "paper_ref": "J. Cernicharo, J. R. Pardo, C. Cabezas, M. Agúndez, B. Tercero, N. Marcelino, R. Fuentetaja, M. Guélin, and P. de Vicente. A&A 670:L19 (2023)."
+  },
+  {
+   "formula": "CH3CHCO",
+   "name": "methyl ketene",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...671L...6F",
+   "paper_title": "Discovery of CH3CHCO in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "R. Fuentetaja, C. Bermúdez, C. Cabezas, M. Agúndez, B. Tercero, N. Marcelino, J. R. Pardo, L. Margulès, R. A. Motiyenko, J.-C. Guillemin, P. de Vicente, and J. Cernicharo. A&A 671:L6 (2023)."
+  },
+  {
+   "formula": "HMgCCCN",
+   "name": "hydrido magnesium cyanoacetylide",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...672L..12C",
+   "paper_title": "Discovery of two metallic cyanoacetylides in IRC +10216: HMgCCCN and NaCCCN",
+   "paper_ref": "C. Cabezas, J. R. Pardo, M. Agúndez, B. Tercero, N. Marcelino, Y. Endo, P. de Vicente, M. Guélin, and J. Cernicharo. A&A 672:L12 (2023)."
+  },
+  {
+   "formula": "NaCCCN",
+   "name": "sodium cyanoacetylide",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...672L..12C",
+   "paper_title": "Discovery of two metallic cyanoacetylides in IRC +10216: HMgCCCN and NaCCCN",
+   "paper_ref": "C. Cabezas, J. R. Pardo, M. Agúndez, B. Tercero, N. Marcelino, Y. Endo, P. de Vicente, M. Guélin, and J. Cernicharo. A&A 672:L12 (2023)."
+  },
+  {
+   "formula": "MgC4H^+",
+   "name": "",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...672L..13C",
+   "paper_title": "The magnesium paradigm in IRC +10216: Discovery of MgC4H^+, MgC3N^+, MgC6H^+, and MgC5N^+",
+   "paper_ref": "J. Cernicharo, C. Cabezas, J. R. Pardo, M. Agúndez, O. Roncero, B. Tercero, N. Marcelino, M. Guélin, Y. Endo, and P. de Vicente. A&A 672:L13 (2023)."
+  },
+  {
+   "formula": "MgC3N^+",
+   "name": "",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...672L..13C",
+   "paper_title": "The magnesium paradigm in IRC +10216: Discovery of MgC4H^+, MgC3N^+, MgC6H^+, and MgC5N^+",
+   "paper_ref": "J. Cernicharo, C. Cabezas, J. R. Pardo, M. Agúndez, O. Roncero, B. Tercero, N. Marcelino, M. Guélin, Y. Endo, and P. de Vicente. A&A 672:L13 (2023)."
+  },
+  {
+   "formula": "MgC6H^+",
+   "name": "",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...672L..13C",
+   "paper_title": "The magnesium paradigm in IRC +10216: Discovery of MgC4H^+, MgC3N^+, MgC6H^+, and MgC5N^+",
+   "paper_ref": "J. Cernicharo, C. Cabezas, J. R. Pardo, M. Agúndez, O. Roncero, B. Tercero, N. Marcelino, M. Guélin, Y. Endo, and P. de Vicente. A&A 672:L13 (2023)."
+  },
+  {
+   "formula": "MgC5N^+",
+   "name": "",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...672L..13C",
+   "paper_title": "The magnesium paradigm in IRC +10216: Discovery of MgC4H^+, MgC3N^+, MgC6H^+, and MgC5N^+",
+   "paper_ref": "J. Cernicharo, C. Cabezas, J. R. Pardo, M. Agúndez, O. Roncero, B. Tercero, N. Marcelino, M. Guélin, Y. Endo, and P. de Vicente. A&A 672:L13 (2023)."
+  },
+  {
+   "formula": "E -1-C4H5CN",
+   "name": "1-cyano-butadiene",
+   "year": 2023,
+   "tentative": true,
+   "disputed": true,
+   "paper_url": "https://scixplorer.org/abs/2023ApJ...948..133C",
+   "paper_title": "Detection of Interstellar E -1-cyano-1,3-butadiene in GOTHAM Observations of TMC-1",
+   "paper_ref": "I. R. Cooke, C. Xue, P. B. Changala, H. Toru Shay, A. N. Byrne, Q. Y. Tang, Z. T. P. Fried, K. L. K. Lee, R. A. Loomis, T. Lamberts, A. Remijan, A. M. Burkhardt, E. Herbst, M. C. McCarthy, and B. A. McGuire. ApJ 948:133 (2023). This detection has been disputed:"
+  },
+  {
+   "formula": "HSO",
+   "name": "",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...674L..13M",
+   "paper_title": "First detection of the HSO radical in space",
+   "paper_ref": "N. Marcelino, C. Puzzarini, M. Agúndez, R. Fuentetaja, B. Tercero, P. de Vicente, and J. Cernicharo. A&A 674:L13 (2023)."
+  },
+  {
+   "formula": "C11H12N2O2",
+   "name": "tryptophan",
+   "year": 2023,
+   "tentative": false,
+   "disputed": true,
+   "paper_url": "https://www.astrochymist.org/astrochymist_nondetections.html",
+   "paper_title": "non-detections",
+   "paper_ref": "page."
+  },
+  {
+   "formula": "H2CCCH^+",
+   "name": "protonated propadienylidene",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...676L...1S",
+   "paper_title": "Discovery of H2CCCH^+ in TMC-1",
+   "paper_ref": "W. G. D. P. Silva, J. Cernicharo, S. Schlemmer, N. Marcelino, J.-C. Loison, M. Agúndez, D. Gupta, V. Wakelam, S. Thorwirth, C. Cabezas, B. Tercero, J. L. Doménech, R. Fuentetaja, W.-J. Kim, P. de Vicente, and O. Asvany. A&A 676:L1 (2023)."
+  },
+  {
+   "formula": "H2CCCN",
+   "name": "cyanovinyl radical",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...676L...5C",
+   "paper_title": "Laboratory and astronomical discovery of the cyanovinyl radical H2CCCN",
+   "paper_ref": "C. Cabezas, J. Tang, M. Agúndez, K. Seiki, Y. Sumiyoshi, Y. Ohshima, B. Tercero, N. Marcelino, R. Fuentetaja, P. de Vicente, Y. Endo, and J. Cernicharo. A&A 676:L5 (2023)."
+  },
+  {
+   "formula": "NH2C(O)CH2OH",
+   "name": "syn-glycolamide",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023ApJ...953L..20R",
+   "paper_title": "First Glycine Isomer Detected in the Interstellar Medium: Glycolamide (NH2C(O)CH2OH)",
+   "paper_ref": "V. M. Rivilla, M. Sanz-Novo, I. Jiménez-Serra, J. Martín-Pintado, L. Colzi, S. Zeng, A. Megías, Á. López-Gallifa, A. Martínez-Henares, S. Massalkhi, B. Tercero, P. de Vicente, S. Martín, D. San Andrés, M. A. Requena-Torres, and J. L. Alonso. ApJL 953:L20 (2023)."
+  },
+  {
+   "formula": "HOCOOH",
+   "name": "carbonic acid",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023ApJ...954....3S",
+   "paper_title": "Discovery of the Elusive Carbonic Acid (HOCOOH) in Space",
+   "paper_ref": "M. Sanz-Novo, V. M. Rivilla, I. Jiménez-Serra, J. Martín-Pintado, L. Colzi, S. Zeng, A. Megías, Á. López-Gallifa, A. Martínez-Henares, S. Massalkhi, B. Tercero, P. de Vicente, S. Martín, D. San Andrés, and M. A. Requena-Torres. ApJ 954:3 (2023)."
+  },
+  {
+   "formula": "FeC",
+   "name": "iron carbide",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023ApJ...958L...6K",
+   "paper_title": "Elusive Iron: Detection of the FeC Radical ( X ^3Δ i ) in the Envelope of IRC+10216",
+   "paper_ref": "L. A. Koelemay and L. M. Ziurys. ApJL 958:L6 (2023)."
+  },
+  {
+   "formula": "(CH3)2C=CH2",
+   "name": "isobutene",
+   "year": 2023,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2023A%26A...680A..25F",
+   "paper_title": "Millimetre and submillimetre spectroscopy of isobutene and its detection in the molecular cloud G+0.693",
+   "paper_ref": "M. Fatima, H. S. P. Müller, O. Zingsheim, F. Lewen, V. M. Rivilla, I. Jiménez-Serra, J. Martín-Pintado, and S. Schlemmer. A&A 680:A25 (2023)."
+  },
+  {
+   "formula": "NCCONH2",
+   "name": "cyanoformamide",
+   "year": 2024,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024PASJ...76...54L",
+   "paper_title": "Tentative detection of cyanoformamide NCCONH2 in space",
+   "paper_ref": "J. Li, D. Quan, J. Wang, X. Zhang, X. Lu, Q. Gou, F. Gao, Y. Wu, E. Bergin, S. Li, Z. Shen, F. Du, M. Li, S. Zheng, and X. Zheng. Publ Astron Soc Japan 76:54-64 (2024)."
+  },
+  {
+   "formula": "HCNS",
+   "name": "thiofulminic acid",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...682L...4C",
+   "paper_title": "Discovery of thiofulminic acid with the QUIJOTE line survey: A study of the isomers of HNCS and HNCO in TMC-1",
+   "paper_ref": "J. Cernicharo, M. Agúndez, C. Cabezas, B. Tercero, R. Fuentetaja, N. Marcelino, and P. de Vicente. A&A 682:L4 (2024)."
+  },
+  {
+   "formula": "C2H3^+",
+   "name": "protonated acetylene",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...683A..62M",
+   "paper_title": "Protonated acetylene in the z = 0.89 molecular absorber toward PKS 1830-211",
+   "paper_ref": "S. Muller, R. Le Gal, E. Roueff, J. H. Black, A. Faure, M. Guélin, A. Omont, M. Gérin, F. Combes, and S. Aalto. A&A 683:A62 (2024)."
+  },
+  {
+   "formula": "HOCS^+",
+   "name": "O-protonated OCS",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024ApJ...965..149S",
+   "paper_title": "Interstellar Detection of O-protonated Carbonyl Sulfide, HOCS^+",
+   "paper_ref": "M. Sanz-Novo, V. M. Rivilla, I. Jiménez-Serra, J. Martín-Pintado, L. Colzi, S. Zeng, A. Megías, Á. López-Gallifa, A. Martínez-Henares, S. Massalkh, B. Tercero, P. de Vicente, D. San Andrés, S. Martín, and M. A. Requena-Torres. ApJ 965:149 (2024)."
+  },
+  {
+   "formula": "CH3OCH2CH2OH",
+   "name": "2-methoxyethanol",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024ApJ...965L..23F",
+   "paper_title": "Rotational Spectrum and First Interstellar Detection of 2-methoxyethanol Using ALMA Observations of NGC 6334I",
+   "paper_ref": "Z. T. P. Fried, S. J. El-Abd, B. M. Hays, G. Wenzel, A. N. Byrne, L. Margulès, R. A. Motiyenko, S. T. Shipman, M. P. Horne, J. K. Jørgensen, C. L. Brogan, T. R. Hunter, A. J. Remijan, A. Lipnicky, R. A. Loomis, and B. A. McGuire. ApJL 965:L23 (2024)."
+  },
+  {
+   "formula": "HNSO",
+   "name": "thionylimide",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024ApJ...965L..26S",
+   "paper_title": "Discovery of Thionylimide, HNSO, in Space: The first N-, S-, and O-bearing Interstellar Molecule",
+   "paper_ref": "M. Sanz-Novo, V. M. Rivilla, H. S. P. Müller, I. Jiménez-Serra, J. Martín-Pintado, L. Colzi, S. Zeng, A. Megías, Á. López-Gallifa, A. Martínez-Henare, B. Tercero, P. de Vicente, D. San Andrés, S. Martín, and M. A. Requena-Torres. ApJL 965:L26 (2024)."
+  },
+  {
+   "formula": "CaC2",
+   "name": "calcium dicarbide",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024ApJ...966L..28G",
+   "paper_title": "Calcium Chemistry in Carbon-rich Circumstellar Environments: The Laboratory and Astronomical Discovery of Calcium Dicarbide, CaC2",
+   "paper_ref": "H. Gupta, P. B. Changala, J. Cernicharo, J. R. Pardo, M. Agúndez, C. Cabezas, B. Tercero, M. Guélin, and M. C. McCarthy. ApJL 966:L28 (2024)."
+  },
+  {
+   "formula": "H2CNCN",
+   "name": "N-cyanomethanimine",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024ApJ...967...39S",
+   "paper_title": "First Detection in Space of the High-energy Isomer of Cyanomethanimine: H2CNCN",
+   "paper_ref": "D. San Andrés, V. M. Rivilla, L. Colzi, I. Jiménez-Serra, J. Martín-Pintado, A. Megías, Á. López-Gallifa, A. Martínez-Henares, S. Massalkhi, S. Zeng, M. Sanz-Novo, B. Tercero, P. de Vicente, S. Martín, M. A. Requena Torres, G. Molpeceres, and J. García de la Concepción. ApJ 967:39 (2024)."
+  },
+  {
+   "formula": "NCCHCS",
+   "name": "cyanothioketene",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...686L...3C",
+   "paper_title": "Laboratory and astronomical discovery of cyanothioketene, NCCHCS, in the cold starless core TMC-1",
+   "paper_ref": "C. Cabezas, M. Agúndez, Y. Endo, B. Tercero, Y.-P. Lee, N. Marcelino, P. de Vicente, and J. Cernicharo. A&A 686:L3 (2024)."
+  },
+  {
+   "formula": "HC5N^+",
+   "name": "cyanodiacetylene cation",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...686L..15C",
+   "paper_title": "QUIJOTE discovery of the cation radicals HC5N^+ and HC7N^+",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, Y. Endo, B. Tercero, N. Marcelino, and P. de Vicente. A&A 686:L15 (2024)."
+  },
+  {
+   "formula": "HC7N^+",
+   "name": "cyanotriacetylene cation",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...686L..15C",
+   "paper_title": "QUIJOTE discovery of the cation radicals HC5N^+ and HC7N^+",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, Y. Endo, B. Tercero, N. Marcelino, and P. de Vicente. A&A 686:L15 (2024)."
+  },
+  {
+   "formula": "HC3N^+",
+   "name": "cyanoacetylene cation radical",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...687L..22C",
+   "paper_title": "Discovery of the interstellar cyanoacetylene radical cation HC3N^+",
+   "paper_ref": "C. Cabezas, M. Agúndez, Y. Endo, B. Tercero, N. Marcelino, P. de Vicente, and J. Cernicharo. A&A 687:L22 (2024)."
+  },
+  {
+   "formula": "NC3S",
+   "name": "N≡C–C≡C–S•",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...688L..13C",
+   "paper_title": "More sulphur in TMC-1: Discovery of the NC3S and HC3S radicals with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, R. Fuentetaja, B. Tercero, N. Marcelino, and P. de Vicente. A&A 688:L13 (2024)."
+  },
+  {
+   "formula": "HC3S",
+   "name": "H–C≡C–C=S•",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...688L..13C",
+   "paper_title": "More sulphur in TMC-1: Discovery of the NC3S and HC3S radicals with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, C. Cabezas, M. Agúndez, R. Fuentetaja, B. Tercero, N. Marcelino, and P. de Vicente. A&A 688:L13 (2024)."
+  },
+  {
+   "formula": "HCCCH2CCH",
+   "name": "1,4-pentadiyne",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...688L..15F",
+   "paper_title": "Discovery of HCCCH2CCH in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "R. Fuentetaja, M. Agúndez, C. Cabezas, B. Tercero, N. Marcelino, J. R. Pardo, P. de Vicente, and J. Cernicharo. A&A 688:L15 (2024)."
+  },
+  {
+   "formula": "HNC5",
+   "name": "iminopenta- dienylidene",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...688L..29F",
+   "paper_title": "Space and laboratory discovery of iminopentadienylidene, HNC5",
+   "paper_ref": "R. Fuentetaja, C. Cabezas, Y. Endo, M. Agúndez, B. Tercero, N. Marcelino, P. de Vicente, and J. Cernicharo. A&A 688:L29 (2024)."
+  },
+  {
+   "formula": "CH2(CN)2",
+   "name": "malononitrile",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...688L..31A",
+   "paper_title": "The rich interstellar reservoir of dinitriles: Detection of malononitrile and maleonitrile in TMC-1",
+   "paper_ref": "M. Agúndez, C. Bermúdez, C. Cabezas, G. Molpeceres, Y. Endo, N. Marcelino, B. Tercero, J.-C. Guillemin, P. de Vicente and J. Cernicharo. A&A 688:L31 (2024)."
+  },
+  {
+   "formula": "Z-NCCHCHCN",
+   "name": "maleonitrile",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...688L..31A",
+   "paper_title": "The rich interstellar reservoir of dinitriles: Detection of malononitrile and maleonitrile in TMC-1",
+   "paper_ref": "M. Agúndez, C. Bermúdez, C. Cabezas, G. Molpeceres, Y. Endo, N. Marcelino, B. Tercero, J.-C. Guillemin, P. de Vicente and J. Cernicharo. A&A 688:L31 (2024)."
+  },
+  {
+   "formula": "1-C12H7CN",
+   "name": "cyanoacenaphthylene",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...690L..13C",
+   "paper_title": "Discovery of two cyano derivatives of acenaphthylene (C12H8) in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, C. Cabezas, R. Fuentetaja, M. Agúndez, B. Tercero, J. Janeiro, M. Juanes, R. I. Kaiser, Y. Endo, A. L. Steber, D. Pérez, C. Pérez, A. Lesarri, N. Marcelino, and P. de Vicente. A&A 690:L13 (2024)."
+  },
+  {
+   "formula": "5-C12H7CN",
+   "name": "cyanoacenaphthylene",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024A%26A...690L..13C",
+   "paper_title": "Discovery of two cyano derivatives of acenaphthylene (C12H8) in TMC-1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, C. Cabezas, R. Fuentetaja, M. Agúndez, B. Tercero, J. Janeiro, M. Juanes, R. I. Kaiser, Y. Endo, A. L. Steber, D. Pérez, C. Pérez, A. Lesarri, N. Marcelino, and P. de Vicente. A&A 690:L13 (2024)."
+  },
+  {
+   "formula": "NaS",
+   "name": "monosodium sulfide",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024ApJ...975..174R",
+   "paper_title": "Discovery of MgS and NaS in the Interstellar Medium and Tentative Detection of CaO",
+   "paper_ref": "M. Rey-Montejo, I. Jiménez-Serra, J. Martín-Pintado, V. M. Rivilla, A. Megías, D. San Andrés, M. Sanz-Novo, L. Colzi, S. Zeng, Á. López-Gallifa, A. Martínez-Henares, S. Martín, B. Tercero, P. de Vicente, and M. Requena-Torres. ApJ 975:174 (2024)."
+  },
+  {
+   "formula": "MgS",
+   "name": "magnesium sulfide",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024ApJ...975..174R",
+   "paper_title": "Discovery of MgS and NaS in the Interstellar Medium and Tentative Detection of CaO",
+   "paper_ref": "M. Rey-Montejo, I. Jiménez-Serra, J. Martín-Pintado, V. M. Rivilla, A. Megías, D. San Andrés, M. Sanz-Novo, L. Colzi, S. Zeng, Á. López-Gallifa, A. Martínez-Henares, S. Martín, B. Tercero, P. de Vicente, and M. Requena-Torres. ApJ 975:174 (2024)."
+  },
+  {
+   "formula": "CaO",
+   "name": "calcium oxide",
+   "year": 2024,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024ApJ...975..174R",
+   "paper_title": "Discovery of MgS and NaS in the Interstellar Medium and Tentative Detection of CaO",
+   "paper_ref": "M. Rey-Montejo, I. Jiménez-Serra, J. Martín-Pintado, V. M. Rivilla, A. Megías, D. San Andrés, M. Sanz-Novo, L. Colzi, S. Zeng, Á. López-Gallifa, A. Martínez-Henares, S. Martín, B. Tercero, P. de Vicente, and M. Requena-Torres. ApJ 975:174 (2024)."
+  },
+  {
+   "formula": "C16H9CN",
+   "name": "1-cyanopyrene",
+   "year": 2024,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2024Sci...386..810W",
+   "paper_title": "Detection of interstellar 1-cyanopyrene: A four-ring polycyclic aomatic hydrocarbon",
+   "paper_ref": "G. Wenzel, I. R. Cooke, P. B. Changala, E. A. Bergin, S. Zhang, A. M. Burkhardt, A. N. Byrne, S. B. Charnley, M. A. Cordiner, M. Duffy, Z. T. P. Fried, H. Gupta, M. S. Holdren, A. Lipnicky, R. A. Loomis, H. Toru Shay, C. N. Shingledecker, M. A. Siebert, D. A. Stewart, R. H. J. Willis, C. Xue, A. J. Remijan, A. E. Wendlandt, M. C. McCarthy, and B. A. McGuire. Science 386:810-813 (2024)."
+  },
+  {
+   "formula": "t-HCSSH",
+   "name": "dithioformic acid",
+   "year": 2024,
+   "tentative": false,
+   "disputed": true,
+   "paper_url": "https://www.astrochymist.org/astrochymist_nondetections.html",
+   "paper_title": "non-detections",
+   "paper_ref": "page."
+  },
+  {
+   "formula": "HCCCHCN",
+   "name": "1-cyano propargyl radical",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025A%26A...693L..14C",
+   "paper_title": "Identification of the interstellar 1-cyano propargyl radical (HCCCHCN) in TMC-1",
+   "paper_ref": "C. Cabezas, M. Agúndez, N. Marcelino, C. H. Chang, R. Fuentetaja, B. Tercero, M. Nakajima, Y. Endo, P. de Vicente, and J. Cernicharo. A&A 693:L14 (2025)."
+  },
+  {
+   "formula": "CH3CHS",
+   "name": "thioacetaldehyde",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025A%26A...693L..20A",
+   "paper_title": "Detection of thioacetaldehyde (CH3CHS) in TMC-1: Sulfur-oxygen differentiation along the hydrogenation sequence",
+   "paper_ref": "M. Agúndez, G. Molpeceres, C. Cabezas, N. Marcelino, B. Tercero, R. Fuentetaja, P. de Vicente, and J. Cernicharo. A&A 693:L20 (2025)."
+  },
+  {
+   "formula": "CH3SCH3",
+   "name": "dimethyl sulfide",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025ApJ...980L..37S",
+   "paper_title": "On the Abiotic Origin of Dimethyl Sulfide: Discovery of Dimethyl Sulfide in the Interstellar Medium",
+   "paper_ref": "M. Sanz-Novo, V. M. Rivilla, C. P. Endres, V. Lattanzi, I. Jiménez-Serra, L. Colzi, S. Zeng, A. Megías, Á. López-Gallifa, A. Martínez-Henares, D. San Andrés, B. Tercero, P. de Vicente, S. Martín, M. A. Requena-Torres, P. Caselli, and J. Martín-Pintado. ApJL 980:L37 (2025)."
+  },
+  {
+   "formula": "C16H9CN",
+   "name": "2-cyanopyrene",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025NatAs...9..262W",
+   "paper_title": "Detections of interstellar aromatic nitriles 2-cyanopyrene and 4-cyanopyrene in TMC-1",
+   "paper_ref": "G. Wenzel, T. H. Speak, P. B. Changala, R. H. J. Willis, A. M. Burkhardt, S. Zhang, E. A. Bergin, A. N. Byrne, S. B. Charnley, Z. T. P. Fried, H. Gupta, E. Herbst, M. S. Holdren, A. Lipnicky, R. A. Loomis, C. N. Shingledecker, C. Xue, A. J. Remijan, A. E. Wendlandt, M. C. McCarthy, I. R. Cooke, and B. A. McGuire. Nat Astron 9:262-270 (2025)."
+  },
+  {
+   "formula": "C16H9CN",
+   "name": "4-cyanopyrene",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025NatAs...9..262W",
+   "paper_title": "Detections of interstellar aromatic nitriles 2-cyanopyrene and 4-cyanopyrene in TMC-1",
+   "paper_ref": "G. Wenzel, T. H. Speak, P. B. Changala, R. H. J. Willis, A. M. Burkhardt, S. Zhang, E. A. Bergin, A. N. Byrne, S. B. Charnley, Z. T. P. Fried, H. Gupta, E. Herbst, M. S. Holdren, A. Lipnicky, R. A. Loomis, C. N. Shingledecker, C. Xue, A. J. Remijan, A. E. Wendlandt, M. C. McCarthy, I. R. Cooke, and B. A. McGuire. Nat Astron 9:262-270 (2025)."
+  },
+  {
+   "formula": "c-C3H2S",
+   "name": "cyclopropenthione cycloprop-2-ene-1-thione",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025ApJ...982..191R",
+   "paper_title": "The Missing Link of Sulfur Chemistry in TMC-1: The Detection of c-C3H2S from the GOTHAM Survey",
+   "paper_ref": "A. J. Remijan, P. B. Changala, C. Xue, E. Q. H. Yuan, M. Duffy, H. N. Scolati, C. N. Shingledecker, T. H. Speak, I. R. Cooke, R. Loomis, A. M. Burkhardt, Z. T. P. Fried, G. Wenzel, A. Lipnicky, M. C. McCarthy, and B. A. McGuire. ApJ 982:191 (2025)."
+  },
+  {
+   "formula": "C24H11CN",
+   "name": "",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025ApJ...984L..36W",
+   "paper_title": "Discovery of the Seven-ring Polycyclic Aromatic Hydrocarbon Cyanocoronene (C24H11CN) in GOTHAM Observations of TMC-1",
+   "paper_ref": "G. Wenzel, S. Gong, C. Xue, P. B. Changala, M. S. Holdren, T. H. Speak, D. A. Stewart, Z. T. P. Fried, R. H. J. Willis, E. A. Bergin, A. M. Burkhardt, A. N. Byrne, S. B. Charnley, A. Lipnicky, R. A. Loomis, C. N. Shingledecker, I. R. Cooke, M. C. McCarthy, A. J. Remijan, A. E. Wendlandt, and B. A. McGuire. ApJL 984:L36 (2025)."
+  },
+  {
+   "formula": "2-C4H5CN",
+   "name": "2-cyano-1,3-butadiene",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025A%26A...697A..82A",
+   "paper_title": "A search for the three isomers of cyano-1,3-butadiene in TMC-1: Implications for bottom-up routes involving 1,3-butadiene",
+   "paper_ref": "M. Agúndez, C. Cabezas, N. Marcelino, B. Tercero, R. Fuentetaja, P. de Vicente, and J. Cernicharo. A&A 697:A82 (2025)."
+  },
+  {
+   "formula": "CH2CHCHS",
+   "name": "anti-propenethial thioacrolein",
+   "year": 2025,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025A%26A...698L..24C",
+   "paper_title": "Discovery of propenethial (CH2CHCHS) in TMC-1 - The sulphur analogue of acrolein",
+   "paper_ref": "C. Cabezas, K. Vávra, G. Molpeceres, L. Kolesniková, M. Agúndez, G. Vylitová, N. Marcelino, L. Hrubčík, R. Fuentetaja, T. Uhlíková, B. Tercero, J. Koucký, G. Esplugues, P. Kania, P. de Vicente, Š. Urban, and J. Cernicharo. A&A 698:L24 (2025)."
+  },
+  {
+   "formula": "SiC6",
+   "name": "",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025A%26A...700L...6P",
+   "paper_title": "Detection of SiC6 in IRC +10216 through Q -band lines",
+   "paper_ref": "J. R. Pardo, J. P. Fonfría, M. Agúndez, B. Tercero, C. Cabezas, L. Velilla-Prieto, M. Guélin, P. de Vicente, and J. Cernicharo. A&A 700:L6 (2025)."
+  },
+  {
+   "formula": "SiC3",
+   "name": "",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025A%26A...700L..20C",
+   "paper_title": "Detection of the linear SiC3 and SiC5 radicals in IRC+10216",
+   "paper_ref": "J. Cernicharo, J. R. Pardo, M. Agúndez, J. P. Fonfría, L. Velilla-Prieto, C. Cabezas, B. Tercero, P. de Vicente, and M. Guélin. A&A 700:L20 (2025)."
+  },
+  {
+   "formula": "SiC5",
+   "name": "",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025A%26A...700L..20C",
+   "paper_title": "Detection of the linear SiC3 and SiC5 radicals in IRC+10216",
+   "paper_ref": "J. Cernicharo, J. R. Pardo, M. Agúndez, J. P. Fonfría, L. Velilla-Prieto, C. Cabezas, B. Tercero, P. de Vicente, and M. Guélin. A&A 700:L20 (2025)."
+  },
+  {
+   "formula": "c-C13H10",
+   "name": "phenalene",
+   "year": 2025,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025A%26A...701L...8C",
+   "paper_title": "Discovery of interstellar phenalene ( c -C13H10): A new piece in the chemical puzzle of PAHs in space",
+   "paper_ref": "C. Cabezas, M. Agúndez, C. Párez, D. Villar-Castro, G. Molpeceres, D. Pérez, A. L. Steber, R. Fuentetaja, B. Tercero, N. Marcelino, A. Lesarri, P. de Vicente, and J. Cernicharo. A&A 701:L8 (2025)."
+  },
+  {
+   "formula": "HOCH2CH2CHO",
+   "name": "3-hydroxypropanal",
+   "year": 2025,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025ApJ...992..187F",
+   "paper_title": "Rotational Spectroscopy and Tentative Interstellar Detection of 3-hydroxypropanal (HOCH2CH2CHO) in the G+0.693-0.027 Molecular Cloud",
+   "paper_ref": "Z. T. P. Fried, R. A. Motiyenko, M. Sanz-Novo, L. Kolesniková, J.-C. Guillemin, L. Margulès, T. Uhlíková, A. Belloche, J. K. Jørgensen, M. S. Holdren, C. Xue, Š. Urban, I. Jiménez-Serra, V. M. Rivilla, and B. A. McGuire. ApJ 992:187 (2025)."
+  },
+  {
+   "formula": "CaS",
+   "name": "calcium sufide",
+   "year": 2025,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025ApJ...993L..42T",
+   "paper_title": "A Quest for Sulfur-bearing Refractory Species: Identification of CaS in the Interstellar Medium",
+   "paper_ref": "A. Tasa-Chaveli, Á. Sánchez-Monge, A. Fuente, A. Ginsburg, H. S. P. Müller, T. Möller, P. Rivière-Marichalar, D. Navarro-Almaida, G. Esplugues, P. S., M. Rodríguez-Baras, S. Thorwirth, and L. Beitia-Antero. ApJL 993:L39 (2025)."
+  },
+  {
+   "formula": "KS",
+   "name": "potassium sufide",
+   "year": 2025,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025ApJ...993L..42T",
+   "paper_title": "A Quest for Sulfur-bearing Refractory Species: Identification of CaS in the Interstellar Medium",
+   "paper_ref": "A. Tasa-Chaveli, Á. Sánchez-Monge, A. Fuente, A. Ginsburg, H. S. P. Müller, T. Möller, P. Rivière-Marichalar, D. Navarro-Almaida, G. Esplugues, P. S., M. Rodríguez-Baras, S. Thorwirth, and L. Beitia-Antero. ApJL 993:L39 (2025)."
+  },
+  {
+   "formula": "KSH",
+   "name": "potassium hydrosufide",
+   "year": 2025,
+   "tentative": true,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2025ApJ...993L..42T",
+   "paper_title": "A Quest for Sulfur-bearing Refractory Species: Identification of CaS in the Interstellar Medium",
+   "paper_ref": "A. Tasa-Chaveli, Á. Sánchez-Monge, A. Fuente, A. Ginsburg, H. S. P. Müller, T. Möller, P. Rivière-Marichalar, D. Navarro-Almaida, G. Esplugues, P. S., M. Rodríguez-Baras, S. Thorwirth, and L. Beitia-Antero. ApJL 993:L39 (2025)."
+  },
+  {
+   "formula": "c-C12H7CN",
+   "name": "3-cyanoacenaphthylene",
+   "year": 2026,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2026A%26A...705L...7C",
+   "paper_title": "Discovery of two new isomers of cyanoacenaphthylene (C12H7CN) in the Taurus molecular cloud 1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, B. Tercero, N. Marcelino, J. A. López-Pérez, J. D. Gallego, F. Tercero, G. Esplugues, C. Cabezas, M. Agúndez, C. Limeres, A. L. Steber, D. Pérez, C. Pérez, A. Lesarri, and P. de Vicente. A&A 705:L7 (2026)."
+  },
+  {
+   "formula": "c-C12H7CN",
+   "name": "4-cyanoacenaphthylene",
+   "year": 2026,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2026A%26A...705L...7C",
+   "paper_title": "Discovery of two new isomers of cyanoacenaphthylene (C12H7CN) in the Taurus molecular cloud 1 with the QUIJOTE line survey",
+   "paper_ref": "J. Cernicharo, B. Tercero, N. Marcelino, J. A. López-Pérez, J. D. Gallego, F. Tercero, G. Esplugues, C. Cabezas, M. Agúndez, C. Limeres, A. L. Steber, D. Pérez, C. Pérez, A. Lesarri, and P. de Vicente. A&A 705:L7 (2026)."
+  },
+  {
+   "formula": "l-H2C3O",
+   "name": "propadienone",
+   "year": 2026,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2026A%26A...705A.206E",
+   "paper_title": "Discovery of linear propadienone - Study of the chemistry of linear and cyclic H2C3O and H2C3S in TMC-1",
+   "paper_ref": "G. Esplugues, J. C. Loison, M. Agúndez, G. Molpeceres, N. Marcelino, B. Tercero, and J. Cernicharo. A&A 705:A106 (2026)."
+  },
+  {
+   "formula": "c-C11H8",
+   "name": "cyclopent(c,d)indene",
+   "year": 2026,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2026A%26A...706L..10F",
+   "paper_title": "Discovery of 1 H -cyclopent[ cd ]indene ( c -C11H8) in TMC-1 with the QUIJOTE line survey: A new three-ringed polycyclic aromatic hydrocarbon",
+   "paper_ref": "R. Fuentetaja, C. Cabezas, M. Agúndez, B. Tercero, N. Marcelino, P. de Vicente, and J. Cernicharo. A&A 706:L10 (2026)."
+  },
+  {
+   "formula": "C3H6O2",
+   "name": "lactaldehyde",
+   "year": 2026,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2026A%26A...706A.316S",
+   "paper_title": "Expanding the C3H6O2 isomeric interstellar inventory: Discovery of lactaldehyde and methoxyacetaldehyde in G+0.693-0.027",
+   "paper_ref": "M. Sanz-Novo, V. M. Rivilla, I. Jiménez-Serra, L. Colzi, S. Zeng, A. Megías, D. San Andrés, Á. López-Gallifa, A. Martínez-Henares, Z. T. P. Fried, B. A. McGuire, S. Martín, M. A. Requena-Torres, B. Tercero, P. de Vicente, L. Kolesniková, E. R. Alonso, E. J. Cocinero, J. C. Guillemin, and I. Kleiner. A&A 706:A316 (2026)."
+  },
+  {
+   "formula": "C3H6O2",
+   "name": "methoxyacetaldehyde",
+   "year": 2026,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2026A%26A...706A.316S",
+   "paper_title": "Expanding the C3H6O2 isomeric interstellar inventory: Discovery of lactaldehyde and methoxyacetaldehyde in G+0.693-0.027",
+   "paper_ref": "M. Sanz-Novo, V. M. Rivilla, I. Jiménez-Serra, L. Colzi, S. Zeng, A. Megías, D. San Andrés, Á. López-Gallifa, A. Martínez-Henares, Z. T. P. Fried, B. A. McGuire, S. Martín, M. A. Requena-Torres, B. Tercero, P. de Vicente, L. Kolesniková, E. R. Alonso, E. J. Cocinero, J. C. Guillemin, and I. Kleiner. A&A 706:A316 (2026)."
+  },
+  {
+   "formula": "c-C6H6S",
+   "name": "2,5-cyclohexadien-1-thione",
+   "year": 2026,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2026NatAs..10..401A",
+   "paper_title": "A detection of sulfur-bearing cyclic hydrocarbons in space",
+   "paper_ref": "M. Araki, M. Sanz-Novo, C. P. Endres, P. Caselli, V. M. Rivilla, I. Jiménez-Serra, L. Colzi, S. Zeng, A. Megías, Á. Lólpez-Gallifa, A. Martínez-Henares, D. San Andrés, S. Martín, M. A. Requena-Torres, J. García de la Concepción. and V. Lattanzi. Nat Astron 10:401-409 (2026)."
+  },
+  {
+   "formula": "CH3OC(O)NH2",
+   "name": "methyl carbamate",
+   "year": 2026,
+   "tentative": false,
+   "disputed": false,
+   "paper_url": "https://scixplorer.org/abs/2026ApJ..1004L...6D",
+   "paper_title": "First Interstellar Detection of Methyl Carbamate: A New Observational Anchor for Glycine Chemistry",
+   "paper_ref": "C. Duan, F. Xu, J. Kang, Q. Gou, X. Xu, L. Pagani, J. Du, and X. Chen. ApJL 1004:L6 (2026)."
+  }
+ ]
+}

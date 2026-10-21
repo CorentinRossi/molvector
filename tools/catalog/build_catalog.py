@@ -9,9 +9,13 @@ access to PubChem the first time a molecule is seen).
     python tools/catalog/build_catalog.py --offline    # never touch the network
     python tools/catalog/build_catalog.py --refresh    # re-download from PubChem
 
-For each row of seed.csv:
-  1. RDKit sanitize -> canonical SMILES, InChIKey (dedupe key), formula,
-     ring count, charge, spin multiplicity, facet tags ("<facet>:<value>").
+Entries come from seed.csv (curated PAHs and related molecules) and from
+every species detected in space as listed by The Astrochymist
+(astrochymist.json, mapped to structures in astrochymist_smiles.csv);
+detections of a seed molecule are attached to it. For each entry:
+  1. RDKit sanitize -> canonical SMILES, InChIKey (dedupe key, with the
+     charge), formula, ring count, charge, spin multiplicity, facet tags
+     ("<facet>:<value>") and, for detected species, the detection papers.
   2. Geometry: PubChem's 3D conformer (looked up by InChIKey, then by name,
      accepted only if its InChIKey matches); otherwise RDKit ETKDG + MMFF94;
      cages that ETKDG cannot embed (fullerenes) start from a spectral
@@ -52,11 +56,13 @@ from molvector.catalog import to_molecule             # noqa: E402
 RDLogger.DisableLog("rdApp.*")
 
 SEED_PATH = os.path.join(HERE, "seed.csv")
+ASTRO_PATH = os.path.join(HERE, "astrochymist.json")
+ASTRO_MAP_PATH = os.path.join(HERE, "astrochymist_smiles.csv")
 CACHE_PATH = os.path.join(HERE, "pubchem_cache.json.gz")
 OUT_PATH = os.path.join(REPO, "molvector", "catalog", "catalog.json.gz")
 
 PUG = "https://pubchem.ncbi.nlm.nih.gov/rest/pug"
-CATALOG_VERSION = 1
+CATALOG_VERSION = 2
 EMBED_SEED = 20240611
 COORD_DECIMALS = 4
 
@@ -64,10 +70,17 @@ COORD_DECIMALS = 4
 BOND_RANGES = {
     ("C", "C"): (1.17, 1.60),
     ("C", "H"): (1.04, 1.14),
-    ("C", "N"): (1.12, 1.50),
+    ("C", "N"): (1.12, 1.60),          # 2H-azirine's strained C-N: 1.52-1.57
     ("H", "N"): (0.98, 1.06),
 }
-COVALENT_RADII = {"H": 0.31, "C": 0.76, "N": 0.71, "O": 0.66, "S": 1.05}
+# Cordero et al., Dalton Trans. 2008 (single-bond covalent radii, Angstrom).
+COVALENT_RADII = {
+    "H": 0.31, "He": 0.28, "Li": 1.28, "C": 0.76, "N": 0.71, "O": 0.66, "F": 0.57,
+    "Na": 1.66, "Mg": 1.41, "Al": 1.21, "Si": 1.11, "P": 1.07, "S": 1.05, "Cl": 1.02,
+    "Ar": 1.06, "K": 2.03, "Ca": 1.76, "Ti": 1.60, "V": 1.53, "Cr": 1.39, "Fe": 1.32,
+}
+METALS = {"Li", "Na", "K", "Mg", "Ca", "Al", "Ti", "V", "Cr", "Fe"}
+LINEAR_TOL = 0.05        # max distance (Angstrom) from the principal axis for "linear"
 PLANAR_TOL = 0.10        # max heavy-atom out-of-plane deviation (Angstrom) for "planar"
 
 
@@ -196,7 +209,12 @@ def rdkit_geometry(mol, curved: bool = False):
     params = AllChem.ETKDGv3()
     params.randomSeed = EMBED_SEED
     params.maxIterations = 200
-    if AllChem.EmbedMolecule(mh, params) == 0:
+    embedded = AllChem.EmbedMolecule(mh, params) == 0
+    if not embedded and mh.GetNumAtoms() != mol.GetNumAtoms():
+        # Small strained rings (T-shaped MgC2, c-SiC2, ...): random start.
+        params.useRandomCoords = True
+        embedded = AllChem.EmbedMolecule(mh, params) == 0
+    if embedded:
         if curved:
             # MMFF94(s) flattens bowls like corannulene back out; UFF keeps
             # the curvature (0.97 A bowl depth vs. 0.87 A experimental).
@@ -206,8 +224,12 @@ def rdkit_geometry(mol, curved: bool = False):
         if AllChem.MMFFHasAllMoleculeParams(mh):
             AllChem.MMFFOptimizeMolecule(mh, maxIters=20000)
             return mh, "rdkit-etkdg-mmff94"
-        AllChem.UFFOptimizeMolecule(mh, maxIters=20000)
-        return mh, "rdkit-etkdg-uff"
+        if AllChem.UFFHasAllMoleculeParams(mh):
+            AllChem.UFFOptimizeMolecule(mh, maxIters=20000)
+            return mh, "rdkit-etkdg-uff"
+        # No force field covers it (HeH+, ArH+, VO, CrO, ...): the ETKDG
+        # distance-geometry structure, checked against covalent radii below.
+        return mh, "rdkit-etkdg"
     # ETKDG gives up on fullerene cages. All-carbon cages relax cleanly with
     # UFF from a spectral sphere (MMFF distorts them: aromatic typing).
     if mh.GetNumAtoms() == mol.GetNumAtoms() and _spectral_embed(mh):
@@ -241,11 +263,22 @@ def orient(xyz: np.ndarray) -> np.ndarray:
 # checked against, not exported: the shape facet is computed from geometry.
 COLLECTION_TAGS = {"epa16", "astro", "acene", "helicene", "bowl"}
 SEED_HINTS = {"nonplanar"}
+DETECTION_RANK = {"confirmed": 0, "tentative": 1, "disputed": 2}
 
 
-def facet_tags(mol, planar: bool) -> list:
-    """Computed "<facet>:<value>" tags. Every record gets exactly one topology,
-    shape and charge value, and at least one composition value."""
+def shape_of(xyz: np.ndarray, heavy: list) -> str:
+    """"linear", "planar" or "nonplanar" for oriented coordinates (principal
+    axes: x longest, z the plane normal)."""
+    if len(xyz) <= 2 or float(np.max(np.hypot(xyz[:, 1], xyz[:, 2]))) <= LINEAR_TOL:
+        return "linear"
+    pts = heavy if len(heavy) >= 3 else list(range(len(xyz)))
+    return "planar" if float(np.max(np.abs(xyz[pts, 2]))) <= PLANAR_TOL else "nonplanar"
+
+
+def facet_tags(mol, shape: str, charge: int, multiplicity: int) -> list:
+    """Computed "<facet>:<value>" tags. Every record gets exactly one
+    topology and shape value and at least one elements and charge value;
+    ring-system tags only apply to molecules with rings."""
     rings = [set(r) for r in mol.GetRingInfo().AtomRings() if len(r) <= 8]
     per_atom = {}
     for r in rings:
@@ -259,7 +292,9 @@ def facet_tags(mol, planar: bool) -> list:
     # not a ring). Cage: an all-carbon, hydrogen-free closed shell, every atom
     # shared by three rings (fullerenes); cata/peri applies to the other fused
     # systems: pericondensed when some atom is shared by three rings.
-    if hydrocarbon and heavy and sum(a.GetTotalNumHs() for a in heavy) == 0 \
+    if not rings:
+        topology = "acyclic"
+    elif hydrocarbon and sum(a.GetTotalNumHs() for a in heavy) == 0 \
             and all(per_atom.get(a.GetIdx(), 0) >= 3 for a in heavy):
         topology = "cage"
     elif not any(len(r1 & r2) >= 2 for i, r1 in enumerate(rings) for r2 in rings[i + 1:]):
@@ -267,45 +302,50 @@ def facet_tags(mol, planar: bool) -> list:
     else:
         topology = "pericondensed" if max(per_atom.values()) >= 3 else "catacondensed"
 
-    # Composition (several may apply).
-    in_ring = set(per_atom)
-    ring_heavy = [a for a in heavy if a.GetIdx() in in_ring]
-    composition = set()
-    if any(a.GetIdx() not in in_ring for a in heavy):
-        composition.add("substituted")
-    if any(a.GetSymbol() != "C" for a in ring_heavy):
-        composition.add("heteroatom")
-    # A saturated ring CH2 (not a radical CH, which stays conjugated).
-    if any(a.GetSymbol() == "C" and a.GetTotalNumHs() >= 2 for a in ring_heavy):
-        composition.add("hydro")
-    # Plain hydrocarbon frameworks: benzenoid when every ring is a hexagon.
-    if hydrocarbon and not composition:
-        composition.add("benzenoid" if all(len(r) == 6 for r in rings) else "nonbenzenoid")
-
-    charge = Chem.GetFormalCharge(mol)
-    radical = sum(a.GetNumRadicalElectrons() for a in mol.GetAtoms()) > 0
-    if radical:
-        electronic = "radical"
-    elif charge > 0:
-        electronic = "cation"
-    elif charge < 0:
-        electronic = "anion"
+    # Elements (several may apply).
+    elem = set()
+    if "C" in elements:
+        elem.add("hydrocarbon" if elements <= {"C"} else "heteroatom")
     else:
-        electronic = "closed-shell"
+        elem.add("inorganic")
+    if elements & METALS:
+        elem.add("metal")
 
-    return ([f"topology:{topology}", f"shape:{'planar' if planar else 'nonplanar'}",
-             f"charge:{electronic}"] + [f"composition:{c}" for c in sorted(composition)])
+    # Ring system (several may apply; none for acyclic molecules).
+    ring_sys = set()
+    if rings:
+        in_ring = set(per_atom)
+        ring_heavy = [a for a in heavy if a.GetIdx() in in_ring]
+        if any(a.GetIdx() not in in_ring for a in heavy):
+            ring_sys.add("substituted")
+        if any(a.GetSymbol() != "C" for a in ring_heavy):
+            ring_sys.add("heterocycle")
+        # A saturated ring CH2 (not a radical CH, which stays conjugated).
+        if any(a.GetSymbol() == "C" and a.GetTotalNumHs() >= 2 for a in ring_heavy):
+            ring_sys.add("hydro")
+        # Plain hydrocarbon frameworks: benzenoid when every ring is a hexagon.
+        if hydrocarbon and not ring_sys:
+            ring_sys.add("benzenoid" if all(len(r) == 6 for r in rings) else "nonbenzenoid")
+
+    electronic = {"cation" if charge > 0 else "anion" if charge < 0 else "neutral"}
+    if multiplicity > 1:
+        electronic.add("open-shell")
+
+    return ([f"topology:{topology}", f"shape:{shape}"]
+            + [f"elements:{v}" for v in sorted(elem)]
+            + [f"rings:{v}" for v in sorted(ring_sys)]
+            + [f"charge:{v}" for v in sorted(electronic)])
 
 
 def expect_planar(mol, seed_tags) -> bool:
+    """Fully aromatic / sp frameworks of >= 3 heavy atoms must come out flat."""
     if "nonplanar" in seed_tags:
         return False
-    for a in mol.GetAtoms():
-        if a.GetAtomicNum() == 1:
-            continue
-        if not (a.GetIsAromatic() or a.GetHybridization() == Chem.HybridizationType.SP):
-            return False
-    return True
+    heavy = [a for a in mol.GetAtoms() if a.GetAtomicNum() > 1]
+    if len(heavy) < 3:
+        return False
+    return all(a.GetIsAromatic() or a.GetHybridization() == Chem.HybridizationType.SP
+               for a in heavy)
 
 
 # ── validation ───────────────────────────────────────────────────────────────
@@ -319,59 +359,250 @@ def check_bonds(record) -> list:
         key = tuple(sorted((ei, ej)))
         lo, hi = BOND_RANGES.get(key, (None, None))
         if lo is None:
-            ref = COVALENT_RADII.get(ei, 0.8) + COVALENT_RADII.get(ej, 0.8)
-            lo, hi = 0.8 * ref, 1.2 * ref
+            # Multiple bonds run ~25 % shorter, ionic metal bonds longer.
+            ref = COVALENT_RADII.get(ei, 1.0) + COVALENT_RADII.get(ej, 1.0)
+            lo, hi = round(0.70 * ref, 3), round(1.30 * ref, 3)
         if not lo <= d <= hi:
             problems.append(f"{ei}{i}-{ej}{j} = {d:.3f} A outside [{lo}, {hi}]")
     return problems
 
 
-def inchi_roundtrip(record) -> str:
-    """InChIKey of the stored geometry/bonds as Molvector itself perceives it."""
-    inchi = generate_inchi(to_molecule(record))
+def inchi_roundtrip(record, neutral: bool = False) -> str:
+    """InChIKey of the stored geometry/bonds as Molvector itself perceives it
+    (with *neutral*, ignoring the record's net charge)."""
+    mol = to_molecule(record)
+    if neutral:
+        mol.charge = 0
+    inchi = generate_inchi(mol)
     return Chem.InchiToInchiKey(inchi) if inchi else ""
 
 
-# ── main ─────────────────────────────────────────────────────────────────────
+# ── entries ──────────────────────────────────────────────────────────────────
 
 def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
-def read_seed(path: str):
+def _csv_rows(path: str):
     with open(path, newline="", encoding="utf-8") as f:
-        rows = csv.DictReader(line for line in f if not line.startswith("#"))
-        for row in rows:
-            yield {
-                "name": row["name"].strip(),
-                "smiles": row["smiles"].strip(),
-                "tags": [t.strip() for t in row["tags"].split(";") if t.strip()],
-                "synonyms": [s.strip() for s in (row.get("synonyms") or "").split("|") if s.strip()],
-            }
+        yield from csv.DictReader(line for line in f if not line.startswith("#"))
 
 
-def build_record(seed, pc: PubChem):
+def read_seed(path: str):
+    for row in _csv_rows(path):
+        yield {
+            "name": row["name"].strip(),
+            "smiles": row["smiles"].strip(),
+            "tags": [t.strip() for t in row["tags"].split(";") if t.strip()],
+            "synonyms": [s.strip() for s in (row.get("synonyms") or "").split("|") if s.strip()],
+            "charge": None, "multiplicity": None, "notes": [], "detections": [],
+        }
+
+
+def read_astro(snapshot_path: str, map_path: str):
+    """One entry per Astrochymist detection row, with its structure mapping."""
+    with open(snapshot_path, encoding="utf-8") as f:
+        snapshot = json.load(f)
+    mapping = {(r["formula"], r["name"]): r for r in _csv_rows(map_path)}
+    for det in snapshot["detections"]:
+        m = mapping.get((det["formula"], det["name"]))
+        if m is None:
+            raise ValueError(f"{det['formula']} ({det['name'] or 'no name'}) is not mapped in "
+                             f"{os.path.basename(map_path)}")
+        status = "disputed" if det["disputed"] else "tentative" if det["tentative"] else "confirmed"
+        # The page's common name, minus editorial asides in parentheses.
+        page_name = re.sub(r"\s*\(.*?\)", "", det["name"]).strip()
+        synonyms = [det["formula"]] + ([page_name] if page_name else [])
+        yield {
+            "name": m["catalog_name"].strip(),
+            "smiles": m["smiles"].strip(),
+            "tags": [],
+            "synonyms": synonyms,
+            "charge": int(m["charge"]) if m["charge"] else None,
+            "multiplicity": int(m["multiplicity"]) if m["multiplicity"] else None,
+            "notes": [m["note"]] if m["note"] else [],
+            "detections": [{
+                "year": det["year"], "label": det["formula"], "status": status,
+                "paper_url": det["paper_url"], "paper_title": det["paper_title"],
+                "paper_ref": det["paper_ref"],
+            }],
+        }
+
+
+def entry_key(entry):
+    """(InChIKey, charge): the dedupe key; radical cations given as a neutral
+    SMILES plus a charge (C60+) stay apart from their neutral parent."""
+    if not entry["smiles"]:
+        return ("special:" + entry["name"], entry["charge"] or 0)
+    mol = Chem.MolFromSmiles(entry["smiles"])
+    if mol is None:
+        raise ValueError(f"invalid SMILES {entry['smiles']} ({entry['name']})")
+    charge = entry["charge"] if entry["charge"] is not None else Chem.GetFormalCharge(mol)
+    return (Chem.MolToInchiKey(mol), charge)
+
+
+def merge_entries(seeds, astro):
+    """Seeds first, in file order, then species detected in space. Every
+    detection of an already listed molecule (or another conformer of it) is
+    attached to that entry instead of making a new one."""
+    entries, by_key = [], {}
+    for e in list(seeds) + list(astro):
+        key = entry_key(e)
+        if key in by_key:
+            target = by_key[key]
+            if e["detections"] or not target["detections"]:
+                target["detections"] += e["detections"]
+            else:
+                raise ValueError(f"{e['name']}: duplicate of {target['name']}")
+            target["synonyms"] += [e["name"]] + e["synonyms"]
+            target["notes"] += [n for n in e["notes"] if n not in target["notes"]]
+            continue
+        e["synonyms"] = list(e["synonyms"])
+        if e["charge"] and (key[0], 0) in by_key:
+            # A radical ion of a listed molecule (C60+) has its shape.
+            parent = by_key[(key[0], 0)]
+            e["tags"] = [t for t in parent["tags"] if t in SEED_HINTS]
+        by_key[key] = e
+        entries.append(e)
+    for e in entries:
+        # Synonyms other than the name itself, each once (case-insensitive).
+        seen, unique = {e["name"].lower()}, []
+        for syn in e["synonyms"]:
+            if syn.lower() not in seen:
+                seen.add(syn.lower())
+                unique.append(syn)
+        e["synonyms"] = unique
+    return entries
+
+
+# ── records ──────────────────────────────────────────────────────────────────
+
+def h3_plus_geometry():
+    """H3+: an equilateral triangle (r = 0.874 A) — three-centre two-electron
+    bonding has no Lewis structure, so it is built by hand."""
+    r = 0.874
+    xyz = np.array([[0.0, r / np.sqrt(3), 0.0],
+                    [-r / 2, -r / (2 * np.sqrt(3)), 0.0],
+                    [r / 2, -r / (2 * np.sqrt(3)), 0.0]])
+    return [["H", *map(float, p)] for p in xyz], [[0, 1, 1], [1, 2, 1], [0, 2, 1]]
+
+
+SPECIAL_GEOMETRY = {"Trihydrogen cation": h3_plus_geometry}
+
+
+def _diatomic(r):
+    return lambda: np.array([[0.0, 0.0, 0.0], [r, 0.0, 0.0]])
+
+
+def _bent_triatomic(r, angle_deg):
+    """Centre atom second in SMILES order (O=[Ti]=O)."""
+    h = np.radians(angle_deg) / 2
+    return lambda: np.array([[-r * np.sin(h), r * np.cos(h), 0.0], [0.0, 0.0, 0.0],
+                             [r * np.sin(h), r * np.cos(h), 0.0]])
+
+
+def _t_shaped(r_cc, r_mc):
+    """Metal first in SMILES order ([Ca]1[C]=[C]1), C2 unit facing it."""
+    h = np.sqrt(r_mc ** 2 - (r_cc / 2) ** 2)
+    return lambda: np.array([[0.0, -h, 0.0], [-r_cc / 2, 0.0, 0.0], [r_cc / 2, 0.0, 0.0]])
+
+
+# Species no force field in RDKit covers (ETKDG alone gives meaningless bond
+# lengths for them): equilibrium geometries from the spectroscopy literature,
+# coordinates in SMILES atom order.
+FIXED_GEOMETRY = {
+    "Helium hydride ion": _diatomic(0.774),
+    "Argonium": _diatomic(1.280),
+    "Iron carbide": _diatomic(1.596),
+    "Titanium monoxide": _diatomic(1.620),
+    "Vanadium monoxide": _diatomic(1.589),
+    "Chromium monoxide": _diatomic(1.615),
+    "Calcium oxide": _diatomic(1.822),
+    "Calcium sulfide": _diatomic(2.318),
+    "Titanium dioxide": _bent_triatomic(1.651, 111.6),
+    "Calcium dicarbide": _t_shaped(1.27, 2.32),       # approximate
+}
+
+
+def fixed_geometry(mol, name):
+    mh = Chem.AddHs(mol)
+    xyz = FIXED_GEOMETRY[name]()
+    conf = Chem.Conformer(mh.GetNumAtoms())
+    for i, p in enumerate(xyz):
+        conf.SetAtomPosition(i, Point3D(*map(float, p)))
+    mh.AddConformer(conf, assignId=True)
+    return mh
+
+
+def special_record(entry):
+    atoms, bonds = SPECIAL_GEOMETRY[entry["name"]]()
+    atoms = [[el] + [round(v, COORD_DECIMALS) + 0.0 for v in xyz]
+             for el, *xyz in [[a[0], *orient(np.array([b[1:] for b in atoms]))[k]]
+                              for k, a in enumerate(atoms)]]
+    return {
+        "id": slug(entry["name"]), "name": entry["name"], "synonyms": entry["synonyms"],
+        "formula": "H3+", "smiles": "", "inchikey": "", "pubchem_cid": None,
+        "charge": entry["charge"] or 0, "multiplicity": entry["multiplicity"] or 1, "rings": 0,
+        "tags": sorted(["topology:unfused", "shape:planar", "elements:inorganic", "charge:cation"]
+                       + detection_tags(entry)),
+        "geometry_source": "fixed", "atoms": atoms, "bonds": bonds,
+        **record_extras(entry),
+    }
+
+
+def detection_tags(entry):
+    if not entry["detections"]:
+        return []
+    best = min(entry["detections"], key=lambda d: DETECTION_RANK[d["status"]])
+    return [f"detected:{best['status']}"]
+
+
+def record_extras(entry):
+    extras = {}
+    if entry["detections"]:
+        extras["detections"] = sorted(entry["detections"], key=lambda d: (d["year"] or 0))
+    if entry["notes"]:
+        extras["notes"] = entry["notes"]
+    return extras
+
+
+def build_record(entry, pc: PubChem):
     """(record, problems) from the first geometry source whose record validates:
     PubChem's 3D conformer, then RDKit. *problems* is empty on success."""
-    mol = Chem.MolFromSmiles(seed["smiles"])
-    if mol is None:
-        raise ValueError(f"invalid SMILES {seed['smiles']}")
+    if not entry["smiles"]:
+        if entry["name"] not in SPECIAL_GEOMETRY:
+            raise ValueError("no SMILES and no hand-built geometry")
+        return special_record(entry), []
+    mol = Chem.MolFromSmiles(entry["smiles"])
     inchikey = Chem.MolToInchiKey(mol)
+    charge = entry["charge"] if entry["charge"] is not None else Chem.GetFormalCharge(mol)
+    radicals = sum(a.GetNumRadicalElectrons() for a in mol.GetAtoms())
+    if entry["multiplicity"] is None and radicals > 1:
+        raise ValueError(f"{radicals} radical electrons: give the ground-state multiplicity")
+    multiplicity = entry["multiplicity"] or radicals + 1
 
-    geo, cid = pubchem_geometry(pc, seed["name"], inchikey)
-    problems = []
+    # A charge override is a radical ion of a neutral SMILES: its geometry
+    # is the neutral one, built here rather than taken from PubChem's record
+    # of the neutral molecule.
+    if entry["name"] in FIXED_GEOMETRY:
+        return make_record(entry, mol, inchikey, None, charge, multiplicity,
+                           fixed_geometry(mol, entry["name"]), "fixed")
+    geo, cid, problems = None, None, []
+    if entry["charge"] is None:
+        geo, cid = pubchem_geometry(pc, entry["name"], inchikey)
     if geo is not None:
-        record, problems = make_record(seed, mol, inchikey, cid, geo, f"pubchem-3d:{cid}")
+        record, problems = make_record(entry, mol, inchikey, cid, charge, multiplicity,
+                                       geo, f"pubchem-3d:{cid}")
         if not problems:
             return record, []
-    geo, source = rdkit_geometry(mol, curved="nonplanar" in seed["tags"])
-    record, rd_problems = make_record(seed, mol, inchikey, cid, geo, source)
+    geo, source = rdkit_geometry(mol, curved="nonplanar" in entry["tags"])
+    record, rd_problems = make_record(entry, mol, inchikey, cid, charge, multiplicity, geo, source)
     if rd_problems and problems:
         rd_problems = [f"PubChem: {p}" for p in problems] + [f"RDKit: {p}" for p in rd_problems]
     return record, rd_problems
 
 
-def make_record(seed, mol, inchikey, cid, geo, source):
+def make_record(entry, mol, inchikey, cid, charge, multiplicity, geo, source):
     geo = Chem.Mol(geo)
     Chem.Kekulize(geo, clearAromaticFlags=True)
 
@@ -384,25 +615,27 @@ def make_record(seed, mol, inchikey, cid, geo, source):
 
     xyz = orient(geo.GetConformer().GetPositions())
     bond_order = {Chem.BondType.SINGLE: 1, Chem.BondType.DOUBLE: 2, Chem.BondType.TRIPLE: 3}
-    unknown = set(seed["tags"]) - COLLECTION_TAGS - SEED_HINTS
+    unknown = set(entry["tags"]) - COLLECTION_TAGS - SEED_HINTS
     if unknown:
         raise ValueError(f"unknown seed tag(s) {sorted(unknown)}")
     heavy = [a.GetIdx() for a in geo.GetAtoms() if a.GetAtomicNum() > 1]
-    out_of_plane = float(np.max(np.abs(xyz[heavy, 2]))) if heavy else 0.0
-    planar = len(heavy) >= 3 and out_of_plane <= PLANAR_TOL
-    tags = facet_tags(mol, planar) + [f"collection:{t}" for t in seed["tags"]
-                                      if t in COLLECTION_TAGS]
+    shape = shape_of(xyz, heavy)
+    tags = (facet_tags(mol, shape, charge, multiplicity) + detection_tags(entry)
+            + [f"collection:{t}" for t in entry["tags"] if t in COLLECTION_TAGS])
 
+    formula = rdMolDescriptors.CalcMolFormula(mol)
+    if entry["charge"] is not None and charge:
+        formula += ("+" if charge > 0 else "-") * abs(charge)
     record = {
-        "id": slug(seed["name"]),
-        "name": seed["name"],
-        "synonyms": seed["synonyms"],
-        "formula": rdMolDescriptors.CalcMolFormula(mol),
+        "id": slug(entry["name"]),
+        "name": entry["name"],
+        "synonyms": entry["synonyms"],
+        "formula": formula,
         "smiles": Chem.MolToSmiles(mol),
         "inchikey": inchikey,
         "pubchem_cid": cid,
-        "charge": Chem.GetFormalCharge(mol),
-        "multiplicity": sum(a.GetNumRadicalElectrons() for a in mol.GetAtoms()) + 1,
+        "charge": charge,
+        "multiplicity": multiplicity,
         "rings": rdMolDescriptors.CalcNumRings(mol),
         "tags": sorted(set(tags)),
         "geometry_source": source,
@@ -410,60 +643,73 @@ def make_record(seed, mol, inchikey, cid, geo, source):
                   for a in geo.GetAtoms()],
         "bonds": [[b.GetBeginAtomIdx(), b.GetEndAtomIdx(), bond_order[b.GetBondType()]]
                   for b in geo.GetBonds()],
+        **record_extras(entry),
     }
 
-    problems = check_bonds(record)
-    if expect_planar(mol, seed["tags"]) and not planar:
-        problems.append(f"expected planar, heavy-atom max |z| = {out_of_plane:.3f} A")
-    if "nonplanar" in seed["tags"] and planar:
+    problems = [] if source == "fixed" else check_bonds(record)
+    if expect_planar(mol, entry["tags"]) and shape == "nonplanar":
+        problems.append("expected planar, got a non-planar geometry")
+    if "nonplanar" in entry["tags"] and shape != "nonplanar":
         problems.append("tagged nonplanar but the geometry is flat")
-    rt = inchi_roundtrip(record)
-    if rt != inchikey:
-        problems.append(f"InChI round-trip gave {rt or 'nothing'}, expected {inchikey}")
+    # Geometry-derived InChI carries no stereo layer, and Molvector cannot
+    # express a radical or a charge on a specific atom: closed-shell neutral
+    # molecules must match exactly (stereo aside), others on their skeleton.
+    # A radical cation given as neutral SMILES + charge is checked as that
+    # neutral molecule. Metal compounds drawn with per-atom charges (MgNC,
+    # HMgNC) are not checked: standard InChI disconnects the metal and
+    # Molvector has nowhere to keep the charges it would need.
+    flat = Chem.Mol(mol)
+    Chem.RemoveStereochemistry(flat)
+    expected = Chem.MolToInchiKey(flat)
+    has_metal = any(a.GetSymbol() in METALS for a in mol.GetAtoms())
+    if not (has_metal and any(a.GetFormalCharge() for a in mol.GetAtoms())):
+        as_neutral = entry["charge"] is not None
+        rt = inchi_roundtrip(record, neutral=as_neutral)
+        exact = as_neutral or (charge == 0 and multiplicity == 1 and Chem.GetFormalCharge(mol) == 0)
+        if (rt != expected) if exact else (rt[:14] != expected[:14]):
+            problems.append(f"InChI round-trip gave {rt or 'nothing'}, expected {expected}")
     return record, problems
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--seed", default=SEED_PATH)
+    ap.add_argument("--astro", default=ASTRO_PATH)
+    ap.add_argument("--astro-map", default=ASTRO_MAP_PATH)
     ap.add_argument("--out", default=OUT_PATH)
     ap.add_argument("--cache", default=CACHE_PATH)
     ap.add_argument("--offline", action="store_true", help="fail instead of querying PubChem")
     ap.add_argument("--refresh", action="store_true", help="ignore the PubChem cache")
     args = ap.parse_args(argv)
 
+    entries = merge_entries(read_seed(args.seed), read_astro(args.astro, args.astro_map))
     pc = PubChem(args.cache, offline=args.offline, refresh=args.refresh)
-    records, seen_keys, seen_ids, failures = [], {}, set(), 0
+    records, seen_ids, failures = [], set(), 0
     try:
-        for seed in read_seed(args.seed):
+        for entry in entries:
             try:
-                rec, problems = build_record(seed, pc)
+                rec, problems = build_record(entry, pc)
             except Exception as e:
-                print(f"FAIL  {seed['name']}: {e}")
-                failures += 1
-                continue
-            if rec["inchikey"] in seen_keys:
-                print(f"FAIL  {seed['name']}: duplicate of {seen_keys[rec['inchikey']]}")
+                print(f"FAIL  {entry['name']}: {e}")
                 failures += 1
                 continue
             if rec["id"] in seen_ids:
-                print(f"FAIL  {seed['name']}: duplicate id {rec['id']}")
+                print(f"FAIL  {entry['name']}: duplicate id {rec['id']}")
                 failures += 1
                 continue
             if problems:
-                print(f"FAIL  {seed['name']}: " + "; ".join(problems))
+                print(f"FAIL  {entry['name']}: " + "; ".join(problems))
                 failures += 1
                 continue
-            seen_keys[rec["inchikey"]] = rec["name"]
             seen_ids.add(rec["id"])
             records.append(rec)
-            print(f"ok    {rec['name']:<28} {rec['formula']:<10} {len(rec['atoms']):>4} atoms  "
+            print(f"ok    {rec['name']:<34} {rec['formula']:<10} {len(rec['atoms']):>4} atoms  "
                   f"{rec['geometry_source']}")
     finally:
         pc.save()
 
     if failures:
-        print(f"\n{failures} seed entr{'y' if failures == 1 else 'ies'} failed; catalog not written.")
+        print(f"\n{failures} entr{'y' if failures == 1 else 'ies'} failed; catalog not written.")
         return 1
 
     payload = {"version": CATALOG_VERSION, "molecules": records}

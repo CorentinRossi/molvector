@@ -3297,7 +3297,7 @@ class CatalogDialog(QDialog):
         self._view3d = view3d
         self.selected_record = None
         self.setWindowTitle("Open from Catalog")
-        self.resize(900, 620)
+        self.resize(940, 760)
 
         layout = QVBoxLayout(self)
         self._search = QLineEdit()
@@ -3381,10 +3381,16 @@ class CatalogDialog(QDialog):
         right.addWidget(preview_frame, alignment=Qt.AlignmentFlag.AlignHCenter)
         self._info = QLabel()
         self._info.setWordWrap(True)
-        self._info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._info.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        self._info.setOpenExternalLinks(True)   # detection papers
         self._info.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
-        self._info.setFixedWidth(self.PREVIEW_W)
-        right.addWidget(self._info, 1)
+        info_scroll = QScrollArea()
+        info_scroll.setWidgetResizable(True)
+        info_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        info_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        info_scroll.setFixedWidth(self.PREVIEW_W)
+        info_scroll.setWidget(self._info)
+        right.addWidget(info_scroll, 1)
         body.addLayout(right)
         layout.addLayout(body, 1)
 
@@ -3472,10 +3478,11 @@ class CatalogDialog(QDialog):
         except Exception as e:
             _log_error(f"Catalog preview failed for {rec['id']}", e)
             self._preview.load(b"")
+        from html import escape
         n_heavy = sum(1 for a in rec["atoms"] if a[0] != "H")
-        lines = [f"<b>{rec['name']}</b> — {rec['formula']}"]
+        lines = [f"<b>{escape(rec['name'])}</b> — {rec['formula']}"]
         if rec.get("synonyms"):
-            lines.append("<i>" + ", ".join(rec["synonyms"]) + "</i>")
+            lines.append("<i>" + escape(", ".join(rec["synonyms"])) + "</i>")
         lines.append(f"{len(rec['atoms'])} atoms ({n_heavy} heavy), {rec['rings']} rings, "
                      f"charge {rec['charge']}, multiplicity {rec['multiplicity']}")
         order = {facet: k for k, (facet, _, _) in enumerate(self._catalog.FACETS)}
@@ -3487,10 +3494,22 @@ class CatalogDialog(QDialog):
         else:
             src = {"rdkit-etkdg-mmff94": "RDKit ETKDG + MMFF94",
                    "rdkit-etkdg-uff": "RDKit ETKDG + UFF",
-                   "rdkit-spectral-uff": "Spectral embedding + UFF"}.get(src, src)
+                   "rdkit-etkdg": "RDKit ETKDG (no force field)",
+                   "rdkit-spectral-uff": "Spectral embedding + UFF",
+                   "fixed": "Fixed experimental geometry"}.get(src, src)
         lines.append(f"Geometry: {src}")
         smiles = rec["smiles"] if len(rec["smiles"]) <= 48 else rec["smiles"][:47] + "…"
         lines.append(f"<span style='font-size:10px'>{smiles}</span>")
+        # Detection in space: one line per reported detection, linked to its paper.
+        for det in rec.get("detections", []):
+            status = "" if det["status"] == "confirmed" else f" ({det['status']})"
+            title = escape(det.get("paper_title") or "detection paper")
+            link = f"<a href='{escape(det['paper_url'])}'>{title}</a>" if det.get("paper_url") else title
+            ref = escape(det.get("paper_ref") or "")
+            lines.append(f"<span style='font-size:11px'>Detected {det['year']}{status}: {link}"
+                         f"{'<br>' + ref if ref else ''}</span>")
+        for note in rec.get("notes", []):
+            lines.append(f"<i style='font-size:11px'>{escape(note)}</i>")
         self._info.setText("<br>".join(lines))
 
     def _preview_svg(self, rec) -> bytes:

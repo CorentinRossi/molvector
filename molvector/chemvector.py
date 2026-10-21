@@ -303,6 +303,9 @@ def generate_2d_layout(mol: Molecule, planarity_tolerance: float = PLANARITY_TOL
             layout = _rdkit_layout(mol)
         except Exception:
             layout = None
+        # RDKit gives NaN coordinates for an all-hydrogen molecule (H2).
+        if layout is not None and not all(math.isfinite(v) for p in layout[0].values() for v in p):
+            layout = None
     if layout is None:
         layout = _fallback_layout(mol, planarity_tolerance, rot)
     positions, bond_info = layout

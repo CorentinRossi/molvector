@@ -2,8 +2,9 @@
 catalog.py — Built-in molecule catalog
 ======================================
 A curated set of PAHs and related molecules (benzene to circumcoronene, the
-16 EPA priority PAHs, fullerenes, astro-relevant cyano-PAHs, ...) bundled as
-``molvector/catalog/catalog.json.gz``.
+16 EPA priority PAHs, fullerenes, ...) plus every molecule and ion detected
+in space as listed by The Astrochymist (each with its detection paper),
+bundled as ``molvector/catalog/catalog.json.gz``.
 
 The file is produced offline by ``tools/catalog/build_catalog.py`` (which
 needs RDKit and network access to PubChem); nothing here needs RDKit.
@@ -29,35 +30,50 @@ CATALOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                             "catalog", "catalog.json.gz")
 
 # (facet, label, [(value, label, tooltip), ...]) in display order. Every
-# record has exactly one topology, shape and charge value and at least one
-# composition value (see tools/catalog/build_catalog.py).
+# record has exactly one topology and shape value and at least one elements
+# and electronic value; ring-system values apply to molecules with rings and
+# detection values to species detected in space (see
+# tools/catalog/build_catalog.py).
 FACETS = [
     ("topology", "Topology", [
+        ("acyclic", "Acyclic", "No rings: diatomics, chains, carbon-chain radicals"),
         ("unfused", "Unfused", "A single ring or rings joined by bonds (benzene, biphenyl)"),
         ("catacondensed", "Catacondensed", "Fused rings, no atom shared by three rings"),
         ("pericondensed", "Pericondensed", "Fused rings with internal atoms shared by three rings"),
         ("cage", "Cage", "Closed carbon cages (fullerenes)"),
     ]),
     ("shape", "Shape", [
+        ("linear", "Linear", "All atoms on one line (diatomics, polyynes, cyanopolyynes)"),
         ("planar", "Planar", "All heavy atoms within 0.1 Å of one plane"),
-        ("nonplanar", "Non-planar", "Bowls, helicenes, cages, twisted or saturated rings"),
+        ("nonplanar", "Non-planar", "Bowls, helicenes, cages, sp3 centers, twisted rings"),
     ]),
-    ("composition", "Composition", [
+    ("elements", "Elements", [
+        ("hydrocarbon", "Hydrocarbon", "Carbon and hydrogen only"),
+        ("heteroatom", "C + heteroatoms", "Carbon compounds with N, O, S, P, Si, halogens, …"),
+        ("inorganic", "Inorganic", "No carbon (H2O, NH3, SiO, H3+, …)"),
+        ("metal", "Metal-bearing", "Na, K, Mg, Al, Ca, Ti, V, Cr, Fe, …"),
+    ]),
+    ("rings", "Rings", [
         ("benzenoid", "Benzenoid", "Hydrocarbon made only of six-membered rings"),
-        ("nonbenzenoid", "Non-benzenoid", "Hydrocarbon with 4-, 5- or 7-membered rings"),
+        ("nonbenzenoid", "Non-benzenoid", "Hydrocarbon with 3-, 4-, 5- or 7-membered rings"),
         ("hydro", "Hydro (CH₂)", "Partly saturated: a ring CH₂ group"),
-        ("heteroatom", "Heteroatom", "N, O or S in a ring"),
-        ("substituted", "Substituted", "Side groups: methyl, vinyl, ethynyl, cyano"),
+        ("heterocycle", "Heterocycle", "N, O or S in a ring"),
+        ("substituted", "Substituted", "Side groups on the rings: methyl, cyano, ethynyl, …"),
     ]),
     ("charge", "Electronic", [
-        ("closed-shell", "Neutral", "Neutral closed-shell molecule"),
+        ("neutral", "Neutral", "No net charge"),
         ("cation", "Cation", "Positive charge"),
         ("anion", "Anion", "Negative charge"),
-        ("radical", "Radical", "Open shell (multiplicity > 1)"),
+        ("open-shell", "Open shell", "Radicals and other multiplicity > 1 species"),
+    ]),
+    ("detected", "Detected in space", [
+        ("confirmed", "Detected", "Detected in the interstellar medium or circumstellar shells"),
+        ("tentative", "Tentative", "Detection reported as tentative"),
+        ("disputed", "Disputed", "Reported detection that has since been disputed"),
     ]),
     ("collection", "Collections", [
         ("epa16", "EPA 16", "The 16 US EPA priority PAHs"),
-        ("astro", "Astro", "Interstellar / astrochemistry relevant"),
+        ("astro", "Astro PAHs", "PAHs studied in astrochemistry"),
         ("acene", "Acenes", "Linearly fused benzene rings"),
         ("helicene", "Helicenes", "Ortho-fused, helically twisted"),
         ("bowl", "Bowls", "Curved buckybowls"),
