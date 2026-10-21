@@ -34,7 +34,7 @@ molvector-setup = "molvector.setup_openbabel:setup"
 include = ["molvector*"]
 
 [tool.setuptools.package-data]
-molvector = ["assets/**/*", "test_files/*"]
+molvector = ["assets/**/*", "test_files/*", "catalog/*.json.gz"]
 
 [tool.setuptools]
 zip-safe = false

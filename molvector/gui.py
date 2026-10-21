@@ -58,7 +58,7 @@ from PyQt6.QtWidgets import (
     QHeaderView, QTabWidget, QComboBox, QPlainTextEdit, QLineEdit,
     QButtonGroup, QRadioButton, QKeySequenceEdit, QToolButton,
     QGraphicsOpacityEffect, QStackedWidget, QAbstractButton,
-    QStyle, QStyleOptionComboBox, QStylePainter,
+    QStyle, QStyleOptionComboBox, QStylePainter, QListWidget, QListWidgetItem,
 )
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtSvg import QSvgRenderer
@@ -3271,6 +3271,169 @@ class QuickExportDialog(QDialog):
         super().closeEvent(event)
 
 
+class CatalogDialog(QDialog):
+    """File → Open from Catalog…: search the bundled molecule catalog with a 2D preview."""
+
+    # Tag filters offered as toggle buttons, in display order (only those
+    # present in the catalog are shown). A record must carry every checked tag.
+    FILTER_TAGS = [
+        ("catacondensed", "Catacondensed"), ("pericondensed", "Pericondensed"),
+        ("benzenoid", "Benzenoid"), ("planar", "Planar"), ("nonplanar", "Non-planar"),
+        ("fullerene", "Fullerene"), ("bowl", "Bowl"), ("helicene", "Helicene"),
+        ("acene", "Acene"), ("epa16", "EPA 16"), ("astro", "Astro"),
+        ("substituted", "Substituted"), ("heterocycle", "Heterocycle"),
+    ]
+    PREVIEW_W, PREVIEW_H = 360, 300
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from molvector import catalog
+        self._catalog = catalog
+        self.selected_record = None
+        self.setWindowTitle("Open from Catalog")
+        self.resize(820, 540)
+
+        layout = QVBoxLayout(self)
+        self._search = QLineEdit()
+        self._search.setPlaceholderText("Search by name, formula (C24H12) or SMILES…")
+        self._search.setClearButtonEnabled(True)
+        self._search.textChanged.connect(self._refresh)
+        layout.addWidget(self._search)
+
+        present = set(catalog.all_tags())
+        tag_grid = QGridLayout()
+        tag_grid.setHorizontalSpacing(4)
+        tag_grid.setVerticalSpacing(4)
+        self._tag_buttons = {}
+        shown = [(t, label) for t, label in self.FILTER_TAGS if t in present]
+        per_row = (len(shown) + 1) // 2
+        for k, (tag, label) in enumerate(shown):
+            btn = QPushButton(label)
+            btn.setCheckable(True)
+            btn.toggled.connect(self._refresh)
+            self._tag_buttons[tag] = btn
+            tag_grid.addWidget(btn, k // per_row, k % per_row)
+        layout.addLayout(tag_grid)
+
+        body = QHBoxLayout()
+        left = QVBoxLayout()
+        self._list = QListWidget()
+        self._list.currentItemChanged.connect(self._on_current_changed)
+        self._list.itemDoubleClicked.connect(lambda _item: self.accept())
+        left.addWidget(self._list)
+        self._count = QLabel()
+        self._count.setObjectName("dim")
+        left.addWidget(self._count)
+        body.addLayout(left, 1)
+
+        right = QVBoxLayout()
+        # The SVG is rendered without a background (export mode: no name
+        # caption either), so the frame provides a white card behind it.
+        preview_frame = QFrame()
+        preview_frame.setObjectName("catalogPreview")
+        preview_frame.setStyleSheet("#catalogPreview { background: #ffffff; border-radius: 6px; }")
+        frame_layout = QVBoxLayout(preview_frame)
+        frame_layout.setContentsMargins(0, 0, 0, 0)
+        self._preview = QSvgWidget()
+        self._preview.setFixedSize(self.PREVIEW_W, self.PREVIEW_H)
+        frame_layout.addWidget(self._preview)
+        right.addWidget(preview_frame, alignment=Qt.AlignmentFlag.AlignHCenter)
+        self._info = QLabel()
+        self._info.setWordWrap(True)
+        self._info.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self._info.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        self._info.setFixedWidth(self.PREVIEW_W)
+        right.addWidget(self._info, 1)
+        body.addLayout(right)
+        layout.addLayout(body, 1)
+
+        self._buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Open | QDialogButtonBox.StandardButton.Cancel)
+        self._buttons.accepted.connect(self.accept)
+        self._buttons.rejected.connect(self.reject)
+        layout.addWidget(self._buttons)
+
+        self._refresh()
+        self._search.setFocus()
+
+    def _refresh(self, *_):
+        tags = [t for t, btn in self._tag_buttons.items() if btn.isChecked()]
+        hits = self._catalog.search(self._search.text(), tags)
+        self._list.blockSignals(True)
+        self._list.clear()
+        for rec in hits:
+            item = QListWidgetItem(f"{rec['name']}    {rec['formula']}")
+            item.setData(Qt.ItemDataRole.UserRole, rec["id"])
+            self._list.addItem(item)
+        self._list.blockSignals(False)
+        total = len(self._catalog.records())
+        self._count.setText(f"{len(hits)} of {total} molecules")
+        if hits:
+            self._list.setCurrentRow(0)
+        else:
+            self._show_record(None)
+
+    def _on_current_changed(self, current, _previous):
+        rec = self._catalog.get(current.data(Qt.ItemDataRole.UserRole)) if current else None
+        self._show_record(rec)
+
+    def _show_record(self, rec):
+        self.selected_record = rec
+        self._buttons.button(QDialogButtonBox.StandardButton.Open).setEnabled(rec is not None)
+        if rec is None:
+            self._preview.load(b"")
+            self._info.setText("")
+            return
+        try:
+            self._preview.load(self._preview_svg(rec))
+        except Exception as e:
+            _log_error(f"Catalog preview failed for {rec['id']}", e)
+            self._preview.load(b"")
+        n_heavy = sum(1 for a in rec["atoms"] if a[0] != "H")
+        lines = [f"<b>{rec['name']}</b> — {rec['formula']}"]
+        if rec.get("synonyms"):
+            lines.append("<i>" + ", ".join(rec["synonyms"]) + "</i>")
+        lines.append(f"{len(rec['atoms'])} atoms ({n_heavy} heavy), {rec['rings']} rings, "
+                     f"charge {rec['charge']}, multiplicity {rec['multiplicity']}")
+        lines.append("Tags: " + ", ".join(rec["tags"]))
+        src = rec["geometry_source"]
+        if src.startswith("pubchem-3d:"):
+            src = f"PubChem 3D conformer (CID {src.split(':', 1)[1]})"
+        else:
+            src = {"rdkit-etkdg-mmff94": "RDKit ETKDG + MMFF94",
+                   "rdkit-etkdg-uff": "RDKit ETKDG + UFF",
+                   "rdkit-spectral-uff": "Spectral embedding + UFF"}.get(src, src)
+        lines.append(f"Geometry: {src}")
+        smiles = rec["smiles"] if len(rec["smiles"]) <= 48 else rec["smiles"][:47] + "…"
+        lines.append(f"<span style='font-size:10px'>{smiles}</span>")
+        self._info.setText("<br>".join(lines))
+
+    def _preview_svg(self, rec) -> bytes:
+        from molvector.chemvector import (generate_2d_layout, render_chemvector,
+                                          DOUBLE_BOND_GAP_PX, WEDGE_SEP_PX, HASH_SPACING_PX)
+        mol = self._catalog.to_molecule(rec)
+        # A flat depiction of a cage is unreadable: show the 3D projection.
+        positions, bond_info = generate_2d_layout(mol, projection="fullerene" in rec["tags"])
+        heavy = [positions[i] for i, a in enumerate(mol.atoms) if a.element != "H" and i in positions]
+        pts = heavy or list(positions.values())
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        span_x = max(xs) - min(xs) + 2.4
+        span_y = max(ys) - min(ys) + 2.4
+        scale = min(self.PREVIEW_W / span_x, self.PREVIEW_H / span_y, 45.0)
+        # Line widths and letters are sized for a ~50 px bond (see ChemCanvas).
+        f = scale * 1.4 / 50.0
+        svg = render_chemvector(
+            mol, positions, bond_info,
+            canvas_w=self.PREVIEW_W, canvas_h=self.PREVIEW_H, scale=scale,
+            center=((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0),
+            bond_width_px=max(1.0, 3.4 * f), font_size_px=max(8.0, 26.0 * f),
+            double_bond_gap_px=DOUBLE_BOND_GAP_PX * f, wedge_sep_px=WEDGE_SEP_PX * f,
+            hash_spacing_px=HASH_SPACING_PX * f, export_mode=True,
+        )
+        return svg.encode("utf-8")
+
+
 class _DragWidget(QPushButton):
     """A draggable pushbutton that initiates a file drag on mouse move."""
 
@@ -4925,6 +5088,7 @@ class MainWindow(QMainWindow):
 
     DEFAULT_SHORTCUTS = {
         "open": _mod("Ctrl+O"),
+        "open_catalog": _mod("Ctrl+Shift+O"),
         "save_as": _mod("Ctrl+S"),
         "export_svg": _mod("Ctrl+Shift+S"),
         "export_view": _mod("Ctrl+E"),
@@ -5038,6 +5202,12 @@ class MainWindow(QMainWindow):
         act_open.triggered.connect(self._open_file)
         file_menu.addAction(act_open)
         self._shortcut_actions["open"] = act_open
+
+        act_open_catalog = QAction("Open from &Catalog…", self)
+        act_open_catalog.setShortcut(_mod("Ctrl+Shift+O"))
+        act_open_catalog.triggered.connect(self._open_from_catalog)
+        file_menu.addAction(act_open_catalog)
+        self._shortcut_actions["open_catalog"] = act_open_catalog
 
         act_save_as = QAction("Save &As…", self)
         act_save_as.setShortcut(_mod("Ctrl+S"))
@@ -5769,21 +5939,43 @@ class MainWindow(QMainWindow):
         """Parse a file and update all UI elements. Used by drag-and-drop and Open."""
         try:
             mol, src = self._load_mol_from_path(path)
-            self._color_overrides = {}
-            self._canvas.color_overrides = {}
-            self._canvas.load_molecule(mol)
-            self._legend.update_for(mol, {})
-            self._current_source = src
-            self._current_path = path
-            self._update_info_panel(mol)
-            self._update_calculations_menu(mol)
-            self._mark_chem_dirty(reset_view=True)
+            self._display_loaded_molecule(mol, src, path)
             if not getattr(self, '_restoring_session', False):
                 self.show_notification(f"Loaded {os.path.basename(path)}", "success")
         except Exception as e:
             if not getattr(self, '_restoring_session', False):
                 log_path = _log_error(f"Failed to load {path}", e)
                 self.show_notification("Failed to load file.", "error", 0, log_file=log_path)
+
+    def _display_loaded_molecule(self, mol: Molecule, src: str, path: str):
+        """Show a freshly opened molecule in the 3D and 2D views and the sidebar."""
+        self._color_overrides = {}
+        self._canvas.color_overrides = {}
+        self._canvas.load_molecule(mol)
+        self._legend.update_for(mol, {})
+        self._current_source = src
+        self._current_path = path
+        self._update_info_panel(mol)
+        self._update_calculations_menu(mol)
+        self._mark_chem_dirty(reset_view=True)
+
+    def _open_from_catalog(self):
+        try:
+            dlg = CatalogDialog(self)
+        except Exception as e:
+            log_path = _log_error("Failed to open the molecule catalog", e)
+            self.show_notification("Could not read the molecule catalog.", "error", 0, log_file=log_path)
+            return
+        if dlg.exec() != QDialog.DialogCode.Accepted or dlg.selected_record is None:
+            return
+        from molvector import catalog
+        rec = dlg.selected_record
+        try:
+            self._display_loaded_molecule(catalog.to_molecule(rec), "Catalog", "")
+            self.show_notification(f"Loaded {rec['name']} from the catalog", "success")
+        except Exception as e:
+            log_path = _log_error(f"Failed to load catalog entry {rec['id']}", e)
+            self.show_notification("Failed to load catalog entry.", "error", 0, log_file=log_path)
 
     def _update_calculations_menu(self, mol: Molecule):
         # Keep G16 Input, sep, Rotational Constants, Dipole Moment, sep, Open Terminal
