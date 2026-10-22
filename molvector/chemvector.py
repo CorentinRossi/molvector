@@ -2469,6 +2469,13 @@ class ChemCanvas(QSvgWidget):
                 return ring
         return self._get_hit_ring(pos)
 
+    def set_snapping(self, on: bool):
+        """Turn build-mode snapping on or off (the toolbar's magnet button)."""
+        self.snapping = bool(on)
+        if not self.snapping:
+            self._snap_hint = None
+        self.update()
+
     def _ideal_bond_px(self) -> float:
         return self._ref_len * self._scale_px
 
