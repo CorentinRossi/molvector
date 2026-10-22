@@ -6126,47 +6126,24 @@ class MainWindow(QMainWindow):
         self.addToolBar(self._selection_toolbar)
         self._selection_toolbar.setVisible(False)
 
-        # Build toolbar
+        # Build mode shows two toolbars, each group behind its own drag handle:
+        # [2D only: snapping, text] [element, (2D only: bonds), auto-H].
+        self._build_2d_toolbar = QToolBar("2D Drawing Tools")
+        self._build_2d_toolbar.setObjectName("build2dToolbar")
+        self._build_2d_toolbar.setIconSize(QSize(22, 22))
         self._build_options_toolbar = QToolBar("Build Tools")
         self._build_options_toolbar.setObjectName("buildOptionsToolbar")
         self._build_options_toolbar.setIconSize(QSize(22, 22))
-        self._build_options_toolbar.addWidget(QLabel(" Element: "))
-        self._elem_combo = QComboBox()
-        self._elem_combo.setMinimumContentsLength(3)
-        self._elem_combo.setMaximumWidth(60)
-        self._elem_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
-        self._common_elements = ["H", "C", "N", "O", "F", "P", "S", "Cl", "Br", "I"]
-        self._elem_combo.addItems(self._common_elements + ["..."])
-        self._elem_combo.setCurrentText("C")
-        self._elem_combo.currentTextChanged.connect(self._on_build_elem_change)
-        self._build_options_toolbar.addWidget(self._elem_combo)
-        self._build_options_toolbar.addSeparator()
-        self._auto_h_check = QCheckBox("Auto adjust H")
-        self._auto_h_check.setChecked(False)
-        self._auto_h_check.toggled.connect(self._on_auto_h_toggle)
-        self._build_options_toolbar.addWidget(self._auto_h_check)
+        # Entries of the options toolbar shown only in the 2D view.
+        self._build_2d_only_actions: list[QAction] = []
 
-        # 2D-only build subtools: snapping, the bond type selector and the
-        # text tool. Their toolbar entries are shown only in the 2D view.
-        self._build_2d_only_actions: list[QAction] = [self._build_options_toolbar.addSeparator()]
         magnet_path = os.path.join(assets_dir, "icon_magnet.svg")
         self._act_snapping = QAction(load_colored_icon(magnet_path, icon_color), "Snapping", self)
         self._act_snapping.setCheckable(True)
         self._act_snapping.setToolTip(
             "Snapping — snap the cursor to atoms, ring centers, bond midpoints and ideal next-atom positions")
         self._act_snapping.toggled.connect(lambda on: self._chem_canvas.set_snapping(on))
-        self._build_options_toolbar.addAction(self._act_snapping)
-        self._build_2d_only_actions.append(self._act_snapping)
-        self._bond_type_combo = _IconComboBox()
-        self._bond_type_combo.setIconSize(QSize(20, 20))
-        self._bond_type_combo.setStyleSheet("QComboBox { padding: 3px 4px; } QComboBox::drop-down { width: 6px; }")
-        self._bond_type_combo.setToolTip("Bond type for new bonds, and for bonds you click")
-        for k, (kind, label, tip) in enumerate(BOND_TYPES):
-            self._bond_type_combo.addItem(bond_type_icon(kind, icon_color), label, kind)
-            self._bond_type_combo.setItemData(k, tip, Qt.ItemDataRole.ToolTipRole)
-        self._bond_type_combo.currentIndexChanged.connect(
-            lambda _i: self._on_bond_type_change(self._bond_type_combo.currentData()))
-        self._build_2d_only_actions.append(self._build_options_toolbar.addWidget(self._bond_type_combo))
+        self._build_2d_toolbar.addAction(self._act_snapping)
 
         # Text tool: while it is on, clicking an atom drawn as letters edits its label
         text_path = os.path.join(assets_dir, "icon_text.svg")
@@ -6177,8 +6154,37 @@ class MainWindow(QMainWindow):
             "(text, color, bold)"
         )
         self._act_text_btn.toggled.connect(self._toggle_text_mode)
-        self._build_options_toolbar.addAction(self._act_text_btn)
-        self._build_2d_only_actions.append(self._act_text_btn)
+        self._build_2d_toolbar.addAction(self._act_text_btn)
+        self.addToolBar(self._build_2d_toolbar)
+        self._build_2d_toolbar.setVisible(False)
+
+        self._build_options_toolbar.addWidget(QLabel(" Element: "))
+        self._elem_combo = QComboBox()
+        self._elem_combo.setMinimumContentsLength(3)
+        self._elem_combo.setMaximumWidth(60)
+        self._elem_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self._common_elements = ["H", "C", "N", "O", "F", "P", "S", "Cl", "Br", "I"]
+        self._elem_combo.addItems(self._common_elements + ["..."])
+        self._elem_combo.setCurrentText("C")
+        self._elem_combo.currentTextChanged.connect(self._on_build_elem_change)
+        self._build_options_toolbar.addWidget(self._elem_combo)
+
+        self._bond_type_combo = _IconComboBox()
+        self._bond_type_combo.setIconSize(QSize(20, 20))
+        self._bond_type_combo.setStyleSheet("QComboBox { padding: 3px 4px; } QComboBox::drop-down { width: 6px; }")
+        self._bond_type_combo.setToolTip("Bond type for new bonds, and for bonds you click")
+        for k, (kind, label, tip) in enumerate(BOND_TYPES):
+            self._bond_type_combo.addItem(bond_type_icon(kind, icon_color), label, kind)
+            self._bond_type_combo.setItemData(k, tip, Qt.ItemDataRole.ToolTipRole)
+        self._bond_type_combo.currentIndexChanged.connect(
+            lambda _i: self._on_bond_type_change(self._bond_type_combo.currentData()))
+        self._build_2d_only_actions.append(self._build_options_toolbar.addWidget(QLabel(" Bonds: ")))
+        self._build_2d_only_actions.append(self._build_options_toolbar.addWidget(self._bond_type_combo))
+
+        self._auto_h_check = QCheckBox("Auto adjust H")
+        self._auto_h_check.setChecked(False)
+        self._auto_h_check.toggled.connect(self._on_auto_h_toggle)
+        self._build_options_toolbar.addWidget(self._auto_h_check)
         self.addToolBar(self._build_options_toolbar)
         self._build_options_toolbar.setVisible(False)
 
@@ -6209,6 +6215,7 @@ class MainWindow(QMainWindow):
         """
         for name, tb in self._mode_toolbars.items():
             tb.setVisible(name == active_mode)
+        self._build_2d_toolbar.setVisible(active_mode == "build" and getattr(self, "_chem_mode", False))
 
     # ── toolbar  (only the most frequent actions) ─────────────────────────────
 
