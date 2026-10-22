@@ -65,9 +65,9 @@ from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtCore import (
     Qt, QByteArray, QPoint, QPointF, pyqtSignal, pyqtProperty, QTimer, QSize, QRect, QRectF,
-    QUrl, QMimeData, QEvent, QProcess, QProcessEnvironment, QPropertyAnimation, QEasingCurve,
+    QUrl, QMimeData, QEvent, QObject, QThread, QProcess, QProcessEnvironment, QPropertyAnimation, QEasingCurve,
 )
-from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen, QLinearGradient, QBrush
+from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QFontDatabase, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen, QLinearGradient, QBrush
 from PyQt6.QtGui import QDrag
 
 try:
@@ -89,11 +89,24 @@ from molvector.render import (
     Atom, Bond,
     optimize_geometry, ensure_openbabel, openbabel_unavailable_message, _suppress_ob_stderr, calculate_rotational_constants, calculate_dipole_moment, generate_inchi, check_valence_issues,
     center_positions, ATOMIC_MASSES, mulliken_gradient_color,
+    spin_multiplicity, gaussian_atom_label,
     MULLIKEN_NEGATIVE_COLOR, MULLIKEN_ZERO_COLOR, MULLIKEN_POSITIVE_COLOR,
 )
-from molvector.chemvector import (ChemCanvas, HAS_RDKIT, check_aromaticity,
+from molvector.chemvector import (ChemCanvas, HAS_RDKIT, check_aromaticity, alt_click, ALT_CLICK_HINT,
                                   best_fit_plane_normal, face_plane_rotation)
-from molvector import native_guard
+from molvector import native_guard, paths
+
+# Per-user settings (see molvector/paths.py); never inside the installed package.
+CONFIG_FILE = paths.config_path("molvector_config.json")
+
+
+def _update_config(updates: dict) -> None:
+    """Merge *updates* into the settings file (raises OSError if it cannot be written)."""
+    config = paths.read_json(CONFIG_FILE, {})
+    if not isinstance(config, dict):
+        config = {}
+    config.update(updates)
+    paths.write_json(CONFIG_FILE, config, indent=2)
 
 # ── shortcut modifier prefix ─────────────────────────────────────────────────
 def _mod(s: str) -> str:
@@ -101,19 +114,92 @@ def _mod(s: str) -> str:
     return s
 
 
-def _log_error(summary: str, exc: Exception) -> str:
-    """Write a full traceback to ~/.molvector/error.log, return the file path."""
+def _log_error(summary: str, exc: BaseException) -> str:
+    """Append a full traceback to error.log in the per-user folder, return its path.
+
+    Called from error handlers, so it never raises: if that folder is not
+    writable it falls back to the temp folder, and returns "" if both fail.
+    """
     import traceback
-    log_dir = os.path.join(os.path.expanduser("~"), ".molvector")
-    os.makedirs(log_dir, exist_ok=True)
-    log_path = os.path.join(log_dir, "error.log")
-    with open(log_path, "a", encoding="utf-8") as f:
-        f.write(f"{'='*60}\n")
-        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {summary}\n")
-        f.write(f"{'─'*60}\n")
-        traceback.print_exception(type(exc), exc, exc.__traceback__, file=f)
-        f.write("\n")
-    return log_path
+    for log_dir in (paths.user_dir(),
+                    os.path.join(tempfile.gettempdir(), "molvector")):
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+            log_path = os.path.join(log_dir, "error.log")
+            with open(log_path, "a", encoding="utf-8") as f:
+                f.write(f"{'='*60}\n")
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')}  {summary}\n")
+                f.write(f"{'─'*60}\n")
+                traceback.print_exception(type(exc), exc, exc.__traceback__, file=f)
+                f.write("\n")
+            return log_path
+        except Exception:
+            continue
+    return ""
+
+
+class _ErrorReporter(QObject):
+    """Catches exceptions that escape Qt slots and event handlers.
+
+    PyQt6 aborts the whole application on an unhandled exception inside a
+    slot or a virtual override (paintEvent, mousePressEvent, ...).  This hook
+    logs it and shows a notification instead, so one bug cancels only the
+    action that hit it.  It may be called from a worker thread, so the
+    notification goes through a queued signal to the GUI thread.
+    """
+
+    reported = pyqtSignal(str)
+    _REPEAT_WINDOW_S = 5.0
+
+    def __init__(self, window):
+        super().__init__(window)
+        self._window = window
+        self._last = ("", 0.0)
+        self.reported.connect(self._notify)
+
+    def install(self):
+        sys.excepthook = self._hook
+
+    def _hook(self, exc_type, exc, tb):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc, tb)
+            return
+        if exc is None:
+            exc = exc_type()
+        if exc.__traceback__ is None:
+            exc = exc.with_traceback(tb)
+        # A failing paintEvent fires on every repaint; log and notify once.
+        key = f"{exc_type.__name__}: {exc}"
+        now = time.monotonic()
+        if key == self._last[0] and now - self._last[1] < self._REPEAT_WINDOW_S:
+            return
+        self._last = (key, now)
+        log_path = _log_error("Unexpected error", exc)
+        try:
+            if sys.stderr is not None:
+                sys.__excepthook__(exc_type, exc, tb)
+        except Exception:
+            pass
+        self.reported.emit(log_path)
+
+    def _notify(self, log_path: str):
+        try:
+            self._window.show_notification(
+                "Something went wrong; that action was cancelled.", "error", 0, log_file=log_path)
+        except Exception:
+            pass
+
+
+def _monospace_font(point_size: Optional[float] = None) -> QFont:
+    """The platform's fixed-width font (Menlo, Consolas, DejaVu Sans Mono, ...).
+
+    A family name such as "monospace" or "Menlo, Courier New" is not resolved
+    the same way on every platform and can fall back to a proportional font.
+    """
+    font = QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont)
+    if point_size is not None:
+        font.setPointSizeF(point_size)
+    return font
 
 
 def load_colored_icon(svg_path: str, color: str, size: int = 22) -> QIcon:
@@ -246,11 +332,69 @@ def set_icons(app, win):
     app.setWindowIcon(icon)
     win.setWindowIcon(icon)
 
-def get_safe_filename(name: str) -> str:
-    """C60+ -> C60p, removes special characters."""
-    s = name.replace("+", "p").replace("-", "m")
-    import re
-    return re.sub(r'[^a-zA-Z0-9_-]', '', s)
+class _OptimizeWorker(QThread):
+    """Runs the force-field Clean off the GUI thread.
+
+    Loading OpenBabel the first time (crash probe included) and a long
+    optimization take seconds; done here the window keeps repainting.  The
+    worker optimizes a copy, so the GUI may keep drawing the original;
+    result is (coords, steps, error) where error is None, "unavailable"
+    or the exception.
+    """
+
+    result = pyqtSignal(object, int, object)
+
+    def __init__(self, mol: Molecule, max_steps: int, tol: float, parent=None):
+        super().__init__(parent)
+        self.elements = [a.element for a in mol.atoms]
+        self._copy = Molecule(
+            name=mol.name,
+            atoms=[Atom(a.element, a.x, a.y, a.z) for a in mol.atoms],
+            bonds=[Bond(b.i, b.j, b.order) for b in mol.bonds],
+            charge=mol.charge,
+        )
+        self._max_steps = max_steps
+        self._tol = tol
+
+    def run(self):
+        try:
+            if not ensure_openbabel():
+                self.result.emit(None, 0, "unavailable")
+                return
+            steps = optimize_geometry(self._copy, max_steps=self._max_steps, tol=self._tol)
+            coords = [(a.x, a.y, a.z) for a in self._copy.atoms]
+            self.result.emit(coords, int(steps), None)
+        except Exception as e:
+            self.result.emit(None, 0, e)
+
+
+def _geometry_key(mol) -> str:
+    """Identifies a molecule's atoms and positions (for per-molecule dialog state)."""
+    return save_xyz(mol) if mol is not None else ""
+
+
+def _with_filter_extension(path: str, selected_filter: str, known: tuple) -> str:
+    """Give *path* an extension from *known*, taken from the save dialog's filter.
+
+    Some platform dialogs (GTK on Linux, "All files" on Windows) return the
+    name exactly as typed, so "molecule" or "molecule.v2" carries no usable
+    extension.  The first extension of the selected filter is then appended
+    (or known[0] for an extension-less name under a filter like "All files").
+    """
+    current = os.path.splitext(path)[1].lower()
+    if current in known:
+        return path
+    for ext in re.findall(r"\*(\.\w+)", selected_filter or ""):
+        if ext.lower() in known:
+            return path + ext.lower()
+    return path if current else path + known[0]
+
+
+def get_safe_filename(name: str, fallback: str = "molecule") -> str:
+    """A file name valid on every platform: C60+ -> C60p, spaces -> _, other
+    special characters (/ \\ : * ? ... forbidden on Windows) removed."""
+    s = name.replace("+", "p").replace("-", "m").replace(" ", "_")
+    return re.sub(r'[^a-zA-Z0-9_-]', '', s) or fallback
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -656,7 +800,7 @@ class LightPositionDialog(QDialog):
 
 
 class SettingsDialog(QDialog):
-    CONFIG_FILE = os.path.join(os.path.dirname(__file__), "molvector_config.json")
+    CONFIG_FILE = CONFIG_FILE
 
     def __init__(self, theme, bg_color, atom_scale, bond_width, bond_style, color_overrides,
                  atom_border_mode="scaled", atom_border_scale=1.04, atom_border_width=2.0,
@@ -880,18 +1024,8 @@ class SettingsDialog(QDialog):
 
     def _sc_make_default(self):
         primary, alt = self._sc_collect_shortcuts()
-        config = {}
         try:
-            if os.path.exists(self.CONFIG_FILE):
-                with open(self.CONFIG_FILE, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-        except Exception:
-            pass
-        config["shortcuts"] = primary
-        config["alt_shortcuts"] = alt
-        try:
-            with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            _update_config({"shortcuts": primary, "alt_shortcuts": alt})
             QMessageBox.information(self, "Saved", f"Shortcuts saved to:\n{self.CONFIG_FILE}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not save shortcuts:\n{e}")
@@ -1282,17 +1416,8 @@ class SettingsDialog(QDialog):
 
     def _save_config(self):
         section = self._section_key()
-        config = {}
-        if os.path.isfile(self.CONFIG_FILE):
-            try:
-                with open(self.CONFIG_FILE) as f:
-                    config = json.load(f)
-            except Exception:
-                pass
-        config[section] = self._section_data(section)
         try:
-            with open(self.CONFIG_FILE, "w") as f:
-                json.dump(config, f, indent=2)
+            _update_config({section: self._section_data(section)})
             QMessageBox.information(self, "Config Saved",
                 f"{section.title()} settings saved.")
         except Exception as e:
@@ -1336,12 +1461,8 @@ class SettingsDialog(QDialog):
     @staticmethod
     def load_config():
         path = SettingsDialog.CONFIG_FILE
-        if not os.path.isfile(path):
-            return None
-        try:
-            with open(path) as f:
-                data = json.load(f)
-        except Exception:
+        data = paths.read_json(path)
+        if not isinstance(data, dict):
             return None
 
         TAB_KEYS = {"general", "overlay", "atoms_bonds", "chem2d"}
@@ -1377,9 +1498,8 @@ class SettingsDialog(QDialog):
                 },
             }
             try:
-                with open(path, "w") as f:
-                    json.dump(data, f, indent=2)
-            except Exception:
+                paths.write_json(path, data, indent=2)
+            except OSError:
                 pass
         return data
 
@@ -1391,8 +1511,7 @@ class SettingsDialog(QDialog):
 class AtomColorDialog(QDialog):
     """Periodic-table colour editor with per-element override support."""
 
-    CONFIG_DIR  = os.path.join(os.path.expanduser("~"), ".config", "molvector")
-    CONFIG_FILE = os.path.join(CONFIG_DIR, "color_table.json")
+    CONFIG_FILE = paths.config_path("color_table.json")
 
     def __init__(self, current_overrides: dict, live_callback=None, parent=None):
         super().__init__(parent)
@@ -1529,20 +1648,15 @@ class AtomColorDialog(QDialog):
 
     def _save_default(self):
         try:
-            os.makedirs(self.CONFIG_DIR, exist_ok=True)
-            with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(self._overrides, f, indent=2)
+            paths.write_json(self.CONFIG_FILE, self._overrides, indent=2)
             QMessageBox.information(self, "Saved", f"Default palette saved to:\n{self.CONFIG_FILE}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not save palette:\n{e}")
 
     @staticmethod
     def _load_defaults() -> dict:
-        try:
-            with open(AtomColorDialog.CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
+        data = paths.read_json(AtomColorDialog.CONFIG_FILE, {})
+        return data if isinstance(data, dict) else {}
 
     def _load_and_apply(self):
         saved = self._load_defaults()
@@ -2096,9 +2210,7 @@ class CalculationsDialog(QDialog):
 # ─────────────────────────────────────────────────────────────────────────────
 
 class TerminalDialog(QDialog):
-    SCP_SERVERS_FILE = os.path.normpath(os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "..", ".molvector_scp_servers.json"
-    ))
+    SCP_SERVERS_FILE = paths.config_path("scp_servers.json")
 
     def __init__(self, workdir: str = "", current_file: str = "", mol=None, parent=None):
         super().__init__(parent)
@@ -2123,7 +2235,7 @@ class TerminalDialog(QDialog):
 
         self._output = QPlainTextEdit(self)
         self._output.setReadOnly(True)
-        self._output.setFont(QFont("Menlo, Monaco, Courier New, monospace", 11))
+        self._output.setFont(_monospace_font(11))
         self._output.setStyleSheet(
             "QPlainTextEdit { background: #1e1e1e; color: #d4d4d4; border: none; }"
         )
@@ -2132,12 +2244,12 @@ class TerminalDialog(QDialog):
 
         input_row = QHBoxLayout()
         self._prompt = QLabel("$ ")
-        self._prompt.setFont(QFont("Menlo, Monaco, Courier New, monospace", 11))
+        self._prompt.setFont(_monospace_font(11))
         self._prompt.setStyleSheet("color: #d4d4d4;")
         input_row.addWidget(self._prompt)
 
         self._input = QLineEdit(self)
-        self._input.setFont(QFont("Menlo, Monaco, Courier New, monospace", 11))
+        self._input.setFont(_monospace_font(11))
         self._input.setStyleSheet(
             "QLineEdit { background: #1e1e1e; color: #d4d4d4; border: 1px solid #333; padding: 2px 4px; }"
         )
@@ -2166,9 +2278,10 @@ class TerminalDialog(QDialog):
         is_win = platform.system() == "Windows"
 
         if is_win:
-            self._process.start("cmd.exe", [])
+            # chcp 65001: make cmd.exe print UTF-8, which _on_stdout decodes.
+            self._process.start("cmd.exe", ["/Q", "/K", "chcp 65001 >nul"])
             if self._workdir:
-                self._process.write(f"cd /d {self._workdir}\n".encode("utf-8"))
+                self._process.write(f'cd /d "{self._workdir}"\r\n'.encode("utf-8"))
                 self.setWindowTitle(f"Terminal — {self._workdir}")
         else:
             env = QProcessEnvironment.systemEnvironment()
@@ -2177,9 +2290,13 @@ class TerminalDialog(QDialog):
             self._process.setProcessEnvironment(env)
 
             bash = shutil.which("bash") or "/bin/bash"
+            # `script` gives bash a pseudo-terminal; its syntax differs between
+            # BSD/macOS (command as trailing arguments) and util-linux (-c).
             script_path = shutil.which("script")
-            if script_path:
+            if script_path and sys.platform == "darwin":
                 self._process.start(script_path, ["-q", "/dev/null", bash, "-i"])
+            elif script_path:
+                self._process.start(script_path, ["-q", "-c", f"{shlex.quote(bash)} -i", "/dev/null"])
             else:
                 self._process.start(bash, ["-i"])
 
@@ -2208,11 +2325,8 @@ class TerminalDialog(QDialog):
 
     @staticmethod
     def _load_scp_servers():
-        try:
-            with open(TerminalDialog.SCP_SERVERS_FILE) as f:
-                servers = json.load(f).get("servers", [])
-        except Exception:
-            return []
+        data = paths.read_json(TerminalDialog.SCP_SERVERS_FILE, {})
+        servers = data.get("servers", []) if isinstance(data, dict) else []
         cleaned = []
         for s in servers:
             if ":" in s:
@@ -2230,9 +2344,7 @@ class TerminalDialog(QDialog):
         servers = TerminalDialog._load_scp_servers()
         if destination not in servers:
             servers.append(destination)
-        os.makedirs(os.path.dirname(TerminalDialog.SCP_SERVERS_FILE) or ".", exist_ok=True)
-        with open(TerminalDialog.SCP_SERVERS_FILE, "w") as f:
-            json.dump({"servers": servers}, f)
+        paths.write_json(TerminalDialog.SCP_SERVERS_FILE, {"servers": servers})
 
     def _run_macro(self):
         dlg = QDialog(self)
@@ -2268,7 +2380,7 @@ class TerminalDialog(QDialog):
 
         def _on_use_input_toggled(checked: bool):
             if checked and self._mol is not None and not as_edit.text().strip():
-                safe = self._mol.name.replace(" ", "_").replace("/", "_") or "input"
+                safe = get_safe_filename(self._mol.name, "input")
                 as_edit.setText(f"{safe}.com")
 
         use_input_cb.toggled.connect(_on_use_input_toggled)
@@ -2303,8 +2415,9 @@ class TerminalDialog(QDialog):
         if use_input_cb.isChecked() and self._mol is not None:
             kind = input_combo.currentText()
             if kind == "G16":
-                if G16InputDialog._saved_state and "preview" in G16InputDialog._saved_state:
-                    content = G16InputDialog._saved_state["preview"]
+                saved = G16InputDialog._saved_state
+                if saved.get("preview") and saved.get("geometry") == _geometry_key(self._mol):
+                    content = saved["preview"]
                 else:
                     content = save_gaussian_input(self._mol)
                 suffix = ".com"
@@ -2312,7 +2425,8 @@ class TerminalDialog(QDialog):
                 content = None
             if content is not None:
                 tmp = tempfile.NamedTemporaryFile(
-                    mode="w", suffix=suffix, prefix="molvector_input_",
+                    mode="w", encoding="utf-8", newline="\n",
+                    suffix=suffix, prefix="molvector_input_",
                     delete=False, dir=tempfile.gettempdir(),
                 )
                 tmp.write(content)
@@ -2334,10 +2448,17 @@ class TerminalDialog(QDialog):
                 save_dst += "/"
             self._save_scp_server(save_dst)
 
-        cmd = f"scp {shlex.quote(src)} {shlex.quote(dst)}"
-        if created_tmp:
-            cmd += f" && rm -f {shlex.quote(src)}"
-        cmd += "\n"
+        if platform.system() == "Windows":
+            # cmd.exe: double quotes, del instead of rm (scp ships with Windows 10+).
+            cmd = f'scp "{src}" "{dst}"'
+            if created_tmp:
+                cmd += f' && del /q "{src}"'
+            cmd += "\r\n"
+        else:
+            cmd = f"scp {shlex.quote(src)} {shlex.quote(dst)}"
+            if created_tmp:
+                cmd += f" && rm -f {shlex.quote(src)}"
+            cmd += "\n"
         self._output.moveCursor(QTextCursor.MoveOperation.End)
         self._output.insertPlainText(f"$ {cmd}")
         if self._process and self._process.state() == QProcess.ProcessState.Running:
@@ -2353,9 +2474,15 @@ class TerminalDialog(QDialog):
 
     def closeEvent(self, event):
         if self._process is not None:
-            self._process.terminate()
-            if not self._process.waitForFinished(3000):
+            if platform.system() == "Windows":
+                # terminate() posts WM_CLOSE, which console programs ignore:
+                # it would only stall the window for the full timeout.
                 self._process.kill()
+                self._process.waitForFinished(1000)
+            else:
+                self._process.terminate()
+                if not self._process.waitForFinished(3000):
+                    self._process.kill()
         super().closeEvent(event)
 
 
@@ -2442,7 +2569,7 @@ class G16InputDialog(QDialog):
         chg_layout.addWidget(QLabel("Mult:"))
         self._mult_spin = QSpinBox()
         self._mult_spin.setRange(1, 10)
-        self._mult_spin.setValue(1)
+        self._mult_spin.setValue(spin_multiplicity(mol))
         self._mult_spin.setMinimumWidth(90)
         self._mult_spin.setStyleSheet(btn_style)
         self._mult_spin.valueChanged.connect(self._on_field_changed)
@@ -2483,7 +2610,7 @@ class G16InputDialog(QDialog):
         layout.addWidget(QLabel("Preview (editable):"))
         self._preview = QPlainTextEdit()
         self._preview.setMinimumHeight(180)
-        self._preview.setStyleSheet("font-family: monospace;")
+        self._preview.setFont(_monospace_font())
         self._preview.textChanged.connect(self._on_preview_edited)
         layout.addWidget(self._preview)
 
@@ -2542,6 +2669,7 @@ class G16InputDialog(QDialog):
 
     def _save_state(self):
         G16InputDialog._saved_state = {
+            "geometry": _geometry_key(self.mol),
             "preview": self._preview.toPlainText(),
             "job": self._job_combo.currentIndex(),
             "job_custom": self._job_custom.text(),
@@ -2559,11 +2687,14 @@ class G16InputDialog(QDialog):
 
     def _restore_state(self):
         s = G16InputDialog._saved_state
-
-        self._generating = True
-        self._preview.setPlainText(s.get("preview", ""))
-        self._generating = False
-        self._last_generated = s.get("preview", "")
+        # Method, basis, resources carry over between molecules; the preview,
+        # charge and multiplicity only when it is still the same geometry.
+        same_mol = s.get("geometry") == _geometry_key(self.mol)
+        if same_mol:
+            self._generating = True
+            self._preview.setPlainText(s.get("preview", ""))
+            self._generating = False
+            self._last_generated = s.get("preview", "")
 
         self._job_combo.blockSignals(True)
         self._method_combo.blockSignals(True)
@@ -2582,12 +2713,13 @@ class G16InputDialog(QDialog):
         self._method_combo.blockSignals(False)
         self._basis_combo.blockSignals(False)
 
-        self._charge_spin.blockSignals(True)
-        self._charge_spin.setValue(s.get("charge", self._charge_spin.value()))
-        self._charge_spin.blockSignals(False)
-        self._mult_spin.blockSignals(True)
-        self._mult_spin.setValue(s.get("mult", self._mult_spin.value()))
-        self._mult_spin.blockSignals(False)
+        if same_mol:
+            self._charge_spin.blockSignals(True)
+            self._charge_spin.setValue(s.get("charge", self._charge_spin.value()))
+            self._charge_spin.blockSignals(False)
+            self._mult_spin.blockSignals(True)
+            self._mult_spin.setValue(s.get("mult", self._mult_spin.value()))
+            self._mult_spin.blockSignals(False)
         self._nproc_spin.blockSignals(True)
         self._nproc_spin.setValue(s.get("nproc", self._nproc_spin.value()))
         self._nproc_spin.blockSignals(False)
@@ -2598,6 +2730,11 @@ class G16InputDialog(QDialog):
         self._custom_pct.setText(s.get("custom_pct", ""))
         self._custom_pct.blockSignals(False)
         self._loaded_route = s.get("loaded_route")
+        if not same_mol:
+            self._generating = True
+            self._last_generated = self._build_text()
+            self._preview.setPlainText(self._last_generated)
+            self._generating = False
 
     def _set_fields_enabled(self, enabled: bool):
         for w in self._all_fields:
@@ -2687,12 +2824,12 @@ class G16InputDialog(QDialog):
         lines = [
             *header,
             "",
-            self.mol.name,
+            self.mol.name or chemical_formula(self.mol) or "Molvector",  # Gaussian needs a title
             "",
             f"{charge} {mult}",
         ]
         for a in self.mol.atoms:
-            lines.append(f"{a.element:3s} {a.x:12.6f} {a.y:12.6f} {a.z:12.6f}")
+            lines.append(f"{gaussian_atom_label(a.element):3s} {a.x:12.6f} {a.y:12.6f} {a.z:12.6f}")
         lines.extend(["", "", ""])
         return "\n".join(lines)
 
@@ -2707,11 +2844,11 @@ class G16InputDialog(QDialog):
     def _copy_matrix(self):
         lines = []
         for a in self.mol.atoms:
-            lines.append(f"{a.element:3s} {a.x:12.6f} {a.y:12.6f} {a.z:12.6f}")
+            lines.append(f"{gaussian_atom_label(a.element):3s} {a.x:12.6f} {a.y:12.6f} {a.z:12.6f}")
         QApplication.clipboard().setText("\n".join(lines))
 
     def _save(self):
-        safe = self.mol.name.replace(" ", "_").replace("/", "_") or "input"
+        safe = get_safe_filename(self.mol.name, "input")
         path, _ = QFileDialog.getSaveFileName(
             self, "Save Gaussian Input", f"{safe}.gjf",
             "Gaussian input (*.gjf *.com);;All files (*)"
@@ -2719,7 +2856,8 @@ class G16InputDialog(QDialog):
         if not path:
             return
         try:
-            with open(path, "w", encoding="utf-8") as f:
+            # LF endings: Gaussian on Linux clusters chokes on Windows CRLF.
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(self._preview.toPlainText())
             QMessageBox.information(self, "Saved", f"Gaussian input saved to:\n{path}")
         except Exception as e:
@@ -3050,7 +3188,7 @@ class PeriodicTableDialog(QDialog):
 # ── Shortcut Configuration Dialog ───────────────────────────────────────────
 
 class ShortcutDialog(QDialog):
-    CONFIG_FILE = os.path.join(os.path.dirname(__file__), "molvector_config.json")
+    CONFIG_FILE = CONFIG_FILE
 
     def __init__(self, shortcut_actions: dict, alt_defaults: dict = None, parent=None):
         super().__init__(parent)
@@ -3160,18 +3298,8 @@ class ShortcutDialog(QDialog):
 
     def _make_default(self):
         primary, alt = self._collect_shortcuts()
-        config = {}
         try:
-            if os.path.exists(self.CONFIG_FILE):
-                with open(self.CONFIG_FILE, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-        except Exception:
-            pass
-        config["shortcuts"] = primary
-        config["alt_shortcuts"] = alt
-        try:
-            with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
+            _update_config({"shortcuts": primary, "alt_shortcuts": alt})
             QMessageBox.information(self, "Saved", f"Shortcuts saved to:\n{self.CONFIG_FILE}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not save shortcuts:\n{e}")
@@ -3362,7 +3490,7 @@ class CatalogDialog(QDialog):
                 btn = QPushButton(label)
                 btn.setObjectName("facetButton")
                 btn.setCheckable(True)
-                btn.setToolTip(tip + "\nAlt+click: OR within the row · Shift+click: AND")
+                btn.setToolTip(tip + f"\n{ALT_CLICK_HINT}: OR within the row · Shift+click: AND")
                 btn.clicked.connect(lambda _c=False, f=facet: self._on_facet_clicked(f))
                 buttons[value] = (btn, label)
                 line.addWidget(btn)
@@ -3388,7 +3516,7 @@ class CatalogDialog(QDialog):
         ring_row.addWidget(QLabel("to"))
         ring_row.addWidget(self._ring_max)
         ring_row.addStretch(1)
-        hint = QLabel("Within a row: AND · Alt+click: OR · Shift+click: back to AND · "
+        hint = QLabel(f"Within a row: AND · {ALT_CLICK_HINT}: OR · Shift+click: back to AND · "
                       "rows combine with AND")
         hint.setObjectName("dim")
         hint.setStyleSheet("font-size:11px;")
@@ -3513,7 +3641,7 @@ class CatalogDialog(QDialog):
         mods = QApplication.keyboardModifiers()
         if mods & Qt.KeyboardModifier.ShiftModifier:
             self._set_mode(facet, "and")
-        elif mods & Qt.KeyboardModifier.AltModifier:
+        elif alt_click(mods):
             self._set_mode(facet, "or")
         else:
             self._refresh()
@@ -3874,7 +4002,7 @@ class MoleculeCanvas(QSvgWidget):
         self._sel_drag_start: QPoint | None = None
         self._sel_rect: QRectF | None = None
 
-        # Atom dragging (Alt+click in build/select mode)
+        # Atom dragging (Alt/Ctrl+click in build/select mode)
         self._drag_atom_idx: int | None = None
         self._align_axis: np.ndarray | None = None  # bond axis for align rotate-around-bond drag
 
@@ -4371,9 +4499,9 @@ class MoleculeCanvas(QSvgWidget):
 
     def mousePressEvent(self, event):
         self._update_cursor(event.position().toPoint(), event.modifiers())
-        # Alt/Option+click in align mode toggles green highlight
+        # Alt+click (see alt_click) in align mode toggles green highlight
         mod = event.modifiers()
-        if self.align_mode and event.button() == Qt.MouseButton.LeftButton and (mod & Qt.KeyboardModifier.AltModifier):
+        if self.align_mode and event.button() == Qt.MouseButton.LeftButton and alt_click(mod):
             idx = self._get_hit_atom(event.position().toPoint())
             if idx is not None and self.molecule:
                 if idx in self._green_atoms:
@@ -4383,8 +4511,8 @@ class MoleculeCanvas(QSvgWidget):
                 self.update()
                 return
 
-        # Alt/Option+click drags an atom in build mode
-        if self.build_mode and event.button() == Qt.MouseButton.LeftButton and (mod & (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier)):
+        # Alt+click (see alt_click) drags an atom in build mode
+        if self.build_mode and event.button() == Qt.MouseButton.LeftButton and alt_click(mod):
             idx = self._get_hit_atom(event.position().toPoint())
             if idx is not None and self.molecule:
                 self.requestHistorySave.emit()
@@ -4638,7 +4766,7 @@ class MoleculeCanvas(QSvgWidget):
 
     def _update_cursor(self, pos: QPoint, mods):
         has_atom = self._get_hit_atom(pos) is not None
-        alt_held = bool(mods & (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.MetaModifier))
+        alt_held = alt_click(mods)
 
         if self.build_mode:
             if alt_held and has_atom:
@@ -5434,9 +5562,7 @@ class MainWindow(QMainWindow):
         "redo": _mod("Ctrl+Y"),
     }
 
-    LAST_MOLECULE_FILE = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)), "molvector_last_molecule.txt"
-    )
+    LAST_MOLECULE_FILE = paths.config_path("last_molecule.json")
 
     def __init__(self):
         super().__init__()
@@ -5456,6 +5582,7 @@ class MainWindow(QMainWindow):
         
         # FF Parameters
         self._ff_max_steps = 500
+        self._optimize_worker = None
         self._ff_tol = 0.01
 
         # Undo/Redo history
@@ -5485,7 +5612,14 @@ class MainWindow(QMainWindow):
         self._load_appearance_config()
         self._update_debug_menu()
         self._apply_shortcut_config()
-        self._maybe_restore_molecule()
+        try:
+            self._maybe_restore_molecule()
+        except Exception as e:
+            # Never let a restored session keep the app from starting.
+            log_path = _log_error("Session restore failed", e)
+            self._canvas.molecule = None
+            QTimer.singleShot(500, lambda: self.show_notification(
+                "The last session could not be restored.", "warning", log_file=log_path))
         if getattr(self, '_start_view_pref', '3D') == '2D':
             self._toggle_chem_mode(True)
         self._show_placeholder()
@@ -6218,7 +6352,9 @@ class MainWindow(QMainWindow):
         src = ""
         errors = []
 
-        # Try all parsers regardless of file extension
+        # The parser the extension names goes first; the others follow, in
+        # case the extension is wrong or generic (.txt).  Trying the Gaussian
+        # log parser first on everything loaded cclib for every plain XYZ.
         parsers = [
             ("Gaussian log", lambda t: parse_gaussian_log(t)),
             ("XYZ", lambda t: parse_xyz(t, name=name)),
@@ -6226,6 +6362,11 @@ class MainWindow(QMainWindow):
             ("MDL Molfile", lambda t: parse_mol(t, name=name)),
             ("Gaussian input", lambda t: parse_gaussian(t))
         ]
+        by_ext = {".log": "Gaussian log", ".out": "Gaussian log", ".xyz": "XYZ",
+                  ".pdb": "PDB", ".ent": "PDB", ".mol": "MDL Molfile", ".sdf": "MDL Molfile",
+                  ".gjf": "Gaussian input", ".com": "Gaussian input", ".gau": "Gaussian input"}
+        first = by_ext.get(os.path.splitext(base)[1].lower())
+        parsers.sort(key=lambda p: p[0] != first)
 
         with _suppress_ob_stderr():
             for source_name, parser in parsers:
@@ -6430,9 +6571,7 @@ class MainWindow(QMainWindow):
 
         text_label = QLabel("\n".join(lines))
         text_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        font = text_label.font()
-        font.setFamily("monospace")
-        text_label.setFont(font)
+        text_label.setFont(_monospace_font())
         layout.addWidget(text_label)
 
         show_cb = QCheckBox("Show dipole moment")
@@ -6914,32 +7053,17 @@ class MainWindow(QMainWindow):
                     action.setShortcut(seq_str)
 
     def _load_shortcut_overrides(self) -> tuple:
-        cfg_path = os.path.join(os.path.dirname(__file__), "molvector_config.json")
-        try:
-            if os.path.exists(cfg_path):
-                with open(cfg_path, "r", encoding="utf-8") as f:
-                    cfg = json.load(f)
-                return cfg.get("shortcuts", {}), cfg.get("alt_shortcuts", {})
-        except Exception:
-            pass
-        return {}, {}
+        cfg = paths.read_json(CONFIG_FILE, {})
+        if not isinstance(cfg, dict):
+            return {}, {}
+        return cfg.get("shortcuts", {}), cfg.get("alt_shortcuts", {})
 
     def _save_shortcut_overrides(self, primary: dict, alt: dict):
-        cfg_path = os.path.join(os.path.dirname(__file__), "molvector_config.json")
-        config = {}
         try:
-            if os.path.exists(cfg_path):
-                with open(cfg_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-        except Exception:
-            pass
-        config["shortcuts"] = primary
-        config["alt_shortcuts"] = alt
-        try:
-            with open(cfg_path, "w", encoding="utf-8") as f:
-                json.dump(config, f, indent=2)
-        except Exception:
-            pass
+            _update_config({"shortcuts": primary, "alt_shortcuts": alt})
+        except OSError as e:
+            log_path = _log_error("Could not save shortcuts", e)
+            self.show_notification("Shortcuts could not be saved.", "error", 0, log_file=log_path)
 
     def _export_view(self):
         if self._canvas.molecule is None:
@@ -6953,6 +7077,7 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
+        path = _with_filter_extension(path, sel_filter, (".pdf", ".png", ".jpg", ".jpeg", ".svg"))
 
         try:
             # 1. Get SVG data from canvas
@@ -6972,6 +7097,8 @@ class MainWindow(QMainWindow):
                 pdf.setPageSize(QPageSize(QPageSize.PageSizeId.A4))
                 # Center the molecule on the page
                 painter = QPainter(pdf)
+                if not painter.isActive():
+                    raise OSError(f"Could not write PDF file: {path}")
                 try:
                     # Scale molecule to fit page comfortably
                     target_rect = painter.viewport()
@@ -7006,12 +7133,16 @@ class MainWindow(QMainWindow):
                 finally:
                     painter.end()
                 
-                img.save(path)
-            
+                if not img.save(path):
+                    raise OSError(f"Could not write image file: {path}")
+
             elif ext == ".svg":
                 with open(path, "wb") as f:
                     f.write(svg_data)
-            
+
+            else:
+                raise ValueError(f"Unsupported export format: {ext or '(none)'}")
+
             self.show_notification(f"Exported {os.path.basename(path)}", "success")
         except Exception as e:
             log_path = _log_error(f"Export failed for {path}", e)
@@ -7030,7 +7161,8 @@ class MainWindow(QMainWindow):
         )
         if not path:
             return
-            
+        path = _with_filter_extension(path, sel_filter, (".xyz", ".pdb", ".mol", ".gjf", ".com"))
+
         try:
             ext = os.path.splitext(path)[1].lower()
             if ext == ".xyz":
@@ -7045,7 +7177,8 @@ class MainWindow(QMainWindow):
                 # Default to XYZ if extension is unknown
                 text = save_xyz(mol)
                 
-            with open(path, "w", encoding="utf-8") as f:
+            # LF endings on every platform: these files go to Linux tools and clusters.
+            with open(path, "w", encoding="utf-8", newline="\n") as f:
                 f.write(text)
             self.show_notification(f"Saved {os.path.basename(path)}", "success")
         except Exception as e:
@@ -7083,9 +7216,9 @@ class MainWindow(QMainWindow):
             elif self._chem_canvas.align_mode:
                 self._status.showMessage(
                     "2D Align — click a bond to make it vertical · Shift+click horizontal · "
-                    "Alt/Option+click 3 atoms, then Align plane, to draw the molecule in their plane"
+                    f"{ALT_CLICK_HINT} 3 atoms, then Align plane, to draw the molecule in their plane"
                 )
-                self._hint.setText("Click bond  align vertically\nShift+click  align horizontally\nAlt+click  mark atoms for plane")
+                self._hint.setText(f"Click bond  align vertically\nShift+click  align horizontally\n{ALT_CLICK_HINT}  mark atoms for plane")
             elif self._chem_canvas.measure_mode:
                 self._status.showMessage(
                     "2D Measure — click or drag two atoms for distance · Shift+drag three atoms for angle · Esc to clear"
@@ -7102,8 +7235,8 @@ class MainWindow(QMainWindow):
             self._status.showMessage("Selection: Click select atom · Drag rectangle-select · Scroll zoom")
             self._hint.setText("Click  select atom\nDrag  rectangle-select")
         elif self._canvas.align_mode:
-            self._status.showMessage("Align: Click bond align vertically · Shift+click align horizontally · Alt+click atoms to mark for plane alignment")
-            self._hint.setText("Click bond  align vertically\nShift+click  align horizontally\nAlt+click  mark atoms for plane")
+            self._status.showMessage(f"Align: Click bond align vertically · Shift+click align horizontally · {ALT_CLICK_HINT} atoms to mark for plane alignment")
+            self._hint.setText(f"Click bond  align vertically\nShift+click  align horizontally\n{ALT_CLICK_HINT}  mark atoms for plane")
         elif self._canvas.paint_mode:
             self._status.showMessage("Paint: Click atom to paint · Shift+click to remove paint")
             self._hint.setText("Click atom  paint\nShift+click  remove paint")
@@ -7264,7 +7397,7 @@ class MainWindow(QMainWindow):
         if self._chem_mode:
             c = self._chem_canvas
             if len(c._green_atoms) != 3:
-                self.show_notification("Select exactly 3 atoms (Alt/Opt+click in Align mode) to define a plane.", "warning", 0)
+                self.show_notification(f"Select exactly 3 atoms ({ALT_CLICK_HINT} in Align mode) to define a plane.", "warning", 0)
                 return
             if not c.align_plane(sorted(c._green_atoms)):
                 self.show_notification("The 3 selected atoms are collinear; cannot define a plane.", "warning", 0)
@@ -7274,7 +7407,7 @@ class MainWindow(QMainWindow):
             return
         green = self._canvas._green_atoms
         if len(green) != 3:
-            self.show_notification("Select exactly 3 atoms (Alt/Opt+click in Alignment mode) to define a plane.", "warning", 0)
+            self.show_notification(f"Select exactly 3 atoms ({ALT_CLICK_HINT} in Alignment mode) to define a plane.", "warning", 0)
             return
         mol = self._canvas.molecule
         if mol is None:
@@ -7455,23 +7588,49 @@ class MainWindow(QMainWindow):
             self._mark_chem_dirty()
 
     def _clean_molecule(self):
-        if not self._canvas.molecule or not self._canvas.molecule.atoms:
+        mol = self._canvas.molecule
+        if not mol or not mol.atoms:
+            return
+        if self._optimize_worker is not None:
+            self._status.showMessage("Optimization already running…")
             return
 
-        if not self._require_openbabel():
+        worker = _OptimizeWorker(mol, self._ff_max_steps, self._ff_tol, self)
+        elements = list(worker.elements)
+        worker.result.connect(
+            lambda coords, steps, err: self._on_optimize_done(mol, elements, coords, steps, err))
+        worker.finished.connect(self._on_optimize_thread_finished)
+        self._optimize_worker = worker
+        QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
+        self._status.showMessage("Optimizing geometry…")
+        worker.start()
+
+    def _on_optimize_thread_finished(self):
+        if self._optimize_worker is not None:
+            self._optimize_worker.deleteLater()
+            self._optimize_worker = None
+        QApplication.restoreOverrideCursor()
+
+    def _on_optimize_done(self, mol, elements, coords, steps_taken, err):
+        """Apply a finished optimization (GUI thread)."""
+        self._status.clearMessage()
+        if err is not None:
+            if err == "unavailable":
+                self.show_notification(openbabel_unavailable_message(), "warning", 0)
+            else:
+                log_path = _log_error("Molecule optimization failed", err)
+                self.show_notification("Optimization failed.", "error", 0, log_file=log_path)
+            return
+        # The user may have edited or replaced the molecule meanwhile.
+        current = self._canvas.molecule
+        if (current is not mol or len(coords) != len(mol.atoms)
+                or [a.element for a in mol.atoms] != elements):
+            self.show_notification("The molecule changed during optimization; result discarded.", "warning")
             return
 
         self._save_history()
-        try:
-            steps_taken = optimize_geometry(
-                self._canvas.molecule, 
-                max_steps=self._ff_max_steps, 
-                tol=self._ff_tol,
-            )
-        except RuntimeError as e:
-            log_path = _log_error("Molecule optimization failed", e)
-            self.show_notification("Optimization failed.", "error", 0, log_file=log_path)
-            return
+        for a, (x, y, z) in zip(mol.atoms, coords):
+            a.x, a.y, a.z = x, y, z
         self._canvas.request_render()
         self._update_info_panel(self._canvas.molecule)
         self._mark_chem_dirty()
@@ -7777,6 +7936,48 @@ class MainWindow(QMainWindow):
             self._canvas.show_dipole_arrow = o.get("show_dipole_arrow", self._canvas.show_dipole_arrow)
         self._canvas.request_render()
 
+    @staticmethod
+    def _parse_session(data) -> tuple:
+        """Validate a saved session: (Molecule or None, {canvas attribute: value}).
+
+        Raises on anything malformed, before the UI is touched.
+        """
+        if not isinstance(data, (dict, str)):
+            raise ValueError(f"unexpected session data: {type(data).__name__}")
+        mol = None
+        if isinstance(data, dict) and "molecule" in data:
+            md = data["molecule"]
+            atoms = [Atom(**a) for a in md.get("atoms", [])]
+            bonds = [Bond(**b) for b in md.get("bonds", [])]
+            for b in bonds:
+                if not (0 <= b.i < len(atoms) and 0 <= b.j < len(atoms)):
+                    raise ValueError(f"bond {b.i}-{b.j} refers to a missing atom")
+            ring_bonds = md.get("ring_bonds", [])
+            for rb in ring_bonds:
+                if not all(0 <= k < len(atoms) for k in [rb["atom"], *rb["ring"]]):
+                    raise ValueError("ring bond refers to a missing atom")
+            mult = md.get("multiplicity")
+            mol = Molecule(name=str(md.get("name", "")), atoms=atoms, bonds=bonds,
+                           charge=int(md.get("charge", 0)),
+                           multiplicity=int(mult) if mult is not None else None,
+                           ring_bonds=ring_bonds)
+
+        view = {}
+        if isinstance(data, dict):
+            shapes = {"rot": (3, 3), "pan": (2,), "axes_ref": (3, 3), "default_view": (3, 3)}
+            for key, shape in shapes.items():
+                if key in data:
+                    arr = np.array(data[key], dtype=float)
+                    if arr.shape != shape or not np.all(np.isfinite(arr)):
+                        raise ValueError(f"bad '{key}' in session view")
+                    view[f"_{key}"] = arr
+            if "zoom" in data:
+                zoom = float(data["zoom"])
+                if not (math.isfinite(zoom) and zoom > 0):
+                    raise ValueError("bad 'zoom' in session view")
+                view["_zoom"] = zoom
+        return mol, view
+
     def _maybe_restore_molecule(self):
         if not getattr(self, '_restore_on_startup', False):
             return
@@ -7784,24 +7985,17 @@ class MainWindow(QMainWindow):
         if not os.path.isfile(path):
             return
         try:
-            with open(path) as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.loads(f.read().strip())
-        except Exception:
+            mol, view = self._parse_session(data)
+        except Exception as e:
+            # A corrupt or incompatible session file must never block startup.
+            log_path = _log_error(f"Could not restore the last session from {path}", e)
+            QTimer.singleShot(500, lambda: self.show_notification(
+                "The last session could not be restored.", "warning", log_file=log_path))
             return
 
-        mol = None
-        view = data
-
-        if "molecule" in data:
-            md = data["molecule"]
-            atoms = [Atom(**a) for a in md.get("atoms", [])]
-            bonds = [Bond(**b) for b in md.get("bonds", [])]
-            mol = Molecule(
-                name=md.get("name", ""),
-                atoms=atoms,
-                bonds=bonds,
-                charge=md.get("charge", 0),
-            )
+        if mol is not None:
             self._color_overrides = {}
             self._canvas.color_overrides = {}
             self._canvas.load_molecule(mol)
@@ -7812,24 +8006,18 @@ class MainWindow(QMainWindow):
             self._update_calculations_menu(mol)
         else:
             mol_path = data.get("path", "") if isinstance(data, dict) else data
-            if mol_path and os.path.isfile(mol_path):
+            if isinstance(mol_path, str) and mol_path and os.path.isfile(mol_path):
                 self._restoring_session = True
-                self._load_and_display(mol_path)
-                self._restoring_session = False
+                try:
+                    self._load_and_display(mol_path)
+                finally:
+                    self._restoring_session = False
                 mol = self._canvas.molecule
 
-        if mol and mol.atoms and isinstance(view, dict) and view:
+        if mol and mol.atoms and view:
             c = self._canvas
-            if "rot" in view:
-                c._rot = np.array(view["rot"])
-            if "zoom" in view:
-                c._zoom = view["zoom"]
-            if "pan" in view:
-                c._pan = np.array(view["pan"])
-            if "axes_ref" in view:
-                c._axes_ref = np.array(view["axes_ref"])
-            if "default_view" in view:
-                c._default_view = np.array(view["default_view"])
+            for attr, value in view.items():
+                setattr(c, attr, value)
             pct = int(c._zoom * 100)
             self._zoom_slider.blockSignals(True)
             self._zoom_slider.setValue(pct)
@@ -7992,6 +8180,9 @@ class MainWindow(QMainWindow):
             QProcess.startDetached(sys.executable, [os.path.abspath(sys.argv[0])] + sys.argv[1:])
 
     def closeEvent(self, event):
+        if self._optimize_worker is not None:
+            # Destroying a running QThread aborts the process; let it finish.
+            self._optimize_worker.wait()
         if self._canvas.molecule:
             try:
                 c = self._canvas
@@ -7999,15 +8190,20 @@ class MainWindow(QMainWindow):
                 mol_data = {
                     "name": mol.name,
                     "charge": mol.charge,
+                    "multiplicity": mol.multiplicity,
                     "atoms": [
                         {"element": a.element, "x": a.x, "y": a.y, "z": a.z, "color": a.color,
-                         **({"charge": a.charge} if a.charge else {})}
+                         **({"charge": a.charge} if a.charge else {}),
+                         **({"label_color": a.label_color} if a.label_color else {}),
+                         **({"label_bold": a.label_bold} if a.label_bold is not None else {})}
                         for a in mol.atoms
                     ],
                     "bonds": [
-                        {"i": b.i, "j": b.j, "order": b.order}
+                        {"i": b.i, "j": b.j, "order": b.order,
+                         **({"stereo": b.stereo} if b.stereo else {})}
                         for b in mol.bonds
                     ],
+                    "ring_bonds": mol.ring_bonds,
                 }
                 data = {
                     "molecule": mol_data,
@@ -8018,8 +8214,7 @@ class MainWindow(QMainWindow):
                     "axes_ref": c._axes_ref.tolist(),
                     "default_view": c._default_view.tolist(),
                 }
-                with open(self.LAST_MOLECULE_FILE, "w") as f:
-                    json.dump(data, f)
+                paths.write_json(self.LAST_MOLECULE_FILE, data)
             except Exception:
                 pass
         if getattr(self, "_quick_svg_tmp_path", None) and os.path.exists(self._quick_svg_tmp_path):
@@ -8252,7 +8447,15 @@ def main():
     native_guard.enable_crash_traceback()
     app = QApplication(sys.argv)
     app.setApplicationName("Molvector")
-    app.setFont(QFont("sans-serif", 10))
+    # Wayland ignores setWindowIcon and finds the icon via the .desktop file name.
+    app.setDesktopFileName("molvector")
+    # Keep the platform's own UI font ("sans-serif" is not a real family on
+    # Windows/macOS and costs a slow alias lookup).  macOS keeps its native
+    # 13pt; elsewhere 10pt, the size the layouts were tuned for.
+    if platform.system() != "Darwin":
+        font = app.font()
+        font.setPointSize(10)
+        app.setFont(font)
 
     if platform.system() == "Windows":
         try:
@@ -8263,6 +8466,7 @@ def main():
 
 
     win = MainWindow()
+    _ErrorReporter(win).install()
     set_icons(app, win)
     win.show()
 

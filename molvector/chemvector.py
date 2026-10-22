@@ -35,6 +35,17 @@ import numpy as np
 import svgwrite
 
 from PyQt6.QtCore import QByteArray, QEvent, QPoint, QPointF, QRectF, Qt, QTimer, pyqtSignal
+
+# Most Linux window managers take Alt+click / Alt+drag for themselves (it
+# moves the window), so every Alt+click gesture also answers to Ctrl+click
+# (Cmd on macOS) and Meta (Ctrl on macOS, Super/Windows key elsewhere).
+ALT_CLICK_MODIFIERS = (Qt.KeyboardModifier.AltModifier | Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.MetaModifier)
+ALT_CLICK_HINT = "Alt/Ctrl+click"
+
+
+def alt_click(modifiers) -> bool:
+    """True if *modifiers* make a click an \"Alt+click\" (see ALT_CLICK_MODIFIERS)."""
+    return bool(modifiers & ALT_CLICK_MODIFIERS)
 from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetricsF, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtWidgets import (QColorDialog, QFrame, QHBoxLayout, QLineEdit, QSizePolicy,
@@ -1500,7 +1511,7 @@ def render_chemvector(
     bond_color: str = "#2b2b2b",
     bond_width_px: float = 3.4,
     double_bond_gap_px: float = DOUBLE_BOND_GAP_PX,
-    font_family: str = "Helvetica, Arial, sans-serif",
+    font_family: str = "Helvetica, Arial, Liberation Sans, Nimbus Sans, sans-serif",
     font_size_px: float = 26.0,
     show_carbon_labels: bool = False,
     show_hydrogens: bool = False,
@@ -2088,7 +2099,7 @@ class ChemCanvas(QSvgWidget):
         self._ref_len = 1.5   # typical bond length of the layout (Angstrom), see _refresh_ref_len
         self.background = "#ffffff"
         self.bond_color = "#2b2b2b"
-        self.font_family = "Helvetica, Arial, sans-serif"
+        self.font_family = "Helvetica, Arial, Liberation Sans, Nimbus Sans, sans-serif"
         # ZOOM-ONLY — all scaled by self._zoom on render, see _render_to_bytes
         self.bond_width_px = 3.4
         self.font_size_px = 26.0
@@ -2101,7 +2112,7 @@ class ChemCanvas(QSvgWidget):
         self.layout_mode = "match3d"   # "match3d" (atoms exactly where the 3D view has them) | "clean" (idealized depiction)
         self._plane = None              # (normal, point) chosen with Align plane; kept while the molecule is
         self.align_mode = False
-        self._green_atoms: set = set()   # atoms marked (Alt+click) to define a plane
+        self._green_atoms: set = set()   # atoms marked (Alt/Ctrl+click) to define a plane
         self.measure_mode = False
         # Distances/angles are real 3D quantities (from Atom.x/y/z), drawn at
         # the atoms' current 2D screen positions — same measurements the 3D
@@ -2787,7 +2798,7 @@ class ChemCanvas(QSvgWidget):
             return
 
         if self.align_mode and event.button() == Qt.MouseButton.LeftButton and self.molecule:
-            if event.modifiers() & Qt.KeyboardModifier.AltModifier:
+            if alt_click(event.modifiers()):
                 idx = self._get_hit_atom(pos)
                 if idx is not None:
                     self._green_atoms ^= {idx}
@@ -3127,7 +3138,10 @@ class ChemCanvas(QSvgWidget):
         bold = atom is None or atom.label_bold is not False
         color = (atom.label_color or self._default_label_color(idx)) if atom else \
             self._element_label_color(self.build_element)
-        font = QFont(self.font_family.split(",")[0].strip())
+        # Labels are laid out with Helvetica metrics: fall back to the
+        # metric-compatible Arial / Liberation Sans / Nimbus Sans, not DejaVu.
+        font = QFont()
+        font.setFamilies([f.strip() for f in self.font_family.split(",")])
         font.setPixelSize(max(10, round(self.font_size_px * self._eff_zoom)))
         font.setBold(bold)
         text = self._atom_label_text(idx) if atom else ""

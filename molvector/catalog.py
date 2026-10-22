@@ -289,5 +289,7 @@ def to_molecule(record: dict) -> Molecule:
     """Build a Molecule (3D coordinates in Angstrom, Kekule bond orders)."""
     atoms = [Atom(el, float(x), float(y), float(z)) for el, x, y, z in record["atoms"]]
     bonds = [Bond(int(i), int(j), int(order)) for i, j, order in record["bonds"]]
+    mult = record.get("multiplicity")
     return Molecule(name=record["name"], atoms=atoms, bonds=bonds,
-                    charge=int(record.get("charge", 0)))
+                    charge=int(record.get("charge", 0)),
+                    multiplicity=int(mult) if mult is not None else None)

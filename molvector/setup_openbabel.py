@@ -98,7 +98,24 @@ def _forget_probe_verdicts():
         pass
 
 
+def _manual_hints():
+    """Install commands that fit this platform."""
+    hints = ["pip install openbabel-wheel",
+             "conda install -c conda-forge openbabel   (in a conda environment)"]
+    if sys.platform.startswith("linux"):
+        hints += ["sudo apt install python3-openbabel   (Debian/Ubuntu)",
+                  "sudo dnf install python3-openbabel   (Fedora)",
+                  "sudo pacman -S openbabel              (Arch)"]
+    return hints
+
+
 def setup():
+    # Windows consoles with a legacy code page cannot print ✓ / — / …
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except Exception:
+            pass
     _forget_probe_verdicts()
     print("=" * 60)
     print("  Molvector — OpenBabel setup")
@@ -112,16 +129,19 @@ def setup():
     print("\n  OpenBabel is NOT working (missing or broken).")
 
     # 2. Try pip reinstall
-    print("\n[1/2] Attempting pip install …")
+    steps = 2 if sys.platform.startswith("linux") else 1
+    print(f"\n[1/{steps}] Attempting pip install …")
     if _pip_install():
         print("\n  ✓ openbabel-wheel installed and verified.")
         return True
 
-    # 3. Try system package
-    print("\n[2/2] Attempting system package install …")
-    if _system_install():
-        print("\n  ✓ System OpenBabel installed and verified.")
-        return True
+    # 3. Try system package (Linux only: macOS / Windows have no system
+    #    package that provides the Python bindings)
+    if sys.platform.startswith("linux"):
+        print("\n[2/2] Attempting system package install …")
+        if _system_install():
+            print("\n  ✓ System OpenBabel installed and verified.")
+            return True
 
     # 4. Give up gracefully
     print("\n" + "─" * 60)
@@ -131,10 +151,8 @@ def setup():
     print("  (geometry optimisation, dipole moments, InChI generation).")
     print()
     print("  To fix manually, try one of:")
-    print("    • pip install openbabel-wheel")
-    print("    • sudo apt install python3-openbabel   (Debian/Ubuntu)")
-    print("    • sudo dnf install python3-openbabel   (Fedora)")
-    print("    • sudo pacman -S openbabel              (Arch)")
+    for hint in _manual_hints():
+        print(f"    • {hint}")
     print("─" * 60)
     return False
 

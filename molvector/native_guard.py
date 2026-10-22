@@ -24,7 +24,8 @@ faithfully as possible:
    Molvector uses (force fields, charge models, InChI, ...).
 
 Only if the child exits cleanly is the library imported in the parent.
-Results are cached in ``~/.molvector/native_probe.json`` and keyed by a
+Results are cached in ``native_probe.json`` in the per-user folder
+(see :mod:`molvector.paths`) and keyed by a
 fingerprint of the environment (interpreter, library files, loaded
 extensions), so the probe only runs again when something changes.
 
@@ -53,7 +54,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Dict, Iterable, Optional, Tuple
 
-_CACHE_DIR = os.path.join(os.path.expanduser("~"), ".molvector")
+from molvector import paths
+
+_CACHE_DIR = paths.user_dir()
 _CACHE_FILE = os.path.join(_CACHE_DIR, "native_probe.json")
 _CACHE_MAX_ENTRIES = 64
 _PROBE_TIMEOUT_S = 90
@@ -204,7 +207,7 @@ def clear_cache() -> None:
 def enable_crash_traceback() -> None:
     """Make a segfault print the Python stack instead of dying silently.
 
-    Writes to stderr when there is one, else to ~/.molvector/crash.log
+    Writes to stderr when there is one, else to crash.log in the per-user folder
     (pythonw / desktop launchers have no usable stderr).
     """
     import faulthandler

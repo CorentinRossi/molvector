@@ -1,4 +1,4 @@
-﻿"""
+"""
 molvector_render.py — Renderer + Parsers + Force Field library
 ==============================================================
 Ball-and-stick SVG renderer for molecules.
@@ -27,7 +27,7 @@ Properties:
   calculate_dipole_moment(mol, ...) — Gasteiger-charge dipole moment estimation
 """
 
-import math, random, string, os, sys, tempfile
+import math, random, re, string, os, sys, tempfile, threading, functools
 import numpy as np
 import svgwrite
 from dataclasses import dataclass, field
@@ -55,6 +55,20 @@ def _load_cclib():
     if cclib is None:
         cclib = native_guard.load("cclib")
     return cclib
+
+
+# OpenBabel is not thread-safe (force fields and charge models are shared
+# singletons), and Clean runs it on a worker thread: every entry point that
+# touches it holds this lock.
+_OB_LOCK = threading.RLock()
+
+
+def _ob_locked(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        with _OB_LOCK:
+            return func(*args, **kwargs)
+    return wrapper
 
 
 _OB_DATA_DIR = None          # path to the directory containing UFF.prm
@@ -147,6 +161,7 @@ def _setup_openbabel_data() -> None:
 
 
 
+@_ob_locked
 def ensure_openbabel() -> bool:
     """Load OpenBabel on first use; return True if it is usable.
 
@@ -300,6 +315,9 @@ class Molecule:
     atoms: List[Atom] = field(default_factory=list)
     bonds: List[Bond] = field(default_factory=list)
     charge: int = 0
+    # Spin multiplicity read from a file (None: not given).  Use
+    # spin_multiplicity(mol), which also checks it against the electron count.
+    multiplicity: Optional[int] = None
     excited_states: List[ExcitedState] = field(default_factory=list)
     vibrational_modes: List[VibrationalMode] = field(default_factory=list)
     g16_nproc: Optional[int] = None
@@ -359,6 +377,60 @@ Z_TO_SYM: Dict[int, str] = {
 
 # Element symbol to atomic number (inverse of Z_TO_SYM, full Z=1..118)
 _SYM_TO_Z: Dict[str, int] = {sym: z for z, sym in Z_TO_SYM.items()}
+
+# Isotope labels Molvector uses as element symbols -> (element, mass number)
+ISOTOPES: Dict[str, Tuple[str, int]] = {
+    "D": ("H", 2), "T": ("H", 3), "13C": ("C", 13), "14C": ("C", 14), "15N": ("N", 15),
+}
+_ISOTOPE_LABEL: Dict[Tuple[str, int], str] = {v: k for k, v in ISOTOPES.items()}
+
+
+def base_element(sym: str) -> str:
+    """Chemical element of a Molvector symbol: "13C" -> "C", "D" -> "H"."""
+    return ISOTOPES.get(sym, (sym, 0))[0]
+
+
+def atomic_number(sym: str) -> int:
+    """Atomic number of a Molvector symbol (isotopes included), 0 if unknown."""
+    return _SYM_TO_Z.get(base_element(sym), 0)
+
+
+def gaussian_atom_label(sym: str) -> str:
+    """Atom label for a Gaussian input: "13C" -> "C(Iso=13)", "D" -> "H(Iso=2)"."""
+    if sym in ISOTOPES:
+        el, mass = ISOTOPES[sym]
+        return f"{el}(Iso={mass})"
+    return sym
+
+
+def _parse_gaussian_atom_label(tok: str) -> str:
+    """Inverse of gaussian_atom_label; drops other per-atom options such as
+    Fragment=n ("C(Fragment=1)" -> "C")."""
+    if "(" not in tok:
+        return tok
+    el, opts = tok.split("(", 1)
+    m = re.search(r"\biso\s*=\s*(\d+)", opts, re.IGNORECASE)
+    if m:
+        return _ISOTOPE_LABEL.get((el, int(m.group(1))), el)
+    return el
+
+
+def electron_count(mol: "Molecule") -> int:
+    return sum(atomic_number(a.element) for a in mol.atoms) - mol.charge
+
+
+def spin_multiplicity(mol: "Molecule") -> int:
+    """The molecule's spin multiplicity, consistent with its electron count.
+
+    The multiplicity read from a file is kept while it fits (2S+1 and the
+    electron count must have opposite parity); otherwise, e.g. after the
+    charge was edited, the lowest one that fits: singlet or doublet.
+    """
+    n = electron_count(mol)
+    m = mol.multiplicity
+    if m is not None and m >= 1 and (m - 1) % 2 == n % 2 and m - 1 <= max(n, 0):
+        return m
+    return 1 if n % 2 == 0 else 2
 
 # Hill order: C first, H second, then alphabetical
 _HILL_PRIORITY = {"C": 0, "H": 1}
@@ -548,13 +620,14 @@ def parse_gaussian(text: str) -> Molecule:
         try:
             charge_mult = sections[2][0].split()
             mol.charge = int(charge_mult[0])
+            mol.multiplicity = int(charge_mult[1])
         except (IndexError, ValueError):
             pass
         for line in sections[2][1:]:
             p = line.split()
             if len(p) >= 4:
                 try:
-                    elem = p[0]
+                    elem = _parse_gaussian_atom_label(p[0])
                     if elem.isdigit() or (elem.startswith('-') and elem[1:].isdigit()):
                         z = int(elem)
                         elem = Z_TO_SYM.get(z, f"X{z}")
@@ -650,12 +723,13 @@ def _parse_mol_v2000(text: str, name: str) -> Molecule:
             order = int(parts[2])
             if order == 4:
                 order = 5  # aromatic -> our resonance bond type
+            # Stereo: 1 wedge, 6 hash, narrow end at the first atom (as Bond.stereo)
+            stereo = {1: "wedge", 6: "hash"}.get(int(parts[3]) if len(parts) > 3 else 0)
             if i < len(atoms) and j < len(atoms) and i != j:
-                a, b = min(i, j), max(i, j)
-                key = (a, b)
+                key = (min(i, j), max(i, j))
                 if key not in seen_bonds:
                     seen_bonds.add(key)
-                    bonds.append(Bond(a, b, order))
+                    bonds.append(Bond(i, j, order, stereo) if stereo else Bond(*key, order))
         except (ValueError, IndexError):
             continue
 
@@ -675,6 +749,19 @@ def _parse_mol_v2000(text: str, name: str) -> Molecule:
                     aidx = int(parts[3 + k * 2]) - 1
                     chg = int(parts[4 + k * 2])
                     mol_charge += chg
+                    if 0 <= aidx < len(atoms):
+                        atoms[aidx].charge = chg
+            except (ValueError, IndexError):
+                pass
+        elif s.startswith("M  ISO"):
+            # M  ISO n a1 m1 a2 m2 ...  (isotope mass numbers)
+            parts = s.split()
+            try:
+                for k in range(int(parts[2])):
+                    aidx = int(parts[3 + k * 2]) - 1
+                    label = _ISOTOPE_LABEL.get((atoms[aidx].element, int(parts[4 + k * 2])))
+                    if label:
+                        atoms[aidx].element = label
             except (ValueError, IndexError):
                 pass
 
@@ -767,7 +854,7 @@ def _parse_gaussian_log_cclib(text: str) -> Molecule:
     if _load_cclib() is None:
         raise ImportError("cclib is not available")
 
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".log", delete=False) as f:
         f.write(text)
         tmp_path = f.name
 
@@ -795,6 +882,7 @@ def _parse_gaussian_log_cclib(text: str) -> Molecule:
 
     # ── Charge & multiplicity ────────────────────────────────────────────
     charge = int(data.charge) if hasattr(data, "charge") else 0
+    multiplicity = int(data.mult) if hasattr(data, "mult") else None
 
     # ── Name from metadata or chemical formula ───────────────────────────
     name = "Gaussian output"
@@ -930,6 +1018,7 @@ def _parse_gaussian_log_cclib(text: str) -> Molecule:
         name=name,
         atoms=atoms,
         charge=charge,
+        multiplicity=multiplicity,
         excited_states=excited_states,
         vibrational_modes=vibrational_modes,
     )
@@ -1082,10 +1171,12 @@ def _parse_gaussian_log_legacy(text: str) -> Molecule:
 
     # Extract charge from "Charge = X  Multiplicity = Y" line
     charge = 0
+    multiplicity = None
     for line in lines:
         if "Charge =" in line and "Multiplicity =" in line:
             try:
                 charge = int(line.split("Charge =")[1].split()[0])
+                multiplicity = int(line.split("Multiplicity =")[1].split()[0])
             except (IndexError, ValueError):
                 pass
             break
@@ -1247,7 +1338,7 @@ def _parse_gaussian_log_legacy(text: str) -> Molecule:
                 pass
             break
 
-    mol = Molecule(name=name, atoms=atoms, charge=charge, 
+    mol = Molecule(name=name, atoms=atoms, charge=charge, multiplicity=multiplicity,
                    excited_states=excited_states, 
                    vibrational_modes=vibrational_modes)
     mol.g16_nproc = nproc
@@ -1598,12 +1689,12 @@ def save_gaussian_input(mol: "Molecule") -> str:
         "%mem=4GB",
         f"# p opt freq b3lyp/6-31g(d)",
         "",
-        mol.name,
+        mol.name or chemical_formula(mol) or "Molvector",
         "",
-        f"{mol.charge} 1"
+        f"{mol.charge} {spin_multiplicity(mol)}"
     ]
     for a in mol.atoms:
-        lines.append(f"{a.element:3s} {a.x:12.6f} {a.y:12.6f} {a.z:12.6f}")
+        lines.append(f"{gaussian_atom_label(a.element):3s} {a.x:12.6f} {a.y:12.6f} {a.z:12.6f}")
     lines.append("")  # Gaussian needs trailing blank line
     return "\n".join(lines)
 
@@ -1612,7 +1703,7 @@ def save_pdb(mol: "Molecule") -> str:
     lines = [f"HEADER    {mol.name[:40]:<40}", f"TITLE     {mol.name}"]
     for i, a in enumerate(mol.atoms):
         serial = (i + 1) % 100000
-        line = f"HETATM{serial:5d} {a.element:<3s}  UNL A   1    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00          {a.element:>2s}"
+        line = f"HETATM{serial:5d} {a.element:<3s}  UNL A   1    {a.x:8.3f}{a.y:8.3f}{a.z:8.3f}  1.00  0.00          {base_element(a.element):>2s}"
         lines.append(line)
     
     for b in mol.bonds:
@@ -1631,30 +1722,27 @@ def save_mol(mol: "Molecule") -> str:
     ]
     for a in mol.atoms:
         lines.append(
-            f"{a.x:10.4f}{a.y:10.4f}{a.z:10.4f} {a.element:<3s} 0  0  0  0  0  0  0  0  0  0  0  0"
+            f"{a.x:10.4f}{a.y:10.4f}{a.z:10.4f} {base_element(a.element):<3s} 0  0  0  0  0  0  0  0  0  0  0  0"
         )
     for b in mol.bonds:
-        bo = b.order if b.order in (1, 2, 3) else 1
-        lines.append(f"{b.i+1:3d}{b.j+1:3d}{bo:3d}  0  0  0  0")
-    if mol.charge != 0:
-        # Find atoms with non-zero formal charge
-        # Approximate by evenly distributing total charge
-        chg_parts = []
-        if len(mol.atoms) > 0:
-            q = mol.charge // len(mol.atoms)
-            r = mol.charge % len(mol.atoms)
-            for i in range(len(mol.atoms)):
-                c = q + (1 if i < r else 0)
-                if c != 0:
-                    chg_parts.append(f"{i+1:4d}{c:4d}")
-            if chg_parts:
-                # Must write in pairs; M  CHG n a1 c1 a2 c2 ...
-                # Group in chunks of 8 pairs to fit line length
-                n_per_line = 8
-                for chunk_start in range(0, len(chg_parts), n_per_line):
-                    chunk = chg_parts[chunk_start:chunk_start + n_per_line]
-                    n = len(chunk)
-                    lines.append("M  CHG" + f"{n:3d}" + "".join(chunk))
+        bo = 4 if b.order == 5 else b.order if b.order in (1, 2, 3) else 1  # 5: resonance -> aromatic
+        stereo = {"wedge": 1, "hash": 6}.get(b.stereo, 0)  # narrow end at b.i
+        lines.append(f"{b.i+1:3d}{b.j+1:3d}{bo:3d}{stereo:3d}  0  0  0")
+    # Formal charges: the atoms' own (Text tool, read from a Molfile).  A total
+    # charge with no atom to carry it (e.g. read from Gaussian) goes on the
+    # first atom(s), so the Molfile still holds the molecule's charge.
+    charges = [a.charge for a in mol.atoms]
+    rest = mol.charge - sum(charges)
+    for i in range(abs(rest) if charges else 0):
+        charges[i % len(charges)] += 1 if rest > 0 else -1
+    chg_parts = [f"{i+1:4d}{c:4d}" for i, c in enumerate(charges) if c != 0]
+    for start in range(0, len(chg_parts), 8):   # M  CHG holds up to 8 pairs
+        chunk = chg_parts[start:start + 8]
+        lines.append("M  CHG" + f"{len(chunk):3d}" + "".join(chunk))
+    iso = [f"{i + 1:4d}{ISOTOPES[a.element][1]:4d}" for i, a in enumerate(mol.atoms) if a.element in ISOTOPES]
+    for start in range(0, len(iso), 8):
+        chunk = iso[start:start + 8]
+        lines.append("M  ISO" + f"{len(chunk):3d}" + "".join(chunk))
     lines.append("M  END")
     return "\n".join(lines) + "\n"
 
@@ -1677,6 +1765,7 @@ def center_positions(atoms: List[Atom]) -> np.ndarray:
     pos = np.array([a.pos for a in atoms])
     return pos - pos.mean(axis=0)
 
+@_ob_locked
 def optimize_geometry(mol: Molecule, max_steps: int = 500, tol: float = 0.01,
                       fixed_indices: List[int] = None, k_bond: float = None, k_rep: float = None):
     """
@@ -1772,6 +1861,7 @@ def optimize_geometry(mol: Molecule, max_steps: int = 500, tol: float = 0.01,
     return int(max_steps)
 
 
+@_ob_locked
 def calculate_dipole_moment(mol: Molecule):
     """
     Estimate the dipole moment using EEM partial charges via OpenBabel.
@@ -1966,6 +2056,7 @@ def _generate_inchi_rdkit(mol: Molecule) -> Optional[str]:
     return None
 
 
+@_ob_locked
 def _generate_inchi_openbabel(mol: Molecule) -> Optional[str]:
     import os
 
