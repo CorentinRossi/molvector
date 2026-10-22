@@ -7849,7 +7849,8 @@ class MainWindow(QMainWindow):
                     "name": mol.name,
                     "charge": mol.charge,
                     "atoms": [
-                        {"element": a.element, "x": a.x, "y": a.y, "z": a.z, "color": a.color}
+                        {"element": a.element, "x": a.x, "y": a.y, "z": a.z, "color": a.color,
+                         **({"charge": a.charge} if a.charge else {})}
                         for a in mol.atoms
                     ],
                     "bonds": [

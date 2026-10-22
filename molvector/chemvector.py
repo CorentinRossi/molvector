@@ -29,13 +29,13 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import svgwrite
 
 from PyQt6.QtCore import QByteArray, QEvent, QPoint, QPointF, QRectF, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetricsF, QPainter, QPainterPath, QPen
+from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetricsF, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtWidgets import (QColorDialog, QFrame, QHBoxLayout, QLineEdit, QSizePolicy,
                              QToolButton, QVBoxLayout)
@@ -980,37 +980,153 @@ RING_PAINT_OPACITY = 0.30
 Box = Tuple[float, float, float, float]   # (x0, x1, y0, y1) relative to the atom's center
 
 
-def _label_box(elem: str, font_size: float, n_h: int = 0, h_side: str = "right") -> Box:
+# Advance widths of Helvetica Bold (Adobe AFM, per 1000 em) for the glyphs
+# atom labels use; labels are laid out run by run from these, since Qt's SVG
+# renderer ignores tspan dx/dy (a subscript would sit on the baseline).
+_HELV_BOLD_W = {
+    **{c: 722 for c in "ABCDHKNRU"}, "E": 667, "F": 611, "G": 778, "I": 278, "J": 556,
+    "L": 611, "M": 833, "O": 778, "P": 667, "Q": 778, "S": 667, "T": 611, "V": 667,
+    "W": 944, "X": 667, "Y": 667, "Z": 611,
+    "a": 556, "b": 611, "c": 556, "d": 611, "e": 556, "f": 333, "g": 611, "h": 611,
+    "i": 278, "k": 556, "l": 278, "m": 889, "n": 611, "o": 611, "r": 389, "s": 556,
+    "t": 333, "u": 611, **{c: 556 for c in "0123456789"}, "+": 584, "\u2212": 584,
+}
+_SUB_SCALE = 0.7      # subscript / superscript size, in font sizes
+_SUB_DY = 0.22        # subscript baseline drop, in font sizes
+_SUP_DY = -0.42       # charge baseline rise, in font sizes
+
+
+def _text_w(text: str, size: float) -> float:
+    return sum(_HELV_BOLD_W.get(c, 600) for c in text) / 1000.0 * size
+
+
+def charge_text(charge: int) -> str:
+    """Superscript text of a formal charge: "+", "2+", "\u2212", "3\u2212"."""
+    if not charge:
+        return ""
+    sign = "+" if charge > 0 else "\u2212"
+    return (str(abs(charge)) if abs(charge) > 1 else "") + sign
+
+
+def parse_label_text(text: str) -> Optional[Tuple[str, Optional[int], int]]:
+    """
+    Read an atom label typed with the Text tool, in LaTeX-like notation:
+    the element with its hydrogens before or after it ("CH_3", "H_2O",
+    "NH4"; the "_" and braces are optional for the count) and a charge as
+    a superscript ("NH_4^+", "O^-", "Fe^{2+}", "Fe^{+2}"); "$...$" around
+    it is allowed. Returns (element, H count or None if no H typed, charge),
+    or None if it is not a label.
+    """
+    t = text.strip().strip("$").strip().replace("\u2212", "-")
+    charge = 0
+    m = re.search(r"\^\s*(?:\{\s*([^}]*)\s*\}|([0-9]*[+-]+|[+-][0-9]*))\s*$", t)
+    if m:
+        q = (m.group(1) if m.group(1) is not None else m.group(2)).replace(" ", "")
+        qm = re.fullmatch(r"(\d*)([+-])|([+-])(\d*)|([+]+|[-]+)", q)
+        if not qm:
+            return None
+        if qm.group(5):
+            charge = len(qm.group(5)) * (1 if qm.group(5)[0] == "+" else -1)
+        else:
+            digits, sign = (qm.group(1), qm.group(2)) if qm.group(2) else (qm.group(4), qm.group(3))
+            charge = int(digits or 1) * (1 if sign == "+" else -1)
+        t = t[:m.start()].strip()
+    elif "^" in t:
+        return None
+    count = r"(?:_?\{(\d+)\}|_?(\d+))?"
+    norm = lambda e: e[:1].upper() + e[1:].lower()
+    for pattern, h_first in ((rf"([A-Za-z][a-z]?)(?:[Hh]{count})?", False),
+                             (rf"[Hh]{count}([A-Za-z][a-z]?)", True)):
+        mm = re.fullmatch(pattern, t)
+        if not mm:
+            continue
+        if h_first:
+            elem, n = mm.group(3), mm.group(1) or mm.group(2)
+            has_h = True
+        else:
+            elem, n = mm.group(1), mm.group(2) or mm.group(3)
+            has_h = len(t) > len(elem)
+        if norm(elem) not in ATOMIC_MASSES:
+            continue
+        return norm(elem), (int(n or 1) if has_h else None), charge
+    return None
+
+
+def label_tex(elem: str, n_h: int, charge: int) -> str:
+    """The label in the Text tool's notation: "CH_3", "NH_4^+", "O^{2-}"."""
+    text = elem + ("H" + (f"_{n_h}" if n_h > 1 else "") if n_h else "")
+    if charge:
+        q = ("" if abs(charge) == 1 else str(abs(charge))) + ("+" if charge > 0 else "-")
+        text += "^" + (q if len(q) == 1 else "{" + q + "}")
+    return text
+
+
+def _label_runs(elem: str, n_h: int, h_side: str, charge: int, fs: float):
+    """
+    An atom label as runs [(text, kind, x_offset)] — kind "main", "sub" or
+    "sup" — with x offsets from the atom, whose element letters are centered
+    on it, plus the stacked "H" row's runs for h_side "up"/"down" (else []).
+    The charge goes right after the element (the "H"/"Hn" when it trails).
+    """
+    sub = fs * _SUB_SCALE
+    e_w = _text_w(elem, fs)
+    h_runs = [("H", "main")] + ([(str(n_h), "sub")] if n_h > 1 else []) if n_h > 0 else []
+    q = charge_text(charge)
+
+    def place(runs, x):
+        out = []
+        for text, kind in runs:
+            out.append((text, kind, x))
+            x += _text_w(text, sub if kind != "main" else fs)
+        return out, x
+
+    row, stacked = [], []
+    if h_side == "left" and h_runs:
+        h_w = sum(_text_w(t, sub if k != "main" else fs) for t, k in h_runs)
+        row, _ = place(h_runs, -e_w / 2 - h_w)
+        tail = [(elem, "main")]
+        more, _ = place(tail + ([(q, "sup")] if q else []), -e_w / 2)
+        row += more
+    elif h_side in ("up", "down") and h_runs:
+        row, _ = place([(elem, "main")] + ([(q, "sup")] if q else []), -e_w / 2)
+        h_w = sum(_text_w(t, sub if k != "main" else fs) for t, k in h_runs)
+        stacked, _ = place(h_runs, -h_w / 2)
+    else:
+        row, _ = place([(elem, "main")] + h_runs + ([(q, "sup")] if q else []), -e_w / 2)
+    return row, stacked
+
+
+def _label_box(elem: str, font_size: float, n_h: int = 0, h_side: str = "right",
+               charge: int = 0) -> Box:
     """
     The one rectangular box an atom's whole label occupies — its element
-    letters, plus (for a carbon with hidden hydrogens) an "H" and a
-    subscript count in the same box. The element letter(s) stay centered on
-    the atom itself, where its bonds attach; the H part goes to *h_side*:
+    letters, plus hidden hydrogens ("H" and a subscript count) and a charge
+    superscript in the same box. The element letter(s) stay centered on the
+    atom itself, where its bonds attach; the H part goes to *h_side*:
     "right" ("CH3"), "left" ("H3C"), or "down"/"up" (stacked under/over the
-    C) when bonds crowd the sides. Used for the background padding and for
-    trimming wedge/hash bonds clear of the text.
+    letters) when bonds crowd the sides. Used for the background padding and
+    for trimming bonds clear of the text.
     """
     fs = font_size
     pad = 0.12 * fs
-    half_e = 0.34 * fs * len(elem)
-    x0, x1 = -half_e - pad, half_e + pad
+    row, stacked = _label_runs(elem, n_h, h_side, charge, fs)
+    x0 = x1 = 0.0
     y0, y1 = -0.46 * fs, 0.46 * fs
-    if n_h > 0:
-        row_w = 0.68 * fs + (0.44 * fs * len(str(n_h)) if n_h > 1 else 0.0)
-        if h_side in ("right", "left"):
-            if h_side == "left":
-                x0 -= row_w
-            else:
-                x1 += row_w
-            if n_h > 1:
-                y1 = 0.62 * fs
+    for runs, in_row in ((row, True), (stacked, False)):
+        for text, kind, x in runs:
+            w = _text_w(text, fs if kind == "main" else fs * _SUB_SCALE)
+            x0, x1 = min(x0, x), max(x1, x + w)
+            if kind == "sub" and in_row:
+                y1 = max(y1, 0.62 * fs)
+            if kind == "sup":
+                y0 = min(y0, -0.86 * fs)
+    x0, x1 = x0 - pad, x1 + pad
+    if stacked:
+        tall = (0.62 if n_h > 1 else 0.46) * fs
+        if h_side == "down":
+            y1 = max(y1, _H_ROW_DY * fs + tall)
         else:
-            half_r = row_w / 2 + pad
-            x0, x1 = min(x0, -half_r), max(x1, half_r)
-            if h_side == "down":
-                y1 = _H_ROW_DY * fs + (0.62 if n_h > 1 else 0.46) * fs
-            else:
-                y0 = -_H_ROW_DY * fs - 0.46 * fs
+            y0 = min(y0, -_H_ROW_DY * fs - 0.46 * fs)
     return (x0, x1, y0, y1)
 
 
@@ -1042,38 +1158,28 @@ def _pick_h_side(angles: List[float], lone: str = "right") -> str:
 
 
 def _label_svg_text(dwg, elem: str, n_h: int, h_side: str, x: float, y: float,
-                    font_size: float, font_family: str, fill: str, bold: bool = True) -> list:
-    """The label's text element(s): the element, then "H" and a subscript count."""
+                    font_size: float, font_family: str, fill: str, bold: bool = True,
+                    charge: int = 0) -> list:
+    """
+    The label's text elements: the element, "H" and a subscript count, and a
+    charge superscript — one <text> per run at its own position, so the
+    subscript sits below the baseline and the charge above it in every
+    renderer.
+    """
     base_y = y + font_size * 0.35
-    kw = dict(font_size=font_size, font_family=font_family,
-              font_weight="bold" if bold else "normal", fill=fill)
-    if n_h <= 0:
-        return [dwg.text(elem, insert=(x, base_y), text_anchor="middle", **kw)]
-    sub_size = font_size * 0.7
-    sub_dy = font_size * 0.22
-    if h_side in ("down", "up"):
-        row_y = base_y + (_H_ROW_DY if h_side == "down" else -_H_ROW_DY) * font_size
-        row = dwg.text("", insert=(x, row_y), text_anchor="middle", **kw)
-        row.add(dwg.tspan("H"))
-        if n_h > 1:
-            row.add(dwg.tspan(str(n_h), font_size=sub_size, dy=[sub_dy]))
-        return [dwg.text(elem, insert=(x, base_y), text_anchor="middle", **kw), row]
-    half_e = 0.34 * font_size * len(elem)
-    if h_side == "left":
-        t = dwg.text("", insert=(x + half_e, base_y), text_anchor="end", **kw)
-        t.add(dwg.tspan("H"))
-        if n_h > 1:
-            t.add(dwg.tspan(str(n_h), font_size=sub_size, dy=[sub_dy]))
-            t.add(dwg.tspan(elem, dy=[-sub_dy]))
-        else:
-            t.add(dwg.tspan(elem))
-    else:
-        t = dwg.text("", insert=(x - half_e, base_y), text_anchor="start", **kw)
-        t.add(dwg.tspan(elem))
-        t.add(dwg.tspan("H"))
-        if n_h > 1:
-            t.add(dwg.tspan(str(n_h), font_size=sub_size, dy=[sub_dy]))
-    return [t]
+    kw = dict(font_family=font_family, font_weight="bold" if bold else "normal", fill=fill)
+    row, stacked = _label_runs(elem, n_h, h_side, charge, font_size)
+    row_dy = (_H_ROW_DY if h_side == "down" else -_H_ROW_DY) * font_size
+    out = []
+    for runs, line_y in ((row, base_y), (stacked, base_y + row_dy)):
+        for text, kind, dx in runs:
+            if kind == "main":
+                out.append(dwg.text(text, insert=(x + dx, line_y), font_size=font_size, **kw))
+            else:
+                dy = (_SUB_DY if kind == "sub" else _SUP_DY) * font_size
+                out.append(dwg.text(text, insert=(x + dx, line_y + dy),
+                                    font_size=font_size * _SUB_SCALE, **kw))
+    return out
 
 
 def _blend_hex(base: str, overlay: str, alpha: float) -> str:
@@ -1515,13 +1621,15 @@ def render_chemvector(
         elem = mol.atoms[i].element
         v = valence_sum.get(i, 0)
         bad_valence = elem == "C" and (v > 4.6 or (explicit_h_known and abs(v - 4) > 0.6))
-        is_implicit_carbon = (elem == "C" and not show_carbon_labels and not bad_valence)
+        is_implicit_carbon = (elem == "C" and not show_carbon_labels and not bad_valence
+                              and not getattr(mol.atoms[i], "charge", 0))
         needs_label = (not is_implicit_carbon) or visible_degree.get(i, 0) == 0
         if needs_label:
             label_h_side[i] = _pick_h_side(
                 bond_angles.get(i, []), "left" if elem in H_FIRST_ELEMENTS else "right")
             label_box_by_atom[i] = _label_box(
-                elem, font_size, hidden_h_count.get(i, 0), label_h_side[i])
+                elem, font_size, hidden_h_count.get(i, 0), label_h_side[i],
+                getattr(mol.atoms[i], "charge", 0))
 
     # A ring that's fully aromatic — genuinely order 5 on mol, or flagged in
     # the caller's own aromatic_bond_idxs overlay (Check Aromaticity, which
@@ -1677,6 +1785,7 @@ def render_chemvector(
             dwg, elem, hidden_h_count.get(i, 0), label_h_side.get(i, "right"),
             x, y, font_size, font_family, text_color,
             bold=getattr(atom, "label_bold", None) is not False,
+            charge=getattr(atom, "charge", 0),
         ):
             text_group.add(el)
 
@@ -1752,17 +1861,22 @@ class _LabelEdit(QLineEdit):
 class _TextEditor(QFrame):
     """
     Inline editor for an atom label (Text tool): the text field, with a
-    minimal toolbar right above it (color swatch, bold toggle). Enter
-    commits, Escape cancels; clicking elsewhere on the canvas commits too
-    (ChemCanvas does that — not focus-out, since the color dialog takes focus).
+    minimal toolbar right above it (color swatch, CPK button, bold toggle).
+    Enter commits, Escape cancels; clicking elsewhere on the canvas commits
+    too (ChemCanvas does that — not focus-out, since the color dialog takes
+    focus). The CPK button previews the default color of the element being
+    typed (*default_color(element)*) and resets the label to it.
     """
 
     committed = pyqtSignal()
     cancelled = pyqtSignal()
 
-    def __init__(self, text: str, color: str, bold: bool, font: QFont, parent=None):
+    def __init__(self, text: str, color: str, bold: bool, font: QFont,
+                 default_color: Callable[[str], str], uses_default: bool = True, parent=None):
         super().__init__(parent)
         self.color = color
+        self.uses_default = uses_default   # label follows its element's CPK / theme color
+        self._default_color = default_color
         self._invalid = False
         self.setObjectName("chemTextEditor")
         self.setStyleSheet(
@@ -1779,6 +1893,11 @@ class _TextEditor(QFrame):
         self._color_btn.setToolTip("Text color")
         self._color_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._color_btn.clicked.connect(self._pick_color)
+        self._cpk_btn = QToolButton()
+        self._cpk_btn.setText("CPK")
+        self._cpk_btn.setToolTip("Use the element's CPK color")
+        self._cpk_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._cpk_btn.clicked.connect(self._use_cpk)
         self._bold_btn = QToolButton()
         self._bold_btn.setText("B")
         self._bold_btn.setToolTip("Bold")
@@ -1787,6 +1906,7 @@ class _TextEditor(QFrame):
         self._bold_btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._bold_btn.toggled.connect(self._restyle)
         bar.addWidget(self._color_btn)
+        bar.addWidget(self._cpk_btn)
         bar.addWidget(self._bold_btn)
         bar.addStretch()
         outer.addLayout(bar)
@@ -1796,6 +1916,7 @@ class _TextEditor(QFrame):
         self.edit.cancelled.connect(self.cancelled)
         self.edit.returnPressed.connect(self.committed)
         self.edit.textChanged.connect(lambda _t: self.set_invalid(False))
+        self.edit.textChanged.connect(self._on_text_changed)
         outer.addWidget(self.edit)
         self._restyle()
 
@@ -1811,12 +1932,43 @@ class _TextEditor(QFrame):
         col = QColorDialog.getColor(QColor(self.color), self, "Text color")
         if col.isValid():
             self.color = col.name()
+            self.uses_default = False
             self._restyle()
         self.edit.setFocus()
+
+    def _cpk_color(self) -> Optional[str]:
+        """Default color of the element typed so far, if it reads as one."""
+        parsed = parse_label_text(self.edit.text())
+        return self._default_color(parsed[0]) if parsed else None
+
+    def _use_cpk(self):
+        cpk = self._cpk_color()
+        if cpk:
+            self.color = cpk
+        self.uses_default = True
+        self._restyle()
+        self.edit.setFocus()
+
+    def _on_text_changed(self, _text):
+        # While the label follows its element, retyping the element recolors it.
+        if self.uses_default:
+            cpk = self._cpk_color()
+            if cpk:
+                self.color = cpk
+        self._restyle()
 
     def _restyle(self, *_):
         self._color_btn.setStyleSheet(
             f"QToolButton {{ background: {self.color}; border: 2px solid #ffffff; outline: 1px solid #c8ccd2; }}")
+        # CPK button: a swatch of the element's color in front of its text,
+        # pressed-looking while the label follows that default.
+        cpk = self._cpk_color() or "#c8ccd2"
+        pix = QPixmap(12, 12)
+        pix.fill(QColor(cpk))
+        self._cpk_btn.setIcon(QIcon(pix))
+        self._cpk_btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self._cpk_btn.setStyleSheet(
+            "QToolButton { background: %s; }" % ("#dbe9ff" if self.uses_default else "#ffffff"))
         font = self.edit.font()
         font.setBold(self.bold)
         self.edit.setFont(font)
@@ -1936,6 +2088,7 @@ class ChemCanvas(QSvgWidget):
         self.text_mode = False
         self._text_editor: Optional[_TextEditor] = None
         self._editing_atom: Optional[int] = None
+        self._editing_new_at: Optional[QPoint] = None   # empty-canvas point of a new atom being typed
         self._editing_initial: Tuple[str, bool] = ("#000000", True)
         self._label_boxes: Dict[int, Box] = {}   # canvas box of each drawn label, from the last render
 
@@ -2518,6 +2671,7 @@ class ChemCanvas(QSvgWidget):
                     h_to_remove.append(nb_idx)
 
         for d_idx in sorted(set(h_to_remove + [idx]), reverse=True):
+            mol.charge -= getattr(mol.atoms[d_idx], "charge", 0)   # its typed charge leaves with it
             mol.atoms.pop(d_idx)
             new_bonds: List[Bond] = []
             new_bond_info: BondInfo = {}
@@ -2884,6 +3038,11 @@ class ChemCanvas(QSvgWidget):
 
     def _default_label_color(self, idx: int) -> str:
         """The label color atom *idx* gets without a color of its own."""
+        return self._element_label_color(self.molecule.atoms[idx].element)
+
+    def _element_label_color(self, elem: str) -> str:
+        """The default label color of element *elem*: its CPK color (or the
+        user's override of it), or black/white in the "black" label mode."""
         if self.label_color_mode == "black":
             bg = self.background.lstrip("#")
             try:
@@ -2891,7 +3050,6 @@ class ChemCanvas(QSvgWidget):
             except (ValueError, IndexError):
                 lum = 1.0
             return "#000000" if lum >= 0.4 else "#ffffff"
-        elem = self.molecule.atoms[idx].element
         return self.color_overrides.get(elem) or CPK_BASE.get(elem, DEFAULT_BASE)
 
     def set_text_mode(self, enabled: bool):
@@ -2902,10 +3060,11 @@ class ChemCanvas(QSvgWidget):
 
     def _text_press(self, event, pos: QPoint) -> bool:
         """
-        Text tool: click an atom drawn as letters to edit its label — text,
-        color and boldness. Clicking elsewhere confirms the open edit; it
-        never adds atoms. Right-clicks are left to build mode (delete).
-        Returns whether the press was handled.
+        Text tool: click an atom (its letters, or a bare skeleton vertex) to
+        edit its label — text, color and boldness — or empty canvas to type
+        a new atom there. Clicking elsewhere confirms the open edit.
+        Right-clicks are left to build mode (delete). Returns whether the
+        press was handled.
         """
         if event.button() != Qt.MouseButton.LeftButton:
             return False
@@ -2913,21 +3072,28 @@ class ChemCanvas(QSvgWidget):
             self._commit_text_editor()
             return True
         idx = self._get_hit_label(pos)
-        if idx is not None:
-            self._open_text_editor(idx)
+        if idx is None:
+            idx = self._get_hit_atom(pos)
+        self._open_text_editor(idx, None if idx is not None else QPoint(pos))
         return True
 
-    def _open_text_editor(self, idx: int):
+    def _open_text_editor(self, idx: Optional[int], new_at: Optional[QPoint] = None):
+        """Edit atom *idx*'s label, or (idx None) type a new atom at canvas point *new_at*."""
         self._close_text_editor()
-        atom = self.molecule.atoms[idx]
-        bold = atom.label_bold is not False
-        color = atom.label_color or self._default_label_color(idx)
+        atom = self.molecule.atoms[idx] if idx is not None else None
+        bold = atom is None or atom.label_bold is not False
+        color = (atom.label_color or self._default_label_color(idx)) if atom else \
+            self._element_label_color(self.build_element)
         font = QFont(self.font_family.split(",")[0].strip())
         font.setPixelSize(max(10, round(self.font_size_px * self._eff_zoom)))
         font.setBold(bold)
-        editor = _TextEditor(self._atom_label_text(idx), color, bold, font, self)
-        editor.edit.setMaxLength(6)
-        editor.setProperty("anchor_center", self._to_canvas_point(*self._positions[idx]))
+        text = self._atom_label_text(idx) if atom else ""
+        editor = _TextEditor(text, color, bold, font, self._element_label_color,
+                             uses_default=atom is None or not atom.label_color, parent=self)
+        editor.edit.setMaxLength(16)
+        center = self._to_canvas_point(*self._positions[idx]) if atom else (new_at.x(), new_at.y())
+        editor.setProperty("anchor_center", center)
+        self._editing_new_at = new_at
         editor.committed.connect(self._commit_text_editor)
         editor.cancelled.connect(self._close_text_editor)
         editor._fit_width()
@@ -2939,30 +3105,61 @@ class ChemCanvas(QSvgWidget):
         self._editing_initial = (color, bold)
 
     def _commit_text_editor(self) -> bool:
-        """Apply the open label edit. An unreadable label keeps the editor open (marked red)."""
+        """
+        Apply the open label edit: change the atom (element, hydrogens,
+        charge, style), delete it when the text was cleared, or add the new
+        atom typed on empty canvas. An unreadable label keeps the editor open
+        (marked red).
+        """
         editor = self._text_editor
         if editor is None:
             return True
-        parsed = self._parse_atom_label(editor.edit.text())
+        idx, new_at = self._editing_atom, self._editing_new_at
+        text = editor.edit.text().strip()
+        if not text:
+            self._close_text_editor()
+            if idx is not None:                   # cleared label: remove the atom
+                self.requestHistorySave.emit()
+                self._delete_atom(idx)
+                self.moleculeChanged.emit()
+                self.request_render()
+            return True
+        parsed = parse_label_text(text)
         if parsed is None:
             editor.set_invalid(True)
             return False
-        idx = self._editing_atom
-        atom = self.molecule.atoms[idx]
+        symbol, n_h, charge = parsed
         # Only store a style that was actually changed here (or already set),
         # so untouched labels keep following the element / theme default.
-        new_color = editor.color if (editor.color != self._editing_initial[0] or atom.label_color) else None
-        new_bold = editor.bold if (editor.bold != self._editing_initial[1] or atom.label_bold is not None) else None
+        atom = self.molecule.atoms[idx] if idx is not None else None
+        if editor.uses_default:
+            new_color = None
+        elif atom is not None:
+            new_color = editor.color if (editor.color != self._editing_initial[0] or atom.label_color) else None
+        else:
+            new_color = editor.color
+        initial_bold = self._editing_initial[1]
+        new_bold = editor.bold if (editor.bold != initial_bold or (atom and atom.label_bold is not None)) else None
         self._close_text_editor()
-        symbol, n_h = parsed
-        want_h, cur_h = self._label_h_target(idx, symbol, n_h)
-        label_changed = symbol != atom.element or want_h != len(cur_h)
-        if not label_changed and (new_color, new_bold) == (atom.label_color, atom.label_bold):
-            return True
+
         self.requestHistorySave.emit()
+        if atom is None:                          # a new atom typed on empty canvas
+            build_element = self.build_element
+            self.build_element = symbol
+            idx = self._add_atom(new_at)
+            self.build_element = build_element
+            atom = self.molecule.atoms[idx]
+        want_h, cur_h = self._label_h_target(idx, symbol, n_h)
+        old_charge = getattr(atom, "charge", 0)
+        structure_changed = (new_at is not None or symbol != atom.element
+                             or want_h != len(cur_h) or charge != old_charge)
         atom.label_color, atom.label_bold = new_color, new_bold
-        if label_changed:
+        if charge != old_charge:
+            atom.charge = charge
+            self.molecule.charge += charge - old_charge
+        if symbol != atom.element or want_h != len(cur_h):
             self._apply_atom_label(idx, symbol, want_h, cur_h)
+        if structure_changed:
             self.moleculeChanged.emit()
         self.request_render()
         return True
@@ -2971,6 +3168,7 @@ class ChemCanvas(QSvgWidget):
         editor = self._text_editor
         self._text_editor = None
         self._editing_atom = None
+        self._editing_new_at = None
         if editor is not None:
             editor.blockSignals(True)
             editor.hide()
@@ -3050,41 +3248,22 @@ class ChemCanvas(QSvgWidget):
             self.reset_view()
 
     def _atom_label_text(self, idx: int) -> str:
-        """What the atom's label reads: its element, plus "H"/"Hn" for hydrogens hidden on it."""
-        text = self.molecule.atoms[idx].element
-        n_h = len(self._hidden_h_atoms(idx))
-        if n_h:
-            text += "H" + (str(n_h) if n_h > 1 else "")
-        return text
-
-    @staticmethod
-    def _parse_atom_label(text: str) -> Optional[Tuple[str, Optional[int]]]:
-        """
-        Parse an edited label into (element, hydrogen count or None if no H
-        part was typed): "N", "cl", "CH", "CH3", or the reversed "H3C".
-        """
-        text = text.strip()
-        norm = lambda t: t[:1].upper() + t[1:].lower()
-        if norm(text) in ATOMIC_MASSES:
-            return norm(text), None
-        for n in (2, 1):
-            m = re.fullmatch(r"[Hh](\d*)", text[n:])
-            if norm(text[:n]) in ATOMIC_MASSES and m:
-                return norm(text[:n]), int(m.group(1) or 1)
-            m = re.fullmatch(r"[Hh](\d*)", text[:-n] if len(text) > n else "x")
-            if m and norm(text[-n:]) in ATOMIC_MASSES:
-                return norm(text[-n:]), int(m.group(1) or 1)
-        return None
+        """What the atom's label reads, in the Text tool's notation ("NH_4^+")."""
+        atom = self.molecule.atoms[idx]
+        return label_tex(atom.element, len(self._hidden_h_atoms(idx)), getattr(atom, "charge", 0))
 
     def _label_h_target(self, idx: int, symbol: str, n_h: Optional[int]) -> Tuple[int, List[int]]:
         """(hydrogen count the edited label asks for, hidden H atoms atom *idx* has now)."""
         mol = self.molecule
         cur_h = self._hidden_h_atoms(idx)
-        # An H count only means something once the molecule carries explicit H
-        # atoms; in a bare heavy-atom sketch hydrogens stay implicit.
-        has_h_atoms = any(a.element == "H" for a in mol.atoms)
-        want_h = n_h if (n_h is not None and has_h_atoms and mol.atoms[idx].element != "H") else len(cur_h)
-        return want_h, cur_h
+        # The label shows the hydrogens, so the typed count is literal ("O"
+        # over "OH" removes the H) once the molecule carries explicit H
+        # atoms — or is just this one new atom. In a bare heavy-atom sketch
+        # hydrogens stay implicit and the count is ignored.
+        has_h_atoms = any(a.element == "H" for a in mol.atoms) or len(mol.atoms) == 1
+        if not has_h_atoms or mol.atoms[idx].element == "H":
+            return len(cur_h), cur_h
+        return (n_h or 0), cur_h
 
     def _apply_atom_label(self, idx: int, symbol: str, want_h: int, cur_h: List[int]):
         """Set atom *idx*'s element and add/remove hidden H atoms to reach *want_h*."""

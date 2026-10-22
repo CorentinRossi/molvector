@@ -257,6 +257,9 @@ class Atom:
     # 2D label style set with the Text tool (None: default color / bold)
     label_color: Optional[str] = None
     label_bold: Optional[bool] = None
+    # Formal charge typed on the atom's label (Text tool, "NH_4^+"); setting
+    # it shifts the molecule's total Molecule.charge by the same amount.
+    charge: int = 0
 
     @property
     def pos(self) -> np.ndarray:
@@ -1887,11 +1890,7 @@ def check_valence_issues(mol: Molecule) -> List[str]:
     """Return a list of valence warning strings for atoms in *mol*."""
     issues: List[str] = []
 
-    charge_idx = -1
-    if mol.charge != 0:
-        charge_idx = next(
-            (i for i, a in enumerate(mol.atoms) if a.element != "H"), 0
-        )
+    atom_charges = _formal_charges(mol)
 
     kek = _kekule_orders(mol)
 
@@ -1905,8 +1904,7 @@ def check_valence_issues(mol: Molecule) -> List[str]:
                 else:
                     bond_sum += b.order
         expected = _EXPECTED_VALENCE.get(a.element, 4)
-        if idx == charge_idx:
-            expected -= mol.charge
+        expected -= atom_charges.get(idx, 0)
         if bond_sum > expected:
             issues.append(
                 f"{a.element}#{idx + 1}: valence {int(bond_sum)} exceeds expected {expected}"
@@ -1916,6 +1914,20 @@ def check_valence_issues(mol: Molecule) -> List[str]:
                 f"{a.element}#{idx + 1}: valence {int(bond_sum)} is below expected {expected}"
             )
     return issues
+
+
+def _formal_charges(mol: Molecule) -> Dict[int, int]:
+    """
+    Per-atom formal charges: the ones typed on atom labels (Atom.charge)
+    when there are any, with whatever net charge they leave unexplained on
+    the first heavy atom; otherwise the whole Molecule.charge there.
+    """
+    charges = {i: a.charge for i, a in enumerate(mol.atoms) if getattr(a, "charge", 0)}
+    rest = mol.charge - sum(charges.values())
+    if rest:
+        heavy = next((i for i, a in enumerate(mol.atoms) if a.element != "H"), 0)
+        charges[heavy] = charges.get(heavy, 0) + rest
+    return charges
 
 
 def _generate_inchi_rdkit(mol: Molecule) -> Optional[str]:
@@ -1940,9 +1952,8 @@ def _generate_inchi_rdkit(mol: Molecule) -> Optional[str]:
                  3: Chem.BondType.TRIPLE}.get(order, Chem.BondType.SINGLE)
         rw.AddBond(b.i, b.j, btype)
 
-    if mol.charge != 0:
-        heavy = next((i for i, a in enumerate(mol.atoms) if a.element != "H"), 0)
-        rw.GetAtomWithIdx(heavy).SetFormalCharge(mol.charge)
+    for idx, q in _formal_charges(mol).items():
+        rw.GetAtomWithIdx(idx).SetFormalCharge(q)
 
     conf = Chem.Conformer(len(mol.atoms))
     for i, a in enumerate(mol.atoms):
@@ -1963,13 +1974,10 @@ def _generate_inchi_openbabel(mol: Molecule) -> Optional[str]:
     obmol = ob.OBMol()
     obmol.SetDimension(3)
 
-    heavy_idx = -1
-    for idx, a in enumerate(mol.atoms):
+    for a in mol.atoms:
         oba = obmol.NewAtom()
         oba.SetAtomicNum(_SYM_TO_Z.get(a.element, 6))
         oba.SetVector(a.x, a.y, a.z)
-        if heavy_idx < 0 and a.element != "H":
-            heavy_idx = idx
 
     _kekule_prepass(mol, obmol)
 
@@ -1978,8 +1986,8 @@ def _generate_inchi_openbabel(mol: Molecule) -> Optional[str]:
             continue
         obmol.AddBond(b.i + 1, b.j + 1, b.order)
 
-    if mol.charge != 0 and heavy_idx >= 0:
-        obmol.GetAtom(heavy_idx + 1).SetFormalCharge(mol.charge)
+    for idx, q in _formal_charges(mol).items():
+        obmol.GetAtom(idx + 1).SetFormalCharge(q)
 
     obmol.ConnectTheDots()
     obmol.PerceiveBondOrders()
