@@ -46,6 +46,7 @@ from molvector.render import (
     CPK_BASE,
     DEFAULT_BASE,
     ATOMIC_MASSES,
+    COVALENT_RADII,
     Molecule,
     _kekule_orders,
 )
@@ -1180,6 +1181,48 @@ def _label_svg_text(dwg, elem: str, n_h: int, h_side: str, x: float, y: float,
                 out.append(dwg.text(text, insert=(x + dx, line_y + dy),
                                     font_size=font_size * _SUB_SCALE, **kw))
     return out
+
+
+# Valence electrons of main-group elements, for the lone pairs that shape
+# where hydrogens added from a label go.
+_VALENCE_ELECTRONS = {"B": 3, "C": 4, "Si": 4, "N": 5, "P": 5, "As": 5, "O": 6, "S": 6,
+                      "Se": 6, "F": 7, "Cl": 7, "Br": 7, "I": 7}
+
+# Typical X-H bond lengths (Angstrom) for hydrogens added from a label; other
+# elements use the sum of covalent radii.
+_XH_BOND = {"C": 1.09, "N": 1.01, "O": 0.96, "S": 1.34, "P": 1.42, "Si": 1.48,
+            "B": 1.19, "F": 0.92, "Cl": 1.27, "Br": 1.41, "I": 1.61}
+
+
+def _fibonacci_sphere(n: int) -> np.ndarray:
+    """*n* evenly spread unit vectors (deterministic)."""
+    k = np.arange(n) + 0.5
+    z = 1.0 - 2.0 * k / n
+    phi = math.pi * (3.0 - math.sqrt(5.0)) * k
+    rxy = np.sqrt(1.0 - z * z)
+    return np.stack([rxy * np.cos(phi), rxy * np.sin(phi), z], axis=1)
+
+
+_SPHERE_DIRS = _fibonacci_sphere(2000)   # candidate directions for new hydrogens
+
+
+def _relax_directions(fixed: np.ndarray, free: np.ndarray, steps: int = 300) -> np.ndarray:
+    """Spread the unit vectors *free* as points repelling each other and the
+    *fixed* ones (1/r^2, Thomson-style) on the unit sphere; *fixed* stay put."""
+    free = free.copy()
+    for _ in range(steps):
+        allp = np.vstack([fixed, free]) if len(fixed) else free
+        moved = []
+        for k, d in enumerate(free):
+            diff = d - allp
+            dist = np.linalg.norm(diff, axis=1)
+            keep = dist > 1e-9
+            force = (diff[keep] / dist[keep, None] ** 3).sum(axis=0)
+            force -= np.dot(force, d) * d                      # tangential part only
+            step = d + 0.05 * force / max(1.0, np.linalg.norm(force))
+            moved.append(step / np.linalg.norm(step))
+        free = np.array(moved)
+    return free
 
 
 def _blend_hex(base: str, overlay: str, alpha: float) -> str:
@@ -3277,33 +3320,64 @@ class ChemCanvas(QSvgWidget):
             self._add_hidden_hydrogens(idx, want_h - len(cur_h))
 
     def _add_hidden_hydrogens(self, idx: int, count: int):
-        """Attach *count* new H atoms to atom *idx*, placed opposite its existing bonds in 3D and 2D."""
+        """
+        Attach *count* new H atoms to atom *idx*, spread VSEPR-style: the new
+        hydrogens, the terminal hydrogens it already carries and its lone
+        pairs (from its valence electrons) relax as mutually repelling
+        points on a sphere around it, its other bonds held fixed. Four
+        domains end up tetrahedral (CH3, NH4+, the bent H2O and Ph2SH2),
+        three trigonal (=CH2), however many hydrogens are added and in what
+        order. (Pointing each new H straight away from the summed neighbor
+        directions stacked a second H right on top of the first at a bent
+        center such as Ph-S-Ph.)
+        """
         mol = self.molecule
         c = mol.atoms[idx]
         cpos = np.array([c.x, c.y, c.z])
-        away = np.zeros(3)
+        r = _XH_BOND.get(c.element, COVALENT_RADII.get(c.element, 0.77) + 0.31)
+        fixed, own_h, bond_orders = [], [], count
         for b in mol.bonds:
-            if idx in (b.i, b.j):
-                o = mol.atoms[b.j if b.i == idx else b.i]
-                v = np.array([o.x, o.y, o.z]) - cpos
-                n = np.linalg.norm(v)
-                if n > 1e-6:
-                    away -= v / n
-        if np.linalg.norm(away) < 1e-6:
-            away = np.array([0.0, 0.0, 1.0])
-        away /= np.linalg.norm(away)
-        ref = np.array([1.0, 0.0, 0.0]) if abs(away[0]) < 0.9 else np.array([0.0, 1.0, 0.0])
-        u = np.cross(away, ref); u /= np.linalg.norm(u)
-        v2 = np.cross(away, u)
+            if idx not in (b.i, b.j):
+                continue
+            bond_orders += 1.5 if b.order == 5 else b.order
+            j = b.j if b.i == idx else b.i
+            o = mol.atoms[j]
+            v = np.array([o.x, o.y, o.z]) - cpos
+            n = np.linalg.norm(v)
+            if n < 1e-6:
+                continue
+            terminal_h = o.element == "H" and sum(1 for b2 in mol.bonds if j in (b2.i, b2.j)) == 1
+            (own_h if terminal_h else fixed).append((j, v / n))
+        valence_e = _VALENCE_ELECTRONS.get(c.element)
+        lone_pairs = 0 if valence_e is None else \
+            max(0, int(valence_e - getattr(c, "charge", 0) - bond_orders) // 2)
+
+        # Starting points: hydrogens already there, then each new H and lone
+        # pair where there is the most room (max-min angle over a fixed sphere).
+        start = [d for _, d in own_h]
+        for _ in range(count + lone_pairs):
+            dirs = [d for _, d in fixed] + start
+            if dirs:
+                start.append(_SPHERE_DIRS[int(np.argmin(np.max(_SPHERE_DIRS @ np.array(dirs).T, axis=1)))])
+            else:
+                start.append(self.view_rot.T @ np.array([1.0, 0.0, 0.0]))   # lone atom: to the right
+        relaxed = _relax_directions(np.array([d for _, d in fixed]).reshape(-1, 3), np.array(start))
+        h_dirs = relaxed[:len(own_h) + count]           # the trailing ones are the lone pairs
+
         px, py = self._positions.get(idx, (c.x, c.y))
-        for k in range(count):
-            ang = 2 * math.pi * k / count
-            d = away + (0.8 if count > 1 else 0.0) * (math.cos(ang) * u + math.sin(ang) * v2)
-            d /= np.linalg.norm(d)
-            pos = cpos + 1.09 * d
+        def place_2d(h_idx, d):
+            sx, sy = (self.view_rot @ d)[:2]            # its direction as this view shows it
+            self._positions[h_idx] = (px + float(sx) * r, py + float(sy) * r)
+        for (h_idx, _), d in zip(own_h, h_dirs[:len(own_h)]):
+            h = mol.atoms[h_idx]
+            h.x, h.y, h.z = map(float, cpos + np.linalg.norm(
+                np.array([h.x, h.y, h.z]) - cpos) * d)
+            place_2d(h_idx, d)
+        for d in h_dirs[len(own_h):]:
+            pos = cpos + r * d
             mol.atoms.append(Atom("H", float(pos[0]), float(pos[1]), float(pos[2])))
             h_idx = len(mol.atoms) - 1
-            self._positions[h_idx] = (px + float(d[0]) * 0.9, py + float(d[1]) * 0.9)
+            place_2d(h_idx, d)
             self._add_bond(idx, h_idx)
 
     def paintEvent(self, event):
