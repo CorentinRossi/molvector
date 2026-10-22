@@ -1017,15 +1017,19 @@ def _label_box(elem: str, font_size: float, n_h: int = 0, h_side: str = "right")
 _H_ROW_DY = 0.92   # line spacing (in font sizes) of a stacked "H" row
 
 
-def _pick_h_side(angles: List[float]) -> str:
+# A lone hydride is written with its hydrogens first: H2O, H2S, HCl.
+H_FIRST_ELEMENTS = {"O", "S", "Se", "Te", "F", "Cl", "Br", "I"}
+
+
+def _pick_h_side(angles: List[float], lone: str = "right") -> str:
     """
-    Where a carbon's "H"/"Hn" goes given the canvas angles (radians, y down)
+    Where an atom's "H"/"Hn" goes given the canvas angles (radians, y down)
     of its visible bonds: right by default, left if the right is crowded,
     otherwise above/below — whichever direction leaves the most angular
-    clearance from the bonds.
+    clearance from the bonds. With no bonds at all it goes on side *lone*.
     """
     if not angles:
-        return "right"
+        return lone
 
     def clearance(direction: float) -> float:
         return min(abs((a - direction + math.pi) % (2 * math.pi) - math.pi) for a in angles)
@@ -1089,9 +1093,16 @@ def _hydrogen_is_implicit(i: int, mol: Molecule, bond_info: BondInfo) -> bool:
     """
     Whether hydrogen atom *i* should be hidden in implicit-hydrogen mode.
 
-    Only a hydrogen bonded exclusively to carbon is implicit — one on a
-    heteroatom (O-H, N-H, ...) stays explicit, per organic-chemistry
-    convention. A hydrogen carrying a wedge/hash (perspective) bond also
+    A hydrogen on a heteroatom (O-H, N-H, S-H, Mg-H, ...) is hidden and
+    written into that atom's label instead — "OH", "NH2", "H2O" — the usual
+    skeletal-formula convention, which also keeps it readable when the 3D
+    projection puts a short, out-of-plane X-H bond right on its atom's
+    letter. A hydrogen bonded to another hydrogen (H2, H3+) or to two atoms
+    stays explicit: there is no heavy atom to fold it into.
+
+    On carbon, a hydrogen is implicit unless it carries a wedge/hash
+    (perspective) bond that could be conveying real stereochemistry. One
+    carrying a wedge/hash bond also
     stays explicit, but only when it could actually be conveying real
     stereochemistry — i.e. its carbon carries exactly one hydrogen (so it's
     a genuine potential stereocenter). A carbon with two or more hydrogens
@@ -1109,8 +1120,10 @@ def _hydrogen_is_implicit(i: int, mol: Molecule, bond_info: BondInfo) -> bool:
         return False  # isolated H atom — nothing to hide it from, keep visible
 
     neighbor_idx = [b.j if b.i == i else b.i for bi, b in own_bonds]
-    if not all(mol.atoms[n].element == "C" for n in neighbor_idx):
+    if len(neighbor_idx) != 1 or mol.atoms[neighbor_idx[0]].element == "H":
         return False
+    if mol.atoms[neighbor_idx[0]].element != "C":
+        return True
 
     carbon_idx = neighbor_idx[0]
     h_siblings = sum(
@@ -1474,17 +1487,17 @@ def render_chemvector(
 
     # Needed up front (not just in the atom-drawing loop below) so wedge/hash
     # bonds can trim themselves clear of whichever end has a visible label.
-    # Hydrogens hidden as implicit (bonded only to carbon) are folded into
-    # their carbon's label when it has one: "CH", "CH2", "CH3" — the count as
-    # a subscript in the same text box. The H part goes on whichever side
-    # (right/left/below/above) the carbon's bonds leave most free.
+    # Hydrogens hidden as implicit are folded into their atom's label when it
+    # has one: "CH3", "OH", "NH2" — the count as a subscript in the same text
+    # box. The H part goes on whichever side (right/left/below/above) the
+    # atom's bonds leave most free.
     hidden_h_count: Dict[int, int] = {}
     bond_angles: Dict[int, List[float]] = {}
     for b in mol.bonds:
         for a, o in ((b.i, b.j), (b.j, b.i)):
             if a not in visible:
                 continue
-            if o not in visible and mol.atoms[o].element == "H" and mol.atoms[a].element == "C":
+            if o not in visible and mol.atoms[o].element == "H" and mol.atoms[a].element != "H":
                 hidden_h_count[a] = hidden_h_count.get(a, 0) + 1
             elif o in visible:
                 ax_, ay_ = to_canvas(a)
@@ -1505,7 +1518,8 @@ def render_chemvector(
         is_implicit_carbon = (elem == "C" and not show_carbon_labels and not bad_valence)
         needs_label = (not is_implicit_carbon) or visible_degree.get(i, 0) == 0
         if needs_label:
-            label_h_side[i] = _pick_h_side(bond_angles.get(i, []))
+            label_h_side[i] = _pick_h_side(
+                bond_angles.get(i, []), "left" if elem in H_FIRST_ELEMENTS else "right")
             label_box_by_atom[i] = _label_box(
                 elem, font_size, hidden_h_count.get(i, 0), label_h_side[i])
 

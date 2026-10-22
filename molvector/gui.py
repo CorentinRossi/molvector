@@ -3281,7 +3281,9 @@ class CatalogDialog(QDialog):
     """File → Open from Catalog…: search the bundled molecule catalog with a preview.
 
     The preview matches the main window's active view: a Chemvector 2D
-    depiction, or with *view3d* (the 3D MoleculeCanvas) a ball-and-stick
+    depiction in the 2D view's *layout* ("match3d": the 3D geometry seen
+    face-on, as the 2D view shows it on entry; "clean": RDKit's idealized
+    depiction), or with *view3d* (the 3D MoleculeCanvas) a ball-and-stick
     rendering in that canvas' current style.
     """
 
@@ -3290,11 +3292,12 @@ class CatalogDialog(QDialog):
     # Each button shows how many molecules it would give and is disabled at 0.
     PREVIEW_W, PREVIEW_H = 360, 300
 
-    def __init__(self, parent=None, view3d=None):
+    def __init__(self, parent=None, view3d=None, layout: str = "match3d"):
         super().__init__(parent)
         from molvector import catalog
         self._catalog = catalog
         self._view3d = view3d
+        self._layout = layout
         self.selected_record = None
         self.setWindowTitle("Open from Catalog")
         self.resize(940, 760)
@@ -3544,17 +3547,34 @@ class CatalogDialog(QDialog):
     def _preview_svg_2d(self, rec) -> bytes:
         from molvector.chemvector import generate_2d_layout, render_chemvector, DOUBLE_BOND_GAP_PX
         mol = self._catalog.to_molecule(rec)
-        # A flat depiction of a cage is unreadable: show the 3D projection.
-        positions, bond_info = generate_2d_layout(mol, projection="topology:cage" in rec["tags"])
+        # A flat depiction of a cage is unreadable: always show the 3D projection.
+        projection = self._layout == "match3d" or "topology:cage" in rec["tags"]
+        rot = np.eye(3)
+        normal = best_fit_plane_normal(mol)
+        if projection and normal is not None:
+            rot = face_plane_rotation(normal, rot)   # as MainWindow._face_molecule_plane
+        positions, bond_info = generate_2d_layout(mol, view_rot=rot, projection=projection)
         heavy = [positions[i] for i, a in enumerate(mol.atoms) if a.element != "H" and i in positions]
         pts = heavy or list(positions.values())
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
         span_x = max(xs) - min(xs) + 2.4
         span_y = max(ys) - min(ys) + 2.4
-        scale = min(self.PREVIEW_W / span_x, self.PREVIEW_H / span_y, 45.0)
-        # Line widths and letters are sized for a ~50 px bond (see ChemCanvas).
-        f = scale * 1.4 / 50.0
+        # Line widths and letters are sized for a 50 px typical bond, as in
+        # ChemCanvas: its median bond (heavy-atom bonds first), so H2's
+        # 0.74 A bond gets letters to match, not ones sized for C-C.
+        ref_len = 1.5
+        for heavy_only in (True, False):
+            lens = [math.dist(positions[b.i], positions[b.j]) for b in mol.bonds
+                    if b.i in positions and b.j in positions
+                    and not (heavy_only and "H" in (mol.atoms[b.i].element, mol.atoms[b.j].element))]
+            lens = [d for d in lens if d > 1e-6]
+            if lens:
+                ref_len = float(np.median(lens))
+                break
+        # Fit the canvas, but never draw a typical bond longer than ~63 px.
+        scale = min(self.PREVIEW_W / span_x, self.PREVIEW_H / span_y, 63.0 / ref_len)
+        f = scale * ref_len / 50.0
         svg = render_chemvector(
             mol, positions, bond_info,
             canvas_w=self.PREVIEW_W, canvas_h=self.PREVIEW_H, scale=scale,
@@ -6099,7 +6119,8 @@ class MainWindow(QMainWindow):
 
     def _open_from_catalog(self):
         try:
-            dlg = CatalogDialog(self, view3d=None if self._chem_mode else self._canvas)
+            dlg = CatalogDialog(self, view3d=None if self._chem_mode else self._canvas,
+                                layout=self._chem_canvas.layout_mode)
         except Exception as e:
             log_path = _log_error("Failed to open the molecule catalog", e)
             self.show_notification("Could not read the molecule catalog.", "error", 0, log_file=log_path)
