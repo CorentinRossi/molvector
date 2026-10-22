@@ -67,7 +67,7 @@ from PyQt6.QtCore import (
     Qt, QByteArray, QPoint, QPointF, pyqtSignal, pyqtProperty, QTimer, QSize, QRect, QRectF,
     QUrl, QMimeData, QEvent, QObject, QThread, QProcess, QProcessEnvironment, QPropertyAnimation, QEasingCurve,
 )
-from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QFontDatabase, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen, QLinearGradient, QBrush
+from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QFontDatabase, QIconEngine, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen, QLinearGradient, QBrush
 from PyQt6.QtGui import QDrag
 
 try:
@@ -202,29 +202,70 @@ def _monospace_font(point_size: Optional[float] = None) -> QFont:
     return font
 
 
+class _VectorIconEngine(QIconEngine):
+    """An icon drawn from vectors at the exact size and pixel density asked for.
+
+    A QIcon built from one small QPixmap is upscaled on Retina / HiDPI
+    screens and looks blurry; this engine redraws instead (crisp at any size,
+    in toolbars, menus and combo boxes alike).  *draw(painter, rect)* paints
+    the icon into *rect*.
+    """
+
+    _DISABLED_OPACITY = 0.35
+
+    def __init__(self, draw):
+        super().__init__()
+        self._draw = draw
+
+    def paint(self, painter, rect, mode, state):
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        if mode == QIcon.Mode.Disabled:
+            painter.setOpacity(painter.opacity() * self._DISABLED_OPACITY)
+        self._draw(painter, QRectF(rect))
+        painter.restore()
+
+    def scaledPixmap(self, size, mode, state, scale):
+        pix = QPixmap(max(1, round(size.width() * scale)), max(1, round(size.height() * scale)))
+        pix.fill(Qt.GlobalColor.transparent)
+        pix.setDevicePixelRatio(scale)
+        painter = QPainter(pix)
+        self.paint(painter, QRect(0, 0, size.width(), size.height()), mode, state)
+        painter.end()
+        return pix
+
+    def pixmap(self, size, mode, state):
+        return self.scaledPixmap(size, mode, state, 1.0)
+
+    def clone(self):
+        return _VectorIconEngine(self._draw)
+
+
 def load_colored_icon(svg_path: str, color: str, size: int = 22) -> QIcon:
-    """Load an SVG file, replace #000000 fills with color, return QIcon."""
+    """Load an SVG file, replace #000000 fills with *color*, return a vector QIcon.
+
+    *size* is unused (kept for callers): the icon scales to whatever size
+    and pixel density it is drawn at.
+    """
     with open(svg_path, "r", encoding="utf-8") as f:
         svg_content = f.read()
     svg_content = svg_content.replace('#000000', color)
     renderer = QSvgRenderer(QByteArray(svg_content.encode("utf-8")))
     default_size = renderer.defaultSize()
-    if default_size.isValid() and default_size.width() > 0 and default_size.height() > 0:
-        aspect = default_size.width() / default_size.height()
-        if aspect >= 1.0:
-            w, h = size, int(size / aspect)
+    aspect = (default_size.width() / default_size.height()
+              if default_size.isValid() and default_size.height() > 0 else 1.0)
+
+    def draw(painter: QPainter, rect: QRectF):
+        # Fit the drawing's aspect ratio, centred in rect.
+        w, h = rect.width(), rect.height()
+        if w / h > aspect:
+            w = h * aspect
         else:
-            w, h = int(size * aspect), size
-    else:
-        w = h = size
-    pix = QPixmap(size, size)
-    pix.fill(Qt.GlobalColor.transparent)
-    painter = QPainter(pix)
-    x = (size - w) // 2
-    y = (size - h) // 2
-    renderer.render(painter, QRectF(x, y, w, h))
-    painter.end()
-    return QIcon(pix)
+            h = w / aspect
+        renderer.render(painter, QRectF(rect.center().x() - w / 2, rect.center().y() - h / 2, w, h))
+
+    return QIcon(_VectorIconEngine(draw))
 
 BOND_TYPES = [   # (kind, combo label, tooltip)
     ("single", "Regular",  "Regular bond — click a bond to cycle its order"),
@@ -238,12 +279,20 @@ BOND_TYPES = [   # (kind, combo label, tooltip)
 
 
 def bond_type_icon(kind: str, color: str, size: int = 22) -> QIcon:
-    """Small drawn icon for a 2D build bond type (see BOND_TYPES)."""
-    pix = QPixmap(size * 2, size * 2)   # drawn at 2x for crisp HiDPI
-    pix.fill(Qt.GlobalColor.transparent)
-    p = QPainter(pix)
-    p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.scale(2, 2)
+    """Small drawn icon for a 2D build bond type (see BOND_TYPES), as vectors.
+
+    The drawing below is laid out on a *size* x *size* grid and scaled to
+    whatever size the icon is shown at.
+    """
+    def draw(p: QPainter, rect: QRectF):
+        p.translate(rect.topLeft())
+        p.scale(rect.width() / size, rect.height() / size)
+        _draw_bond_type(p, kind, color, size)
+
+    return QIcon(_VectorIconEngine(draw))
+
+
+def _draw_bond_type(p: QPainter, kind: str, color: str, size: int):
     col = QColor(color)
     pen = QPen(col, 1.8)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
@@ -280,9 +329,6 @@ def bond_type_icon(kind: str, color: str, size: int = 22) -> QIcon:
             p.drawLine(pts[k], pts[(k + 1) % 6])
         p.setPen(pen)
         p.drawLine(QPointF(cx, cy), QPointF(size - 3, 3))
-    p.end()
-    pix.setDevicePixelRatio(2)
-    return QIcon(pix)
 
 
 class _IconComboBox(QComboBox):
@@ -5631,6 +5677,7 @@ class MainWindow(QMainWindow):
         self.addToolBarBreak()
         self._setup_builder_toolbar()
         self._build_statusbar()
+        self._match_toolbar_fonts()
         self._load_appearance_config()
         self._update_debug_menu()
         self._apply_shortcut_config()
@@ -8000,6 +8047,25 @@ class MainWindow(QMainWindow):
                     raise ValueError("bad 'zoom' in session view")
                 view["_zoom"] = zoom
         return mol, view
+
+    def _match_toolbar_fonts(self):
+        """Give labels, combo boxes and checkboxes in toolbars the toolbar-button font.
+
+        macOS draws toolbar buttons in a smaller font than other widgets
+        (10pt vs 13pt), so "Element:", "Auto adjust H" and the 3D/2D labels
+        stood out next to "Open" / "Save".  On Windows/Linux both are the
+        same and this changes nothing.
+        """
+        # Set on each widget: Qt's per-class platform fonts (QLabel, QComboBox,
+        # ...) take precedence over a font inherited from the toolbar.
+        font = QApplication.font("QToolButton")
+        for tb in self.findChildren(QToolBar):
+            for w in tb.findChildren(QWidget):
+                if not isinstance(w, QToolButton):
+                    size = font.pointSizeF()
+                    f = w.font()
+                    f.setPointSizeF(size)
+                    w.setFont(f)
 
     def _maybe_restore_molecule(self):
         if not getattr(self, '_restore_on_startup', False):
