@@ -59,6 +59,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup, QRadioButton, QKeySequenceEdit, QToolButton,
     QGraphicsOpacityEffect, QStackedWidget, QAbstractButton,
     QStyle, QStyleOptionComboBox, QStylePainter, QListWidget, QListWidgetItem,
+    QTreeWidget, QTreeWidgetItem,
 )
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtSvg import QSvgRenderer
@@ -357,12 +358,12 @@ def get_stylesheet(theme_name: str) -> str:
         background:{t['ACCENT']}; color:white; border-color:{t['ACCENT']};
     }}
     QPushButton#facetButton:disabled {{ color:{t['BORDER']}; }}
-    QPushButton#facetButton[andMode="true"]:checked {{
+    QPushButton#facetButton[orMode="true"]:checked {{
         background:#e8890c; color:white; border-color:#e8890c;
     }}
     QPushButton#facetMode {{ padding:2px 4px; font-size:10px; font-weight:bold;
                              color:{t['ACCENT']}; border-color:{t['ACCENT']}; }}
-    QPushButton#facetMode[andMode="true"] {{ color:white; background:#e8890c; border-color:#e8890c; }}
+    QPushButton#facetMode[orMode="true"] {{ color:white; background:#e8890c; border-color:#e8890c; }}
     QPushButton#accent {{
         background:#1e4080; border-color:{t['ACCENT']}; color:#fff;
     }}
@@ -3283,6 +3284,16 @@ class QuickExportDialog(QDialog):
         super().closeEvent(event)
 
 
+_SUBSCRIPTS = str.maketrans("0123456789", "₀₁₂₃₄₅₆₇₈₉")
+
+
+def _pretty_formula(formula: str) -> str:
+    """C24H12 -> C₂₄H₁₂, C60+ -> C₆₀⁺ (subscript counts, superscript charge)."""
+    charge = formula[len(formula.rstrip("+-")):]
+    body = formula[:len(formula) - len(charge)].translate(_SUBSCRIPTS)
+    return body + charge.replace("+", "⁺").replace("-", "⁻")
+
+
 class CatalogDialog(QDialog):
     """File → Open from Catalog…: search the bundled molecule catalog with a preview.
 
@@ -3294,8 +3305,8 @@ class CatalogDialog(QDialog):
     """
 
     # Filters: one row of toggle buttons per catalog facet (catalog.facets()).
-    # A row's checked buttons combine with OR (any) or, in its AND mode (Shift+
-    # click, or its badge), AND (all); rows combine with AND. Each button
+    # A row's checked buttons combine with AND (all, the default) or, in its
+    # OR mode (Alt+click, or its badge), OR (any); rows combine with AND. Each button
     # shows how many molecules it would give and is disabled at 0.
     PREVIEW_W, PREVIEW_H = 360, 300
 
@@ -3317,15 +3328,16 @@ class CatalogDialog(QDialog):
         layout.addWidget(self._search)
 
         # One row per facet: its name, an OR/AND badge (click to switch) and
-        # the option buttons. Click: the row's current mode; Shift+click:
-        # AND (all of the row's choices); Alt+click: OR (any of them). Rows
+        # the option buttons. Rows start in AND (a molecule must have all of
+        # the row's choices); Alt+click a filter: OR (any of them);
+        # Shift+click: back to AND; plain click: the row's current mode. Rows
         # combine with AND. Options no catalog entry has are not shown.
         totals = catalog.facet_counts()
         filters_box = QVBoxLayout()
         filters_box.setSpacing(4)
         self._facet_buttons = {}         # facet -> {value: (button, label)}
         self._mode_badges = {}           # facet -> badge button
-        self._modes = {"atom": "and"}    # facet -> "or" / "and"; atoms: contains all chosen
+        self._modes = {}                 # facet -> "or" / "and" (missing: "and", the default)
         for facet, facet_label, options in catalog.facets():
             shown = [o for o in options if totals[facet][o[0]] > 0]
             if not shown:
@@ -3342,7 +3354,7 @@ class CatalogDialog(QDialog):
             badge.setToolTip("How this row's choices combine — click to switch\n"
                              "OR: any of them · AND: all of them")
             badge.clicked.connect(lambda _c=False, f=facet: self._set_mode(
-                f, "or" if self._modes.get(f, "or") == "and" else "and"))
+                f, "or" if self._modes.get(f, "and") == "and" else "and"))
             self._mode_badges[facet] = badge
             line.addWidget(badge)
             buttons = {}
@@ -3350,7 +3362,7 @@ class CatalogDialog(QDialog):
                 btn = QPushButton(label)
                 btn.setObjectName("facetButton")
                 btn.setCheckable(True)
-                btn.setToolTip(tip + "\nShift+click: AND within the row · Alt+click: OR")
+                btn.setToolTip(tip + "\nAlt+click: OR within the row · Shift+click: AND")
                 btn.clicked.connect(lambda _c=False, f=facet: self._on_facet_clicked(f))
                 buttons[value] = (btn, label)
                 line.addWidget(btn)
@@ -3376,7 +3388,7 @@ class CatalogDialog(QDialog):
         ring_row.addWidget(QLabel("to"))
         ring_row.addWidget(self._ring_max)
         ring_row.addStretch(1)
-        hint = QLabel("Click: OR within a row · Shift+click: AND · Alt+click: back to OR · "
+        hint = QLabel("Within a row: AND · Alt+click: OR · Shift+click: back to AND · "
                       "rows combine with AND")
         hint.setObjectName("dim")
         hint.setStyleSheet("font-size:11px;")
@@ -3391,9 +3403,25 @@ class CatalogDialog(QDialog):
 
         body = QHBoxLayout()
         left = QVBoxLayout()
-        self._list = QListWidget()
+        # Name | Formula | Mass, aligned in columns; clicking the Name or Mass
+        # header sorts by it (the Sort box below follows).
+        self._list = QTreeWidget()
+        self._list.setColumnCount(3)
+        self._list.setHeaderLabels(["Name", "Formula", "Mass (u)"])
+        self._list.setRootIsDecorated(False)
+        self._list.setUniformRowHeights(True)
+        self._list.setAllColumnsShowFocus(True)
+        header = self._list.header()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        header.setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self._list.headerItem().setTextAlignment(2, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        header.setSectionsClickable(True)
+        header.sectionClicked.connect(self._on_header_clicked)
         self._list.currentItemChanged.connect(self._on_current_changed)
-        self._list.itemDoubleClicked.connect(lambda _item: self.accept())
+        self._list.itemDoubleClicked.connect(lambda _item, _col: self.accept())
         left.addWidget(self._list)
         count_row = QHBoxLayout()
         self._count = QLabel()
@@ -3470,6 +3498,13 @@ class CatalogDialog(QDialog):
         label.setOpenExternalLinks(True)
         return label
 
+    def _on_header_clicked(self, column: int):
+        """Name header: sort by name; Mass header: by mass, flipping direction on each click."""
+        current = self._sort.currentData()
+        key = {0: "name", 2: "mass-desc" if current == "mass" else "mass"}.get(column)
+        if key is not None:
+            self._sort.setCurrentIndex(self._sort.findData(key))
+
     def _filters(self):
         return {facet: [v for v, (btn, _) in buttons.items() if btn.isChecked()]
                 for facet, buttons in self._facet_buttons.items()}
@@ -3483,19 +3518,23 @@ class CatalogDialog(QDialog):
         else:
             self._refresh()
 
+    def _effective_modes(self):
+        """Every row's mode, AND unless switched to OR."""
+        return {facet: self._modes.get(facet, "and") for facet in self._facet_buttons}
+
     def _set_mode(self, facet: str, mode: str):
         self._modes[facet] = mode
         self._show_mode(facet)
         self._refresh()
 
     def _show_mode(self, facet: str):
-        """Badge text, and the AND highlight on the row's checked buttons."""
-        is_and = self._modes.get(facet, "or") == "and"
+        """Badge text, and the amber highlight of an OR row (AND is the default look)."""
+        is_and = self._modes.get(facet, "and") == "and"
         badge = self._mode_badges[facet]
         badge.setText("AND" if is_and else "OR")
-        badge.setProperty("andMode", is_and)
+        badge.setProperty("orMode", not is_and)
         for btn, _ in self._facet_buttons[facet].values():
-            btn.setProperty("andMode", is_and)
+            btn.setProperty("orMode", not is_and)
         for w in [badge] + [b for b, _ in self._facet_buttons[facet].values()]:
             w.style().unpolish(w)
             w.style().polish(w)
@@ -3513,7 +3552,7 @@ class CatalogDialog(QDialog):
         self._refresh()
 
     def _clear_filters(self):
-        self._modes = {"atom": "and"}
+        self._modes = {}
         for facet in self._facet_buttons:
             self._show_mode(facet)
         for buttons in self._facet_buttons.values():
@@ -3530,24 +3569,35 @@ class CatalogDialog(QDialog):
 
     def _refresh(self, *_):
         query, filters, rings = self._search.text(), self._filters(), self._rings()
-        counts = self._catalog.facet_counts(query, filters, rings, self._modes)
+        modes = self._effective_modes()
+        counts = self._catalog.facet_counts(query, filters, rings, modes)
         for facet, buttons in self._facet_buttons.items():
+            # An option that would empty an AND row stays clickable when the
+            # row as OR would give it results, so Alt+click can switch to OR.
+            or_counts = None
             for value, (btn, label) in buttons.items():
                 n = counts[facet][value]
                 btn.setText(f"{label}  {n}")
+                if n == 0 and not btn.isChecked() and modes[facet] == "and":
+                    if or_counts is None:
+                        or_counts = self._catalog.facet_counts(
+                            query, filters, rings, {**modes, facet: "or"})[facet]
+                    n = or_counts[value]
                 # A checked button stays enabled so it can always be unchecked.
                 btn.setEnabled(n > 0 or btn.isChecked())
 
-        hits = self._catalog.search(query, filters, rings, self._modes, self._sort.currentData())
+        hits = self._catalog.search(query, filters, rings, modes, self._sort.currentData())
         current = self.selected_record["id"] if self.selected_record else None
         self._list.blockSignals(True)
         self._list.clear()
+        right_aligned = Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
         keep_row = 0
         for row, rec in enumerate(hits):
-            item = QListWidgetItem(f"{rec['name']}    {rec['formula']}    "
-                                   f"{self._catalog.mass(rec):.2f} u")
-            item.setData(Qt.ItemDataRole.UserRole, rec["id"])
-            self._list.addItem(item)
+            item = QTreeWidgetItem([rec["name"], _pretty_formula(rec["formula"]),
+                                    f"{self._catalog.mass(rec):.2f}"])
+            item.setTextAlignment(2, right_aligned)
+            item.setData(0, Qt.ItemDataRole.UserRole, rec["id"])
+            self._list.addTopLevelItem(item)
             if rec["id"] == current and query == getattr(self, "_last_query", None):
                 keep_row = row
         self._list.blockSignals(False)
@@ -3555,12 +3605,12 @@ class CatalogDialog(QDialog):
         total = len(self._catalog.records())
         self._count.setText(f"{len(hits)} of {total} molecules")
         if hits:
-            self._list.setCurrentRow(keep_row)   # currentItemChanged shows it
+            self._list.setCurrentItem(self._list.topLevelItem(keep_row))   # currentItemChanged shows it
         else:
             self._show_record(None)
 
     def _on_current_changed(self, current, _previous):
-        rec = self._catalog.get(current.data(Qt.ItemDataRole.UserRole)) if current else None
+        rec = self._catalog.get(current.data(0, Qt.ItemDataRole.UserRole)) if current else None
         self._show_record(rec)
 
     def _show_record(self, rec):
