@@ -368,6 +368,28 @@ class _OptimizeWorker(QThread):
             self.result.emit(None, 0, e)
 
 
+def _fix_pdf_gradient_colorspace(path: str) -> None:
+    """Make Qt's PDF gradients visible in Apple's PDF viewers (Preview, Quick Look).
+
+    Qt fills gradients (shading patterns) in the color space
+    [/Pattern /DeviceRGB], which the PDF spec reserves for uncolored tiling
+    patterns; shading patterns need plain /Pattern.  Ghostscript and Acrobat
+    tolerate it, PDFKit draws nothing, so atoms lose their shading and bonds
+    vanish.  The fix is rewritten in place at the same length, so the file's
+    cross-reference offsets stay valid.  Files with tiling patterns, which do
+    need the underlying color space, are left alone.
+    """
+    with open(path, "rb") as f:
+        data = f.read()
+    if b"/PatternType 1" in data:
+        return
+    fixed = re.sub(rb"\[/Pattern /Device(?:RGB|Gray|CMYK)\s*\]",
+                   lambda m: b"/Pattern".ljust(len(m.group(0))), data)
+    if fixed != data:
+        with open(path, "wb") as f:
+            f.write(fixed)
+
+
 def _geometry_key(mol) -> str:
     """Identifies a molecule's atoms and positions (for per-molecule dialog state)."""
     return save_xyz(mol) if mol is not None else ""
@@ -7119,6 +7141,7 @@ class MainWindow(QMainWindow):
                     renderer.render(painter, QRectF(float(x), float(y), float(w), float(h)))
                 finally:
                     painter.end()
+                _fix_pdf_gradient_colorspace(path)
             
             elif ext in (".png", ".jpg", ".jpeg"):
                 # Scale up for high quality
