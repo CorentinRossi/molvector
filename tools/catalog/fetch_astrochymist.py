@@ -4,7 +4,8 @@ Snapshot The Astrochymist's list of interstellar and circumstellar molecules
 (https://www.astrochymist.org/astrochymist_ism.html) into astrochymist.json:
 one entry per detection row with the species as written on the page, its
 common name, the year, the first-listed (detection) paper and whether the
-page marks it tentative (italics) or disputed (orange).
+page marks it tentative (italics) or disputed (orange), plus the page's own
+"Updated ..." date and the fetch date.
 
     python tools/catalog/fetch_astrochymist.py
 
@@ -63,6 +64,14 @@ def parse(page: str) -> list:
     return rows
 
 
+def page_updated(page: str):
+    """The page's own "Updated 1 October 2026" footer, as an ISO date (or None)."""
+    m = re.search(r"Updated\s+(\d{1,2}\s+[A-Za-z]+\s+\d{4})", re.sub(r"<[^>]+>", " ", page))
+    if not m:
+        return None
+    return datetime.datetime.strptime(m.group(1), "%d %B %Y").date().isoformat()
+
+
 def main():
     with urllib.request.urlopen(SOURCE_URL, timeout=60) as r:
         page = r.read().decode("utf-8", "replace")
@@ -72,6 +81,7 @@ def main():
         sys.exit("duplicate (formula, name) rows: the mapping key would be ambiguous")
     snapshot = {
         "source": SOURCE_URL,
+        "updated": page_updated(page),            # the list's own last update
         "fetched": datetime.date.today().isoformat(),
         "detections": rows,
     }

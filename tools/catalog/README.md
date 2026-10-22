@@ -45,8 +45,9 @@ python tools/catalog/build_catalog.py --refresh  # re-download everything from P
 Geometry comes from the PubChem 3D conformer when one exists and its InChIKey
 matches the seed. Otherwise the build uses RDKit ETKDG + MMFF94, or, for cages
 ETKDG cannot embed (fullerenes), a spectral sphere embedding relaxed with UFF.
-Species no force field covers (HeH+, ArH+, VO, CrO, ...) keep the ETKDG
-distance-geometry structure. Every entry must pass three checks before the
+Species no force field covers (HeH+, ArH+, TiO, VO, CrO, FeC, TiO2, ...) use
+fixed geometries with literature bond lengths (`FIXED_GEOMETRY` in
+`build_catalog.py`); CaC2's is approximate. Every entry must pass three checks before the
 file is written: an InChI round-trip through
 `molvector.render.generate_inchi` (exact for neutral closed-shell molecules,
 on the connectivity block for ions and radicals, which Molvector cannot

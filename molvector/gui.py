@@ -45,7 +45,7 @@ Dependencies:
     pip install PyQt6 numpy svgwrite
 """
 
-import sys, os, math, json, tempfile, platform, shlex, shutil, re, random, string, time
+import sys, os, math, json, tempfile, platform, shlex, shutil, re, random, string, time, datetime
 from typing import List, Tuple, Optional, Dict
 import numpy as np
 
@@ -357,6 +357,12 @@ def get_stylesheet(theme_name: str) -> str:
         background:{t['ACCENT']}; color:white; border-color:{t['ACCENT']};
     }}
     QPushButton#facetButton:disabled {{ color:{t['BORDER']}; }}
+    QPushButton#facetButton[andMode="true"]:checked {{
+        background:#e8890c; color:white; border-color:#e8890c;
+    }}
+    QPushButton#facetMode {{ padding:2px 4px; font-size:10px; font-weight:bold;
+                             color:{t['ACCENT']}; border-color:{t['ACCENT']}; }}
+    QPushButton#facetMode[andMode="true"] {{ color:white; background:#e8890c; border-color:#e8890c; }}
     QPushButton#accent {{
         background:#1e4080; border-color:{t['ACCENT']}; color:#fff;
     }}
@@ -3287,9 +3293,10 @@ class CatalogDialog(QDialog):
     rendering in that canvas' current style.
     """
 
-    # Filters: one row of toggle buttons per catalog facet (catalog.FACETS).
-    # Checked buttons in one row are alternatives (OR); rows combine with AND.
-    # Each button shows how many molecules it would give and is disabled at 0.
+    # Filters: one row of toggle buttons per catalog facet (catalog.facets()).
+    # A row's checked buttons combine with OR (any) or, in its AND mode (Shift+
+    # click, or its badge), AND (all); rows combine with AND. Each button
+    # shows how many molecules it would give and is disabled at 0.
     PREVIEW_W, PREVIEW_H = 360, 300
 
     def __init__(self, parent=None, view3d=None, layout: str = "match3d"):
@@ -3309,37 +3316,56 @@ class CatalogDialog(QDialog):
         self._search.textChanged.connect(self._refresh)
         layout.addWidget(self._search)
 
-        # Options no catalog entry has (e.g. anions) are not shown at all.
+        # One row per facet: its name, an OR/AND badge (click to switch) and
+        # the option buttons. Click: the row's current mode; Shift+click:
+        # AND (all of the row's choices); Alt+click: OR (any of them). Rows
+        # combine with AND. Options no catalog entry has are not shown.
         totals = catalog.facet_counts()
-        filter_grid = QGridLayout()
-        filter_grid.setHorizontalSpacing(4)
-        filter_grid.setVerticalSpacing(4)
+        filters_box = QVBoxLayout()
+        filters_box.setSpacing(4)
         self._facet_buttons = {}         # facet -> {value: (button, label)}
-        n_cols = max(len(options) for _, _, options in catalog.FACETS)
-        row = 0
-        for facet, facet_label, options in catalog.FACETS:
+        self._mode_badges = {}           # facet -> badge button
+        self._modes = {"atom": "and"}    # facet -> "or" / "and"; atoms: contains all chosen
+        for facet, facet_label, options in catalog.facets():
             shown = [o for o in options if totals[facet][o[0]] > 0]
             if not shown:
                 continue
+            line = QHBoxLayout()
+            line.setSpacing(4)
             title = QLabel(facet_label)
             title.setObjectName("dim")
-            filter_grid.addWidget(title, row, 0)
+            title.setFixedWidth(118)
+            line.addWidget(title)
+            badge = QPushButton()
+            badge.setObjectName("facetMode")
+            badge.setFixedWidth(46)
+            badge.setToolTip("How this row's choices combine — click to switch\n"
+                             "OR: any of them · AND: all of them")
+            badge.clicked.connect(lambda _c=False, f=facet: self._set_mode(
+                f, "or" if self._modes.get(f, "or") == "and" else "and"))
+            self._mode_badges[facet] = badge
+            line.addWidget(badge)
             buttons = {}
-            for col, (value, label, tip) in enumerate(shown, start=1):
+            for value, label, tip in shown:
                 btn = QPushButton(label)
                 btn.setObjectName("facetButton")
                 btn.setCheckable(True)
-                btn.setToolTip(tip)
-                btn.toggled.connect(self._refresh)
+                btn.setToolTip(tip + "\nShift+click: AND within the row · Alt+click: OR")
+                btn.clicked.connect(lambda _c=False, f=facet: self._on_facet_clicked(f))
                 buttons[value] = (btn, label)
-                filter_grid.addWidget(btn, row, col)
+                line.addWidget(btn)
+            line.addStretch(1)
+            if facet == "detected":
+                line.addWidget(self._detections_source_label(catalog.sources().get("astrochymist")))
             self._facet_buttons[facet] = buttons
-            row += 1
+            filters_box.addLayout(line)
 
         ring_lo, ring_hi = catalog.ring_range()
-        filter_grid.addWidget(QLabel("Rings"), row, 0)
-        filter_grid.itemAtPosition(row, 0).widget().setObjectName("dim")
         ring_row = QHBoxLayout()
+        ring_title = QLabel("Ring count")
+        ring_title.setObjectName("dim")
+        ring_title.setFixedWidth(118 + 4 + 46)
+        ring_row.addWidget(ring_title)
         self._ring_min = QSpinBox()
         self._ring_max = QSpinBox()
         for box, value in ((self._ring_min, ring_lo), (self._ring_max, ring_hi)):
@@ -3350,11 +3376,18 @@ class CatalogDialog(QDialog):
         ring_row.addWidget(QLabel("to"))
         ring_row.addWidget(self._ring_max)
         ring_row.addStretch(1)
+        hint = QLabel("Click: OR within a row · Shift+click: AND · Alt+click: back to OR · "
+                      "rows combine with AND")
+        hint.setObjectName("dim")
+        hint.setStyleSheet("font-size:11px;")
+        ring_row.addWidget(hint)
         btn_clear = QPushButton("Clear Filters")
         btn_clear.clicked.connect(self._clear_filters)
         ring_row.addWidget(btn_clear)
-        filter_grid.addLayout(ring_row, row, 1, 1, n_cols)
-        layout.addLayout(filter_grid)
+        filters_box.addLayout(ring_row)
+        layout.addLayout(filters_box)
+        for facet in self._facet_buttons:
+            self._show_mode(facet)
 
         body = QHBoxLayout()
         left = QVBoxLayout()
@@ -3362,9 +3395,20 @@ class CatalogDialog(QDialog):
         self._list.currentItemChanged.connect(self._on_current_changed)
         self._list.itemDoubleClicked.connect(lambda _item: self.accept())
         left.addWidget(self._list)
+        count_row = QHBoxLayout()
         self._count = QLabel()
         self._count.setObjectName("dim")
-        left.addWidget(self._count)
+        count_row.addWidget(self._count)
+        count_row.addStretch(1)
+        sort_label = QLabel("Sort")
+        sort_label.setObjectName("dim")
+        count_row.addWidget(sort_label)
+        self._sort = QComboBox()
+        for key, label in catalog.SORTS:
+            self._sort.addItem(label, key)
+        self._sort.currentIndexChanged.connect(self._refresh)
+        count_row.addWidget(self._sort)
+        left.addLayout(count_row)
         body.addLayout(left, 1)
 
         right = QVBoxLayout()
@@ -3406,9 +3450,55 @@ class CatalogDialog(QDialog):
         self._refresh()
         self._search.setFocus()
 
+    @staticmethod
+    def _detections_source_label(src) -> QLabel:
+        """"The Astrochymist, updated 1 Oct 2026", linked to the list."""
+        label = QLabel()
+        label.setObjectName("dim")
+        label.setStyleSheet("font-size:11px;")
+        if not src:
+            return label
+        def nice(iso):
+            try:
+                d = datetime.date.fromisoformat(iso)
+                return f"{d.day} {d.strftime('%b %Y')}"
+            except (TypeError, ValueError):
+                return iso or "?"
+        label.setText(f"<a href='{src['url']}'>{src['name']}</a>, updated {nice(src.get('updated'))}")
+        label.setToolTip(f"List of molecules detected in space as of {nice(src.get('updated'))}; "
+                         f"bundled copy fetched {nice(src.get('fetched'))}")
+        label.setOpenExternalLinks(True)
+        return label
+
     def _filters(self):
         return {facet: [v for v, (btn, _) in buttons.items() if btn.isChecked()]
                 for facet, buttons in self._facet_buttons.items()}
+
+    def _on_facet_clicked(self, facet: str):
+        mods = QApplication.keyboardModifiers()
+        if mods & Qt.KeyboardModifier.ShiftModifier:
+            self._set_mode(facet, "and")
+        elif mods & Qt.KeyboardModifier.AltModifier:
+            self._set_mode(facet, "or")
+        else:
+            self._refresh()
+
+    def _set_mode(self, facet: str, mode: str):
+        self._modes[facet] = mode
+        self._show_mode(facet)
+        self._refresh()
+
+    def _show_mode(self, facet: str):
+        """Badge text, and the AND highlight on the row's checked buttons."""
+        is_and = self._modes.get(facet, "or") == "and"
+        badge = self._mode_badges[facet]
+        badge.setText("AND" if is_and else "OR")
+        badge.setProperty("andMode", is_and)
+        for btn, _ in self._facet_buttons[facet].values():
+            btn.setProperty("andMode", is_and)
+        for w in [badge] + [b for b, _ in self._facet_buttons[facet].values()]:
+            w.style().unpolish(w)
+            w.style().polish(w)
 
     def _rings(self):
         return (self._ring_min.value(), self._ring_max.value())
@@ -3423,6 +3513,9 @@ class CatalogDialog(QDialog):
         self._refresh()
 
     def _clear_filters(self):
+        self._modes = {"atom": "and"}
+        for facet in self._facet_buttons:
+            self._show_mode(facet)
         for buttons in self._facet_buttons.values():
             for btn, _ in buttons.values():
                 btn.blockSignals(True)
@@ -3437,7 +3530,7 @@ class CatalogDialog(QDialog):
 
     def _refresh(self, *_):
         query, filters, rings = self._search.text(), self._filters(), self._rings()
-        counts = self._catalog.facet_counts(query, filters, rings)
+        counts = self._catalog.facet_counts(query, filters, rings, self._modes)
         for facet, buttons in self._facet_buttons.items():
             for value, (btn, label) in buttons.items():
                 n = counts[facet][value]
@@ -3445,13 +3538,14 @@ class CatalogDialog(QDialog):
                 # A checked button stays enabled so it can always be unchecked.
                 btn.setEnabled(n > 0 or btn.isChecked())
 
-        hits = self._catalog.search(query, filters, rings)
+        hits = self._catalog.search(query, filters, rings, self._modes, self._sort.currentData())
         current = self.selected_record["id"] if self.selected_record else None
         self._list.blockSignals(True)
         self._list.clear()
         keep_row = 0
         for row, rec in enumerate(hits):
-            item = QListWidgetItem(f"{rec['name']}    {rec['formula']}")
+            item = QListWidgetItem(f"{rec['name']}    {rec['formula']}    "
+                                   f"{self._catalog.mass(rec):.2f} u")
             item.setData(Qt.ItemDataRole.UserRole, rec["id"])
             self._list.addItem(item)
             if rec["id"] == current and query == getattr(self, "_last_query", None):
@@ -3488,9 +3582,16 @@ class CatalogDialog(QDialog):
             lines.append("<i>" + escape(", ".join(rec["synonyms"])) + "</i>")
         lines.append(f"{len(rec['atoms'])} atoms ({n_heavy} heavy), {rec['rings']} rings, "
                      f"charge {rec['charge']}, multiplicity {rec['multiplicity']}")
-        order = {facet: k for k, (facet, _, _) in enumerate(self._catalog.FACETS)}
-        tags = sorted(rec["tags"], key=lambda t: order.get(t.partition(":")[0], len(order)))
-        lines.append(" · ".join(self._catalog.tag_label(t) for t in tags))
+        order = {facet: k for k, (facet, _, _) in enumerate(self._catalog.facets())}
+        tags = sorted((t for t in rec["tags"] if not t.startswith("atom:")),   # the formula shows those
+                      key=lambda t: order.get(t.partition(":")[0], len(order)))
+        known = {f"{facet}:{v}" for facet, _, options in self._catalog.facets() for v, _, _ in options}
+        labels = []
+        for t in tags:
+            label = self._catalog.tag_label(t)
+            if t in known and label not in labels:   # only tags a filter row offers, once each
+                labels.append(label)
+        lines.append(" · ".join(labels))
         src = rec["geometry_source"]
         if src.startswith("pubchem-3d:"):
             src = f"PubChem 3D conformer (CID {src.split(':', 1)[1]})"

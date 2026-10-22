@@ -712,7 +712,11 @@ def main(argv=None):
         print(f"\n{failures} entr{'y' if failures == 1 else 'ies'} failed; catalog not written.")
         return 1
 
-    payload = {"version": CATALOG_VERSION, "molecules": records}
+    with open(args.astro, encoding="utf-8") as f:
+        snapshot = json.load(f)
+    sources = {"astrochymist": {"name": "The Astrochymist", "url": snapshot["source"],
+                                "updated": snapshot.get("updated"), "fetched": snapshot["fetched"]}}
+    payload = {"version": CATALOG_VERSION, "sources": sources, "molecules": records}
     data = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     _write_gzip(args.out, data)
     print(f"\nWrote {len(records)} molecules to {os.path.relpath(args.out, REPO)} "
