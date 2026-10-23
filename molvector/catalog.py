@@ -17,7 +17,8 @@ needs RDKit and network access to PubChem); nothing here needs RDKit.
   facet_counts(query, filters, rings, modes) — per-option hit counts for the UI
   mass(record)                    — molecular mass (g/mol)
   sources()                       — data sources and their update dates
-  to_molecule(record)             — a render.Molecule ready to display
+  to_molecule(record)             — a render.Molecule ready to display,
+                                    turned to a standard orientation
 
 Records carry "<facet>:<value>" tags: the ones written by the build, plus a
 "class:" tag and "atom:<element>" tags derived here when the file is loaded.
@@ -27,8 +28,11 @@ facet's "and" mode, AND (all of them); different facets must all match.
 
 import gzip
 import json
+import math
 import os
 from typing import Dict, Iterable, List, Optional, Tuple
+
+import numpy as np
 
 from molvector.render import ATOMIC_MASSES, Atom, Bond, Molecule
 
@@ -285,10 +289,55 @@ def get(record_id: str) -> Optional[dict]:
     return next((r for r in records() if r["id"] == record_id), None)
 
 
+def _standard_orientation(elements: List[str], xyz: np.ndarray,
+                          bonds: List[Tuple[int, int]]) -> np.ndarray:
+    """
+    *xyz* centered and turned (a proper rotation: chirality is kept) to how
+    a chemist would draw it, seen down z as the 3D view first shows it: the
+    heavy-atom skeleton's longest axis along x, its plane (if any) facing
+    the viewer, and a ring lattice turned so its bonds run vertical or at
+    +-30 degrees (benzene with two vertical sides, naphthalene lying flat).
+    """
+    xyz = xyz - xyz.mean(axis=0)
+    heavy = [i for i, el in enumerate(elements) if el != "H"]
+    core = xyz[heavy] if len(heavy) >= 2 else xyz
+    if len(core) < 2:
+        return xyz
+    core = core - core.mean(axis=0)
+    axes = np.linalg.svd(core, full_matrices=True)[2]   # rows: longest .. shortest axis
+    if np.linalg.det(axes) < 0:
+        axes[2] = -axes[2]
+    xyz = xyz @ axes.T
+
+    # Ring lattice: the heavy-atom bond directions seen in the plane, with
+    # 6-fold symmetry. Turn by the smallest angle that puts them at 90
+    # degrees (mod 60), when they agree on a lattice at all.
+    acc = 0j
+    weight = 0.0
+    for i, j in bonds:
+        if elements[i] == "H" or elements[j] == "H":
+            continue
+        dx, dy = xyz[j, 0] - xyz[i, 0], xyz[j, 1] - xyz[i, 1]
+        w = dx * dx + dy * dy
+        acc += w * complex(math.cos(6 * math.atan2(dy, dx)), math.sin(6 * math.atan2(dy, dx)))
+        weight += w
+    if weight > 1e-9 and abs(acc) > 0.5 * weight:
+        phi = (math.pi - math.atan2(acc.imag, acc.real)) / 6.0
+        phi = (phi + math.pi / 6) % (math.pi / 3) - math.pi / 6   # smallest turn
+        c, s = math.cos(phi), math.sin(phi)
+        xyz = xyz @ np.array([[c, s, 0.0], [-s, c, 0.0], [0.0, 0.0, 1.0]])
+    return xyz
+
+
 def to_molecule(record: dict) -> Molecule:
-    """Build a Molecule (3D coordinates in Angstrom, Kekule bond orders)."""
-    atoms = [Atom(el, float(x), float(y), float(z)) for el, x, y, z in record["atoms"]]
+    """Build a Molecule (3D coordinates in Angstrom, Kekule bond orders) in
+    the standard orientation of _standard_orientation."""
+    elements = [el for el, _x, _y, _z in record["atoms"]]
     bonds = [Bond(int(i), int(j), int(order)) for i, j, order in record["bonds"]]
+    xyz = _standard_orientation(
+        elements, np.array([[x, y, z] for _el, x, y, z in record["atoms"]], dtype=float),
+        [(b.i, b.j) for b in bonds])
+    atoms = [Atom(el, float(x), float(y), float(z)) for el, (x, y, z) in zip(elements, xyz)]
     mult = record.get("multiplicity")
     return Molecule(name=record["name"], atoms=atoms, bonds=bonds,
                     charge=int(record.get("charge", 0)),

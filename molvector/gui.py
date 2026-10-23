@@ -3500,7 +3500,8 @@ class CatalogDialog(QDialog):
     depiction in the 2D view's *layout* ("match3d": the 3D geometry seen
     face-on, as the 2D view shows it on entry; "clean": RDKit's idealized
     depiction), or with *view3d* (the 3D MoleculeCanvas) a ball-and-stick
-    rendering in that canvas' current style.
+    rendering in that canvas' current style. The 2D depiction uses the style
+    of *view2d* (the ChemCanvas) when given.
     """
 
     # Filters: one row of toggle buttons per catalog facet (catalog.facets()).
@@ -3509,11 +3510,12 @@ class CatalogDialog(QDialog):
     # shows how many molecules it would give and is disabled at 0.
     PREVIEW_W, PREVIEW_H = 360, 300
 
-    def __init__(self, parent=None, view3d=None, layout: str = "match3d"):
+    def __init__(self, parent=None, view3d=None, layout: str = "match3d", view2d=None):
         super().__init__(parent)
         from molvector import catalog
         self._catalog = catalog
         self._view3d = view3d
+        self._view2d = view2d
         self._layout = layout
         self.selected_record = None
         self.setWindowTitle("Open from Catalog")
@@ -3640,9 +3642,12 @@ class CatalogDialog(QDialog):
 
         right = QVBoxLayout()
         # The 2D SVG is rendered without a background (export mode: no name
-        # caption either), so the frame provides the card behind it: white,
-        # or the 3D canvas' own background.
-        preview_bg = view3d.background if view3d is not None else "#ffffff"
+        # caption either), so the frame provides the card behind it: the
+        # active view's own background.
+        if view3d is not None:
+            preview_bg = view3d.background
+        else:
+            preview_bg = view2d.background if view2d is not None else "#ffffff"
         preview_frame = QFrame()
         preview_frame.setObjectName("catalogPreview")
         preview_frame.setStyleSheet(
@@ -3883,8 +3888,9 @@ class CatalogDialog(QDialog):
             mol, rot_matrix_override=np.eye(3),
             canvas_w=self.PREVIEW_W, canvas_h=self.PREVIEW_H, scale=scale,
             atom_scale=c.atom_scale,
-            # Bond width is in screen pixels: shrink it with the preview.
-            bond_width_px=c.bond_width_px * min(1.0, scale / max(c.base_scale, 1e-6)),
+            # render_molecule turns bond width into Angstrom (px at scale
+            # 110), so it already shrinks with the preview's scale.
+            bond_width_px=c.bond_width_px,
             bond_style=c.bond_style, bond_color=c.bond_color,
             background=c.background, color_overrides=c.color_overrides or None,
             atom_border_mode=c.atom_border_mode, atom_border_scale=c.atom_border_scale,
@@ -3895,7 +3901,8 @@ class CatalogDialog(QDialog):
         return svg.encode("utf-8") if isinstance(svg, str) else svg
 
     def _preview_svg_2d(self, rec) -> bytes:
-        from molvector.chemvector import generate_2d_layout, render_chemvector, DOUBLE_BOND_GAP_PX
+        from molvector.chemvector import (generate_2d_layout, render_chemvector, DOUBLE_BOND_GAP_PX,
+                                          CHEM_SIZE_REF_BOND_PX)
         mol = self._catalog.to_molecule(rec)
         # A flat depiction of a cage is unreadable: always show the 3D projection.
         projection = self._layout == "match3d" or "topology:cage" in rec["tags"]
@@ -3903,7 +3910,10 @@ class CatalogDialog(QDialog):
         normal = best_fit_plane_normal(mol)
         if projection and normal is not None:
             rot = face_plane_rotation(normal, rot)   # as MainWindow._face_molecule_plane
-        positions, bond_info = generate_2d_layout(mol, view_rot=rot, projection=projection)
+        layout_kw = {}
+        if self._view2d is not None:
+            layout_kw["planarity_tolerance"] = self._view2d.planarity_tolerance
+        positions, bond_info = generate_2d_layout(mol, view_rot=rot, projection=projection, **layout_kw)
         heavy = [positions[i] for i, a in enumerate(mol.atoms) if a.element != "H" and i in positions]
         pts = heavy or list(positions.values())
         xs = [p[0] for p in pts]
@@ -3924,13 +3934,23 @@ class CatalogDialog(QDialog):
                 break
         # Fit the canvas, but never draw a typical bond longer than ~63 px.
         scale = min(self.PREVIEW_W / span_x, self.PREVIEW_H / span_y, 63.0 / ref_len)
-        f = scale * ref_len / 50.0
+        f = scale * ref_len / CHEM_SIZE_REF_BOND_PX
+        c = self._view2d
+        style = {}
+        if c is not None:
+            style = dict(bond_color=c.bond_color, font_family=c.font_family,
+                         color_overrides=c.color_overrides or None,
+                         show_carbon_labels=c.show_carbon_labels, show_hydrogens=c.show_hydrogens,
+                         label_color_mode=c.label_color_mode)
+        bond_w = c.bond_width_px if c is not None else 3.4
+        font_px = c.font_size_px if c is not None else 26.0
+        gap_px = c.double_bond_gap_px if c is not None else DOUBLE_BOND_GAP_PX
         svg = render_chemvector(
             mol, positions, bond_info,
             canvas_w=self.PREVIEW_W, canvas_h=self.PREVIEW_H, scale=scale,
             center=((min(xs) + max(xs)) / 2.0, (min(ys) + max(ys)) / 2.0),
-            bond_width_px=max(1.0, 3.4 * f), font_size_px=max(8.0, 26.0 * f),
-            double_bond_gap_px=DOUBLE_BOND_GAP_PX * f, export_mode=True,
+            bond_width_px=max(1.0, bond_w * f), font_size_px=max(8.0, font_px * f),
+            double_bond_gap_px=gap_px * f, export_mode=True, **style,
         )
         return svg.encode("utf-8")
 
@@ -6542,7 +6562,7 @@ class MainWindow(QMainWindow):
     def _open_from_catalog(self):
         try:
             dlg = CatalogDialog(self, view3d=None if self._chem_mode else self._canvas,
-                                layout=self._chem_canvas.layout_mode)
+                                layout=self._chem_canvas.layout_mode, view2d=self._chem_canvas)
         except Exception as e:
             log_path = _log_error("Failed to open the molecule catalog", e)
             self.show_notification("Could not read the molecule catalog.", "error", 0, log_file=log_path)
