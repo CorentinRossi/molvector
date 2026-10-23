@@ -275,7 +275,8 @@ def generate_2d_layout(mol: Molecule, planarity_tolerance: float = PLANARITY_TOL
 
     With *projection*, no idealized depiction is made at all: every atom sits
     exactly where the 3D view (camera rotation *view_rot*, same perspective)
-    draws it. Bonds are plain unless an end is off the molecule's best-fit
+    draws it — except terminal hydrogens that would land on another atom or
+    bond, which are nudged clear (_separate_hydrogens, in both layouts). Bonds are plain unless an end is off the molecule's best-fit
     plane by more than the planarity tolerance — or off *plane*, a
     (unit normal, point) pair in 3D coordinates, when given ("the molecule
     drawn in that plane") — in which case wedge/hash shows toward/away.
@@ -306,6 +307,7 @@ def generate_2d_layout(mol: Molecule, planarity_tolerance: float = PLANARITY_TOL
 
     if projection:
         positions, bond_info = _fallback_layout(mol, planarity_tolerance, rot, True, plane)
+        _separate_hydrogens(mol, positions)   # the one exception to "exactly where 3D draws it"
         _annotate_double_bond_insets(mol, positions, bond_info)
         return positions, bond_info
 
@@ -326,6 +328,8 @@ def generate_2d_layout(mol: Molecule, planarity_tolerance: float = PLANARITY_TOL
     if reflected:
         _swap_wedge_hash(bond_info)
     _flatten_near_planar_bonds(mol, bond_info, planarity_tolerance)
+    _mark_front_back_hydrogens(mol, bond_info, planarity_tolerance, rot)
+    _separate_hydrogens(mol, positions)
     _annotate_double_bond_insets(mol, positions, bond_info)
     _add_cosmetic_tetrahedral_wedges(mol, bond_info, planarity_tolerance, rot)
     return positions, bond_info
@@ -389,6 +393,54 @@ def _add_cosmetic_tetrahedral_wedges(mol: Molecule, bond_info: BondInfo,
         bond_info.setdefault(min_bi, {"kind": "none", "apex": b_min.i, "order": b_min.order})
         bond_info[min_bi]["kind"] = "hash"
         bond_info[min_bi]["apex"] = atom_idx
+
+
+def _mark_front_back_hydrogens(mol: Molecule, bond_info: BondInfo,
+                               planarity_tolerance: float = PLANARITY_TOLERANCE,
+                               view_rot: Optional[np.ndarray] = None) -> None:
+    """
+    An idealized depiction draws every bond flat, so two hydrogens of one
+    atom that really sit one in front of the molecule's plane and one
+    behind it (a CH2 in a saturated ring, the SH2+ of a sulfonium) look
+    like two in-plane bonds. Show them as a wedge (front) and a hash
+    (back), from the real 3D coordinates. Atoms already carrying a
+    wedge/hash are left alone.
+    """
+    coords = np.array([[a.x, a.y, a.z] for a in mol.atoms], dtype=float)
+    if len(coords) < 4:
+        return
+    centered = coords - coords.mean(axis=0)
+    _, _, normal = _plane_frame(centered, np.eye(3) if view_rot is None else view_rot)
+    z = centered @ normal
+    degree: Dict[int, int] = {}
+    adjacency: Dict[int, List[int]] = {}
+    for bi, b in enumerate(mol.bonds):
+        degree[b.i] = degree.get(b.i, 0) + 1
+        degree[b.j] = degree.get(b.j, 0) + 1
+        adjacency.setdefault(b.i, []).append(bi)
+        adjacency.setdefault(b.j, []).append(bi)
+    for atom_idx, bond_indices in adjacency.items():
+        if mol.atoms[atom_idx].element == "H":
+            continue
+        if any(bond_info.get(bi, {}).get("kind", "none") != "none" for bi in bond_indices):
+            continue
+        h_bonds = []
+        for bi in bond_indices:
+            b = mol.bonds[bi]
+            o = b.j if b.i == atom_idx else b.i
+            if mol.atoms[o].element == "H" and degree.get(o, 0) == 1 and b.order == 1:
+                h_bonds.append((z[o] - z[atom_idx], bi))
+        if len(h_bonds) < 2:
+            continue
+        max_dz, max_bi = max(h_bonds)
+        min_dz, min_bi = min(h_bonds)
+        if max_dz <= 0 or min_dz >= 0 or max_dz - min_dz < planarity_tolerance:
+            continue   # not one in front and one behind
+        for bi, kind in ((max_bi, "wedge"), (min_bi, "hash")):
+            b = mol.bonds[bi]
+            bond_info.setdefault(bi, {"kind": "none", "apex": b.i, "order": b.order})
+            bond_info[bi]["kind"] = kind
+            bond_info[bi]["apex"] = atom_idx
 
 
 def _smallest_ring_via_edge(mol: Molecule, a: int, b: int, exclude_bond_idx: int) -> Optional[List[int]]:
@@ -935,6 +987,142 @@ def _fan_out_terminal_wedges(mol: Molecule, positions: Positions2D, bond_info: B
             positions[other] = (ax + math.cos(target) * length, ay + math.sin(target) * length)
 
 
+H_CLEARANCE = 0.55      # min distance (x typical bond) from a drawn H to other atoms / bonds
+H_STACK_SPREAD = 40.0   # degrees between hydrogens of one atom that landed on one spot
+H_LABELED_MIN_LEN = 0.95   # min drawn length (x typical bond) of an H bond to a lettered atom
+
+
+def _separate_hydrogens(mol: Molecule, positions: Positions2D) -> None:
+    """
+    Move terminal hydrogens that land on another atom or bond in 2D — e.g.
+    the two H of a CH2 seen edge-on, one in front and one behind, projected
+    onto one point. Hydrogens of one atom stacked together are first fanned
+    out evenly; then each still-crowded H takes the smallest move that
+    clears it: along its bond (back / forward) or turned about its atom
+    (left / right). Nothing else moves, and wedges/hashes keep showing
+    which H is in front.
+    """
+    if not positions:
+        return
+    neighbors: Dict[int, List[int]] = {}
+    for b in mol.bonds:
+        neighbors.setdefault(b.i, []).append(b.j)
+        neighbors.setdefault(b.j, []).append(b.i)
+    terminal_h = [i for i, a in enumerate(mol.atoms)
+                  if a.element == "H" and len(neighbors.get(i, [])) == 1 and i in positions
+                  and neighbors[i][0] in positions]
+    if not terminal_h:
+        return
+    lens = [math.dist(positions[b.i], positions[b.j]) for b in mol.bonds
+            if b.i in positions and b.j in positions
+            and "H" not in (mol.atoms[b.i].element, mol.atoms[b.j].element)]
+    lens = [d for d in lens if d > 1e-6] or [1.0]
+    ref = float(np.median(lens))
+    min_len = 0.6 * ref
+
+    # 0. A bond from a lettered atom (O-H, S-H, N-H) loses its ends to both
+    # labels: a short one (a projection, or X-H shorter than C-C) would show
+    # no line at all, so lengthen it along its own direction
+    for h in terminal_h:
+        p = neighbors[h][0]
+        if mol.atoms[p].element in ("C", "H") and not getattr(mol.atoms[p], "charge", 0):
+            continue
+        (px, py), (hx, hy) = positions[p], positions[h]
+        d = math.hypot(hx - px, hy - py)
+        if 1e-6 < d < H_LABELED_MIN_LEN * ref:
+            f = H_LABELED_MIN_LEN * ref / d
+            positions[h] = (px + (hx - px) * f, py + (hy - py) * f)
+
+    # 1. Fan out hydrogens of one atom that sit on one spot
+    by_parent: Dict[int, List[int]] = {}
+    for h in terminal_h:
+        by_parent.setdefault(neighbors[h][0], []).append(h)
+    for p, hs in by_parent.items():
+        px, py = positions[p]
+        remaining = list(hs)
+        while remaining:
+            stack = [remaining.pop(0)]
+            for h in list(remaining):
+                if any(math.dist(positions[h], positions[s]) < H_CLEARANCE * ref for s in stack):
+                    stack.append(h)
+                    remaining.remove(h)
+            if len(stack) < 2:
+                continue
+            vx = sum(positions[h][0] - px for h in stack)
+            vy = sum(positions[h][1] - py for h in stack)
+            if math.hypot(vx, vy) < 1e-6 * len(stack):
+                # Straight at / away from the viewer: into the room the other bonds leave
+                others = [q for q in neighbors[p] if q not in stack]
+                vx = -sum(positions[q][0] - px for q in others) or 1.0
+                vy = -sum(positions[q][1] - py for q in others)
+            base = math.atan2(vy, vx)
+            length = max(min_len, sum(math.dist(positions[h], (px, py)) for h in stack) / len(stack))
+            if mol.atoms[p].element not in ("C", "H") or getattr(mol.atoms[p], "charge", 0):
+                length = max(length, H_LABELED_MIN_LEN * ref)
+            step = math.radians(H_STACK_SPREAD)
+            for k, h in enumerate(stack):
+                a = base + (k - (len(stack) - 1) / 2) * step
+                positions[h] = (px + length * math.cos(a), py + length * math.sin(a))
+
+    # 2. Smallest move off whatever each H still crowds
+    idx = list(positions)
+    segs = [(b.i, b.j) for b in mol.bonds if b.i in positions and b.j in positions]
+
+    def point_seg(x, y, ax, ay, bx, by) -> float:
+        dx, dy = bx - ax, by - ay
+        l2 = dx * dx + dy * dy
+        t = 0.0 if l2 < 1e-12 else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / l2))
+        return math.hypot(ax + t * dx - x, ay + t * dy - y)
+
+    def crosses(p0, p1, q0, q1) -> bool:
+        def side(a, b, c):
+            return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])
+        return (side(p0, p1, q0) * side(p0, p1, q1) < 0
+                and side(q0, q1, p0) * side(q0, q1, p1) < 0)
+
+    def clearance(h: int, x: float, y: float) -> float:
+        """Room around H at (x, y): to other atoms and bonds, 0 if its own
+        bond would cross another bond; its bond must also clear other atoms."""
+        p = neighbors[h][0]
+        pp = positions[p]
+        best = math.inf
+        for j in idx:
+            if j in (h, p):
+                continue
+            jx, jy = positions[j]
+            best = min(best, math.hypot(jx - x, jy - y),
+                       2.0 * point_seg(jx, jy, pp[0], pp[1], x, y))
+        for i, j in segs:
+            if h in (i, j):
+                continue
+            (ax, ay), (bx, by) = positions[i], positions[j]
+            best = min(best, point_seg(x, y, ax, ay, bx, by))
+            if p not in (i, j) and crosses(pp, (x, y), (ax, ay), (bx, by)):
+                return 0.0
+        return best
+
+    target = H_CLEARANCE * ref
+    for h in terminal_h:
+        if clearance(h, *positions[h]) >= target:
+            continue
+        px, py = positions[neighbors[h][0]]
+        hx, hy = positions[h]
+        length = math.hypot(hx - px, hy - py)
+        angle = math.atan2(hy - py, hx - px) if length > 1e-6 else -math.pi / 2
+        length = max(length, min_len)
+        candidates = []
+        for deg in range(-180, 181, 10):
+            for scale in (0.8, 1.0, 1.25):
+                a = angle + math.radians(deg)
+                x, y = px + length * scale * math.cos(a), py + length * scale * math.sin(a)
+                candidates.append((math.hypot(x - hx, y - hy), x, y))
+        candidates.sort()
+        best = next((c for c in candidates if clearance(h, c[1], c[2]) >= target), None)
+        if best is None:   # nowhere fully clear: the roomiest spot
+            best = max(candidates, key=lambda c: clearance(h, c[1], c[2]))
+        positions[h] = (best[1], best[2])
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # SVG RENDERING
 # ─────────────────────────────────────────────────────────────────────────────
@@ -963,13 +1151,14 @@ def _fan_out_terminal_wedges(mol: Molecule, positions: Positions2D, bond_info: B
 #      * the one spacing unit of every multi-line or stereo bond,
 #        DOUBLE_BOND_GAP_PX (center-to-center distance of parallel lines):
 #        double and triple bonds use it as is, a wedge/hash's wide end is
-#        1.5 gaps (+ line width) across, and hash marks are one gap apart.
+#        1.5 gaps (+ line width) across, and hash marks are HASH_SPACING gaps apart.
 #        Since the gap and the line width scale together, hashes keep the
 #        same clear space between marks at every zoom instead of thickening
 #        into a solid-looking wedge.
 SNAP_RADIUS_PX = 14.0          # build-mode snapping reach (screen pixels)
 STEREO_DEPTH = 1.0             # Angstrom a wedge/hash-drawn atom sits toward/away from the viewer in 3D
 DOUBLE_BOND_GAP_PX = 7.0       # ZOOM-ONLY — the spacing unit of double/triple/wedge/hash bonds
+HASH_SPACING = 0.75            # hash marks' spacing, in gaps
 DOUBLE_BOND_INNER_TRIM = 0.12  # MOLECULE-SCALED (fraction of the bond's own length, at a bare vertex)
 TRIPLE_BOND_FLANK_TRIM = 0.12  # MOLECULE-SCALED (same, for a triple bond's flanking lines)
 
@@ -1143,6 +1332,53 @@ def _label_box(elem: str, font_size: float, n_h: int = 0, h_side: str = "right",
 
 
 _H_ROW_DY = 0.92   # line spacing (in font sizes) of a stacked "H" row
+
+
+# Where a charge may sit around a label of letters only, as (dx, dy) of its
+# center in font sizes, beyond the element letters' half width (sign kept),
+# in order of preference: upper right (the usual spot) first.
+_CHARGE_SPOTS = [(1, -0.315), (-1, -0.315), (1, 0.5), (-1, 0.5), (0, -0.85), (0, 0.85), (1, 0.0), (-1, 0.0)]
+_CHARGE_CLEAR_DEG = 50.0   # a spot this far (degrees) from every bond is free
+
+
+def _charge_box(elem: str, charge: int, angles: List[float], fs: float) -> Optional[Box]:
+    """
+    Box (relative to the atom, padded like _label_box) of the charge of a
+    label without hydrogens, put in the first preferred spot no bond comes
+    within _CHARGE_CLEAR_DEG of (screen *angles*, radians), else the
+    roomiest — so a bond leaving upper right doesn't run into, or lose its
+    whole line to, a "+" stuck there.
+    """
+    q = charge_text(charge)
+    if not q:
+        return None
+    w = _text_w(q, fs * _SUB_SCALE)
+    half_e = _text_w(elem, fs) / 2 + w / 2
+    best, best_room = None, -1.0
+    for sx, dy in _CHARGE_SPOTS:
+        cx, cy = sx * half_e + (0.05 * fs * sx if dy == 0.0 else 0.0), dy * fs
+        a = math.atan2(cy, cx)
+        room = min((abs((a - b + math.pi) % (2 * math.pi) - math.pi) for b in angles),
+                   default=math.pi)
+        if room >= math.radians(_CHARGE_CLEAR_DEG):
+            best = (cx, cy)
+            break
+        if room > best_room:
+            best, best_room = (cx, cy), room
+    cx, cy = best
+    pad = 0.12 * fs
+    return (cx - w / 2 - pad, cx + w / 2 + pad, cy - 0.25 * fs - pad, cy + 0.25 * fs + pad)
+
+
+def _charge_svg_text(dwg, charge: int, x: float, y: float, box: Box, font_size: float,
+                     font_family: str, fill: str, bold: bool = True):
+    """The charge of _charge_box, as text centered in *box* (atom at x, y)."""
+    cx = x + (box[0] + box[1]) / 2
+    cy = y + (box[2] + box[3]) / 2
+    sub = font_size * _SUB_SCALE
+    return dwg.text(charge_text(charge), insert=(cx - _text_w(charge_text(charge), sub) / 2, cy + 0.35 * sub),
+                    font_size=sub, font_family=font_family,
+                    font_weight="bold" if bold else "normal", fill=fill)
 
 
 # A lone hydride is written with its hydrogens first: H2O, H2S, HCl.
@@ -1358,20 +1594,21 @@ def _keepout_interval(p0, p1, ko: KeepOut) -> Optional[Tuple[float, float]]:
     return t0, t1
 
 
-def _clip_to_keepouts(p0, p1, ko_start: Optional[KeepOut], ko_end: Optional[KeepOut]):
+def _clip_to_keepouts(p0, p1, ko_start, ko_end):
     """
     Segment p0→p1 shortened so it starts outside *ko_start* (the label at
-    its start) and ends outside *ko_end*; None if nothing is left.
+    its start) and ends outside *ko_end*; None if nothing is left. Each is
+    a KeepOut, a list of them (letters, then a charge placed apart), or None.
     """
     s, e = 0.0, 1.0
-    if ko_start is not None:
-        iv = _keepout_interval(p0, p1, ko_start)
+    for ko in ([] if ko_start is None else [ko_start] if isinstance(ko_start, tuple) else ko_start):
+        iv = _keepout_interval(p0, p1, ko)
         if iv is not None and iv[0] < 0.5:
-            s = iv[1]
-    if ko_end is not None:
-        iv = _keepout_interval(p0, p1, ko_end)
+            s = max(s, iv[1])
+    for ko in ([] if ko_end is None else [ko_end] if isinstance(ko_end, tuple) else ko_end):
+        iv = _keepout_interval(p0, p1, ko)
         if iv is not None and iv[1] > 0.5:
-            e = iv[0]
+            e = min(e, iv[0])
     if e - s < 1e-3:
         return None
     dx, dy = p1[0] - p0[0], p1[1] - p0[1]
@@ -1393,7 +1630,7 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
         *centered*) the bond line plus a second one inset on its inside;
       * triple bond: three lines *gap* apart;
       * wedge / hash: the wide end is 1.5 gaps across (+ the line width),
-        and hash marks are one gap apart, like a double bond's two lines.
+        and hash marks are HASH_SPACING gaps apart.
     """
     dx, dy = bx - ax, by - ay
     length = math.hypot(dx, dy)
@@ -1453,8 +1690,8 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
                                           (end[0] - apx * w_end, end[1] - apy * w_end)],
                                   fill=bond_color, stroke="none"))
         else:
-            # Evenly spaced marks, one gap apart (like a double bond's lines), widening toward the end.
-            n_hash = max(2, round(alen * reach / gap))
+            # Evenly spaced marks, HASH_SPACING gaps apart, widening toward the end.
+            n_hash = max(2, round(alen * reach / (gap * HASH_SPACING)))
             for k in range(1, n_hash + 1):
                 t = k / n_hash
                 w = w_end * t
@@ -1670,6 +1907,7 @@ def render_chemvector(
         bond_angles.setdefault(a, []).append(math.atan2(rcy - ay_, rcx - ax_))
 
     label_box_by_atom: Dict[int, Box] = {}
+    charge_box_by_atom: Dict[int, Box] = {}   # a charge placed apart from its letters
     label_h_side: Dict[int, str] = {}
     for i in visible:
         elem = mol.atoms[i].element
@@ -1681,9 +1919,13 @@ def render_chemvector(
         if needs_label:
             label_h_side[i] = _pick_h_side(
                 bond_angles.get(i, []), "left" if elem in H_FIRST_ELEMENTS else "right")
+            charge = getattr(mol.atoms[i], "charge", 0)
+            if charge and not hidden_h_count.get(i, 0):
+                # Letters only: the charge goes in the free gap between bonds
+                charge_box_by_atom[i] = _charge_box(elem, charge, bond_angles.get(i, []), font_size)
+                charge = 0
             label_box_by_atom[i] = _label_box(
-                elem, font_size, hidden_h_count.get(i, 0), label_h_side[i],
-                getattr(mol.atoms[i], "charge", 0))
+                elem, font_size, hidden_h_count.get(i, 0), label_h_side[i], charge)
 
     # A ring that's fully aromatic — genuinely order 5 on mol, or flagged in
     # the caller's own aromatic_bond_idxs overlay (Check Aromaticity, which
@@ -1703,9 +1945,11 @@ def render_chemvector(
             for k in range(n):
                 aromatic_ring_bond_idxs.add(pair_to_bi[(ring[k], ring[(k + 1) % n])])
 
-    keepout: Dict[int, KeepOut] = {
+    keepout: Dict[int, object] = {
         i: _label_keepout(*to_canvas(i), box, font_size, lw) for i, box in label_box_by_atom.items()
     }
+    for i, box in charge_box_by_atom.items():
+        keepout[i] = [keepout[i], _label_keepout(*to_canvas(i), box, font_size, lw)]
 
     paint_group = dwg.g(id="chem_paint")  # added first — paint sits behind bonds and atoms
     bonds_group = dwg.g(id="chem_bonds")
@@ -1817,7 +2061,9 @@ def render_chemvector(
         if getattr(atom, "label_color", None):
             text_color = atom.label_color
         if label_boxes_out is not None:
-            label_boxes_out[i] = (x + bx0, x + bx1, y + by0, y + by1)
+            cb = charge_box_by_atom.get(i, (bx0, bx1, by0, by1))
+            label_boxes_out[i] = (x + min(bx0, cb[0]), x + max(bx1, cb[1]),
+                                  y + min(by0, cb[2]), y + max(by1, cb[3]))
 
         # Bonds already stop short of the letters (see _label_keepout), so
         # nothing needs erasing here: a label gets a box behind it only to
@@ -1839,9 +2085,13 @@ def render_chemvector(
             dwg, elem, hidden_h_count.get(i, 0), label_h_side.get(i, "right"),
             x, y, font_size, font_family, text_color,
             bold=getattr(atom, "label_bold", None) is not False,
-            charge=getattr(atom, "charge", 0),
+            charge=0 if i in charge_box_by_atom else getattr(atom, "charge", 0),
         ):
             text_group.add(el)
+        if i in charge_box_by_atom:
+            text_group.add(_charge_svg_text(
+                dwg, atom.charge, x, y, charge_box_by_atom[i], font_size, font_family, text_color,
+                bold=getattr(atom, "label_bold", None) is not False))
 
     for i in visible:
         if i in label_box_by_atom or i not in positions:
