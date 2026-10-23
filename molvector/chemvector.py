@@ -2109,7 +2109,7 @@ class ChemCanvas(QSvgWidget):
         self.label_color_mode = "cpk"   # "cpk" | "black" — atom letter colors
         self.color_overrides: Dict[str, str] = {}
         self.planarity_tolerance = PLANARITY_TOLERANCE
-        self.layout_mode = "match3d"   # "match3d" (atoms exactly where the 3D view has them) | "clean" (idealized depiction)
+        self.layout_mode = "clean"     # "match3d" (atoms exactly where the 3D view has them) | "clean" (idealized depiction)
         self._plane = None              # (normal, point) chosen with Align plane; kept while the molecule is
         self.align_mode = False
         self._green_atoms: set = set()   # atoms marked (Alt/Ctrl+click) to define a plane

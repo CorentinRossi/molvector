@@ -115,6 +115,24 @@ def _mod(s: str) -> str:
     return s
 
 
+def _normalize_shortcuts(primary: dict, alt: dict) -> tuple:
+    """(primary, alt) shortcut dicts with an alt-only shortcut moved to primary."""
+    primary, alt = dict(primary), dict(alt)
+    for aid, seq in list(alt.items()):
+        if seq and not primary.get(aid, "x"):
+            primary[aid], alt[aid] = seq, ""
+    return primary, alt
+
+
+def _set_action_shortcuts(action: QAction, primary: dict, alt: dict, aid: str):
+    """Set *action*'s shortcuts to primary[aid] then alt[aid]; an id missing
+    from a dict keeps the action's current one, an empty string removes it."""
+    cur = [s.toString() for s in action.shortcuts()]
+    p = primary.get(aid, cur[0] if cur else "")
+    a = alt.get(aid, cur[1] if len(cur) > 1 else "")
+    action.setShortcuts([QKeySequence(seq) for seq in (p, a) if seq])
+
+
 def _log_error(summary: str, exc: BaseException) -> str:
     """Append a full traceback to error.log in the per-user folder, return its path.
 
@@ -330,6 +348,27 @@ def _draw_bond_type(p: QPainter, kind: str, color: str, size: int):
             p.drawLine(pts[k], pts[(k + 1) % 6])
         p.setPen(pen)
         p.drawLine(QPointF(cx, cy), QPointF(size - 3, 3))
+
+
+class _ComboPopupFitter(QObject):
+    """App-wide event filter: an opening combo box list is widened to fit its
+    longest item (on macOS it can be narrower than the combo, cutting text)."""
+
+    def eventFilter(self, obj, event):
+        if (event.type() == QEvent.Type.Show and obj.inherits("QComboBoxPrivateContainer")
+                and isinstance(obj.parent(), QComboBox)):
+            combo = obj.parent()
+            view = combo.view()
+            texts = [combo.itemText(i) for i in range(combo.count())]
+            text_w = max((max(view.fontMetrics().horizontalAdvance(t),
+                              combo.fontMetrics().horizontalAdvance(t)) for t in texts), default=0)
+            # + the macOS checkmark column on the left and a right margin
+            need = max(view.sizeHintForColumn(0) + 24, text_w + 48) + 2 * obj.frameWidth()
+            if view.verticalScrollBar().isVisible():
+                need += view.verticalScrollBar().sizeHint().width()
+            if obj.width() < need:
+                obj.resize(need, obj.height())
+        return False
 
 
 class _IconComboBox(QComboBox):
@@ -793,7 +832,7 @@ class ColorButton(QPushButton):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# SETTINGS DIALOG  (Tabbed: General, Overlay, Atoms & Bonds)
+# SETTINGS DIALOG  (Tabbed: General, Shortcuts, Overlay, 3D style, 2D style)
 # ─────────────────────────────────────────────────────────────────────────────
 
 POSITION_LABELS = {
@@ -882,7 +921,7 @@ class SettingsDialog(QDialog):
                  restore_molecule=False, start_view="3D", fast_render=False, show_debug_menu=False, live_callback=None,
                  shortcut_actions=None, alt_shortcut_defaults=None, parent=None,
                  show_dipole_arrow=False, quick_svg_widget=False,
-                 chem_label_colors="cpk", chem_layout="match3d", chem_callback=None):
+                 chem_label_colors="cpk", chem_layout="clean", chem_callback=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setMinimumWidth(520)
@@ -967,7 +1006,7 @@ class SettingsDialog(QDialog):
 
         self.tabs.addTab(page, "&General")
 
-    def _build_chem2d_tab(self, label_colors: str, layout_mode: str = "match3d"):
+    def _build_chem2d_tab(self, label_colors: str, layout_mode: str = "clean"):
         page = QWidget()
         form = QFormLayout(page)
         form.setSpacing(8)
@@ -990,7 +1029,7 @@ class SettingsDialog(QDialog):
         self._chem_layout_combo.currentIndexChanged.connect(self._on_change)
         form.addRow("2D layout:", self._chem_layout_combo)
 
-        self.tabs.addTab(page, "&2D")
+        self.tabs.addTab(page, "&2D style")
 
     @property
     def chem_label_colors(self) -> str:
@@ -1096,7 +1135,8 @@ class SettingsDialog(QDialog):
     def _sc_make_default(self):
         primary, alt = self._sc_collect_shortcuts()
         try:
-            _update_config({"shortcuts": primary, "alt_shortcuts": alt})
+            _update_config({"shortcuts": primary, "alt_shortcuts": alt,
+                            "shortcuts_version": len(MainWindow.SHORTCUT_MIGRATIONS)})
             QMessageBox.information(self, "Saved", f"Shortcuts saved to:\n{self.CONFIG_FILE}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not save shortcuts:\n{e}")
@@ -1257,7 +1297,7 @@ class SettingsDialog(QDialog):
         self._set_border_slider_for_mode(atom_border_mode, atom_border_scale, atom_border_width)
         self._update_border_visibility()
 
-        self.tabs.addTab(page, "Atoms && Bonds")
+        self.tabs.addTab(page, "3D style")
 
         self._ball_slider.installEventFilter(self)
         self._bondw_slider.installEventFilter(self)
@@ -1503,7 +1543,7 @@ class SettingsDialog(QDialog):
             self._quick_svg_widget_cb.setChecked(False)
         elif section == "chem2d":
             self._chem_label_combo.setCurrentIndex(0)
-            self._chem_layout_combo.setCurrentIndex(0)
+            self._chem_layout_combo.setCurrentIndex(1)   # Clean depiction
         elif section == "overlay":
             self._bg_btn.set_color("#ffffff")
             self._show_axes_cb.setChecked(False)
@@ -3370,7 +3410,8 @@ class ShortcutDialog(QDialog):
     def _make_default(self):
         primary, alt = self._collect_shortcuts()
         try:
-            _update_config({"shortcuts": primary, "alt_shortcuts": alt})
+            _update_config({"shortcuts": primary, "alt_shortcuts": alt,
+                            "shortcuts_version": len(MainWindow.SHORTCUT_MIGRATIONS)})
             QMessageBox.information(self, "Saved", f"Shortcuts saved to:\n{self.CONFIG_FILE}")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Could not save shortcuts:\n{e}")
@@ -5645,6 +5686,7 @@ class MainWindow(QMainWindow):
         "export_svg": _mod("Ctrl+Shift+S"),
         "export_view": _mod("Ctrl+E"),
         "quick_svg_export": _mod("Ctrl+Shift+X"),
+        "restart": _mod("Ctrl+Alt+Q"),
         "quit": _mod("Ctrl+Q"),
         "settings": _mod("Ctrl+;"),
         "style": _mod("Ctrl+="),
@@ -5675,6 +5717,14 @@ class MainWindow(QMainWindow):
         "redo": _mod("Ctrl+Shift+Z"),
         "optimize_settings": "",
         "bond_order": "",
+        "paint_atoms": "",
+        "clear_paint": "",
+        "chem_mode": _mod("Ctrl+2"),
+        "chem_reset_view": "",
+        "chem_show_carbons": "",
+        "chem_show_hydrogens": "",
+        "chem_settings": "",
+        "chem_check_aromaticity": "",
         "open_test": _mod("Ctrl+Shift+T"),
         "open_test_folder": "",
         "about": "",
@@ -5682,7 +5732,14 @@ class MainWindow(QMainWindow):
 
     ALT_SHORTCUT_DEFAULTS = {
         "redo": _mod("Ctrl+Y"),
+        "chem_mode": "Tab",
     }
+
+    # Defaults added after shortcuts could be saved, oldest first, as
+    # (column, action id, key): given to saved configs once (_migrate_shortcuts).
+    SHORTCUT_MIGRATIONS = [
+        ("alt", "chem_mode", "Tab"),
+    ]
 
     LAST_MOLECULE_FILE = paths.config_path("last_molecule.json")
 
@@ -5763,6 +5820,7 @@ class MainWindow(QMainWindow):
         self._shortcut_actions["open"] = act_open
 
         act_open_catalog = QAction("Open from &Catalog…", self)
+        self._act_open_catalog = act_open_catalog
         act_open_catalog.setShortcut(_mod("Ctrl+Shift+O"))
         act_open_catalog.triggered.connect(self._open_from_catalog)
         file_menu.addAction(act_open_catalog)
@@ -5800,6 +5858,7 @@ class MainWindow(QMainWindow):
         act_restart.setShortcut(_mod("Ctrl+Alt+Q"))
         act_restart.triggered.connect(self._restart)
         file_menu.addAction(act_restart)
+        self._shortcut_actions["restart"] = act_restart
 
         act_quit = QAction("&Quit", self)
         act_quit.setShortcut(_mod("Ctrl+Q"))
@@ -5992,10 +6051,11 @@ class MainWindow(QMainWindow):
 
         self._menu_build.addSeparator()
 
-        # Same dialog as File → Open from Catalog… (which holds the shortcut).
-        act_build_catalog = QAction("Catalog…", self)
-        act_build_catalog.triggered.connect(self._open_from_catalog)
-        self._menu_build.addAction(act_build_catalog)
+        # The File menu's action itself, so it shows (and follows) its
+        # shortcut here too; it reads "Catalog…" while the Build menu is open
+        self._menu_build.addAction(self._act_open_catalog)
+        self._menu_build.aboutToShow.connect(lambda: self._act_open_catalog.setText("Catalog…"))
+        self._menu_build.aboutToHide.connect(lambda: self._act_open_catalog.setText("Open from &Catalog…"))
 
         # ── 2D Viewer (Chemvector) ──
         chem_menu = mb.addMenu("2D &Viewer")
@@ -6056,11 +6116,6 @@ class MainWindow(QMainWindow):
 
         chem_menu.addSeparator()
 
-        act_chem_settings = QAction("2D Settings…", self)
-        act_chem_settings.setToolTip("Open Settings on the 2D tab (e.g. atom letter colors)")
-        act_chem_settings.triggered.connect(lambda: self._edit_settings(tab_index=4))
-        chem_menu.addAction(act_chem_settings)
-
         act_chem_aromaticity = QAction("Check Aromaticity", self)
         act_chem_aromaticity.setToolTip(
             "Perceive aromaticity from the current (explicit Kekulé) bond orders "
@@ -6070,6 +6125,14 @@ class MainWindow(QMainWindow):
         act_chem_aromaticity.triggered.connect(self._check_chem_aromaticity)
         chem_menu.addAction(act_chem_aromaticity)
         self._shortcut_actions["chem_check_aromaticity"] = act_chem_aromaticity
+
+        chem_menu.addSeparator()
+
+        act_chem_settings = QAction("2D Settings…", self)
+        act_chem_settings.setToolTip("Open Settings on the 2D style tab (e.g. atom letter colors)")
+        act_chem_settings.triggered.connect(lambda: self._edit_settings(tab_index=4))
+        chem_menu.addAction(act_chem_settings)
+        self._shortcut_actions["chem_settings"] = act_chem_settings
 
         # ── Help ──
         help_menu = mb.addMenu("&Help")
@@ -6586,12 +6649,9 @@ class MainWindow(QMainWindow):
         if mol and (mol.vibrational_modes or mol.excited_states or mol.mulliken_charges):
             self._menu_calc.addSeparator()
             act_results = QAction("Calculation Results…", self)
-            overrides, alt_overrides = self._load_shortcut_overrides()
-            ks = overrides.get("calc_results", _mod("Ctrl+M"))
-            act_results.setShortcut(ks)
-            alt_ks = alt_overrides.get("calc_results", "")
-            if alt_ks and ks:
-                act_results.setShortcuts([QKeySequence(ks), QKeySequence(alt_ks)])
+            act_results.setShortcut(self.DEFAULT_SHORTCUTS["calc_results"])
+            _set_action_shortcuts(act_results, *_normalize_shortcuts(*self._load_shortcut_overrides()),
+                                  "calc_results")
             act_results.triggered.connect(self._show_calculations_dialog)
             self._menu_calc.addAction(act_results)
             self._shortcut_actions["calc_results"] = act_results
@@ -7175,42 +7235,64 @@ class MainWindow(QMainWindow):
         alt = {k: v for k, v in alt.items() if k in self._shortcut_actions}
         dlg = ShortcutDialog(self._shortcut_actions, alt_defaults=alt, parent=self)
         if dlg.exec() == QDialog.DialogCode.Accepted:
-            primary, alt = dlg.get_shortcuts()
-            self._apply_shortcuts(primary)
-            self._apply_alt_shortcuts(alt)
-            self._save_shortcut_overrides(primary, alt)
+            self._commit_shortcuts(*dlg.get_shortcuts())
+
+    def _commit_shortcuts(self, primary: dict, alt: dict):
+        """Apply shortcuts edited in a dialog (menus show them at once) and save them."""
+        primary, alt = _normalize_shortcuts(primary, alt)
+        self._apply_shortcuts(primary, alt)
+        self._save_shortcut_overrides(primary, alt)
 
     def _apply_shortcut_config(self):
-        primary, alt = self._load_shortcut_overrides()
-        if primary:
-            self._apply_shortcuts(primary)
-        if alt:
-            self._apply_alt_shortcuts(alt)
+        primary, saved_alt = self._load_shortcut_overrides()
+        alt = dict(self.ALT_SHORTCUT_DEFAULTS)   # e.g. Tab for 2D/3D unless changed
+        alt.update(saved_alt)
+        self._apply_shortcuts(*_normalize_shortcuts(primary, alt))
 
-    def _apply_shortcuts(self, overrides: dict):
-        for aid, seq_str in overrides.items():
-            if aid in self._shortcut_actions and seq_str:
-                self._shortcut_actions[aid].setShortcut(seq_str)
-
-    def _apply_alt_shortcuts(self, alt: dict):
-        for aid, seq_str in alt.items():
-            if aid in self._shortcut_actions and seq_str:
-                action = self._shortcut_actions[aid]
-                primary = action.shortcut().toString()
-                if primary:
-                    action.setShortcuts([QKeySequence(primary), QKeySequence(seq_str)])
-                else:
-                    action.setShortcut(seq_str)
+    def _apply_shortcuts(self, primary: dict, alt: dict):
+        """
+        Give each action its primary and alt shortcut. An empty string clears
+        one (an action listed in neither dict keeps what it has), so a
+        removed shortcut also disappears from the menu, which shows an
+        action's shortcuts itself.
+        """
+        for aid, action in self._shortcut_actions.items():
+            if aid in primary or aid in alt:
+                _set_action_shortcuts(action, primary, alt, aid)
 
     def _load_shortcut_overrides(self) -> tuple:
         cfg = paths.read_json(CONFIG_FILE, {})
         if not isinstance(cfg, dict):
             return {}, {}
-        return cfg.get("shortcuts", {}), cfg.get("alt_shortcuts", {})
+        primary, alt = cfg.get("shortcuts", {}), cfg.get("alt_shortcuts", {})
+        if (primary or alt) and cfg.get("shortcuts_version", 0) < len(self.SHORTCUT_MIGRATIONS):
+            primary, alt = self._migrate_shortcuts(primary, alt, cfg.get("shortcuts_version", 0))
+        return primary, alt
+
+    def _migrate_shortcuts(self, primary: dict, alt: dict, version: int) -> tuple:
+        """
+        Saved shortcuts list every action, so a default added later (see
+        SHORTCUT_MIGRATIONS) would never reach them: give it to an action
+        that has no shortcut there, if no other action uses the key, and
+        save the result once.
+        """
+        primary, alt = dict(primary), dict(alt)
+        for column, aid, seq in self.SHORTCUT_MIGRATIONS[version:]:
+            saved = primary if column == "primary" else alt
+            used = {v.lower() for v in list(primary.values()) + list(alt.values()) if v}
+            if not saved.get(aid) and seq.lower() not in used:
+                saved[aid] = seq
+        try:
+            _update_config({"shortcuts": primary, "alt_shortcuts": alt,
+                            "shortcuts_version": len(self.SHORTCUT_MIGRATIONS)})
+        except OSError:
+            pass   # applied for this session; tried again next launch
+        return primary, alt
 
     def _save_shortcut_overrides(self, primary: dict, alt: dict):
         try:
-            _update_config({"shortcuts": primary, "alt_shortcuts": alt})
+            _update_config({"shortcuts": primary, "alt_shortcuts": alt,
+                            "shortcuts_version": len(self.SHORTCUT_MIGRATIONS)})
         except OSError as e:
             log_path = _log_error("Could not save shortcuts", e)
             self.show_notification("Shortcuts could not be saved.", "error", 0, log_file=log_path)
@@ -8058,7 +8140,7 @@ class MainWindow(QMainWindow):
         c2 = cfg.get("chem2d", {})
         if c2:
             self._chem_canvas.label_color_mode = c2.get("label_colors", "cpk")
-            self._chem_canvas.layout_mode = c2.get("layout", "match3d")
+            self._chem_canvas.layout_mode = c2.get("layout", "clean")
             self._chem_canvas.request_render()
         if g:
             theme = g.get("theme", "light")
@@ -8311,10 +8393,7 @@ class MainWindow(QMainWindow):
             if self._canvas.molecule:
                 self._legend.update_for(self._canvas.molecule, dlg._color_overrides)
             # Apply shortcut changes
-            sc_primary, sc_alt = dlg.get_shortcut_overrides()
-            self._apply_shortcuts(sc_primary)
-            self._apply_alt_shortcuts(sc_alt)
-            self._save_shortcut_overrides(sc_primary, sc_alt)
+            self._commit_shortcuts(*dlg.get_shortcut_overrides())
             self._canvas.request_render()
         else:
             (self._current_theme, self._canvas.background,
@@ -8622,6 +8701,8 @@ def main():
     native_guard.enable_crash_traceback()
     app = QApplication(sys.argv)
     app.setApplicationName("Molvector")
+    app._combo_popup_fitter = _ComboPopupFitter(app)
+    app.installEventFilter(app._combo_popup_fitter)
     # Wayland ignores setWindowIcon and finds the icon via the .desktop file name.
     app.setDesktopFileName("molvector")
     # Keep the platform's own UI font ("sans-serif" is not a real family on
