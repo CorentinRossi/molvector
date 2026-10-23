@@ -4020,7 +4020,7 @@ class CatalogDialog(QDialog):
 
     def _preview_svg_2d(self, rec) -> bytes:
         from molvector.chemvector import (generate_2d_layout, render_chemvector, DOUBLE_BOND_GAP_PX,
-                                          CHEM_SIZE_REF_BOND_PX)
+                                          CHEM_SIZE_REF_BOND_PX, _hydrogen_is_implicit)
         mol = self._catalog.to_molecule(rec)
         # A flat depiction of a cage is unreadable: always show the 3D projection.
         projection = self._layout == "match3d" or "topology:cage" in rec["tags"]
@@ -4032,8 +4032,12 @@ class CatalogDialog(QDialog):
         if self._view2d is not None:
             layout_kw["planarity_tolerance"] = self._view2d.planarity_tolerance
         positions, bond_info = generate_2d_layout(mol, view_rot=rot, projection=projection, **layout_kw)
-        heavy = [positions[i] for i, a in enumerate(mol.atoms) if a.element != "H" and i in positions]
-        pts = heavy or list(positions.values())
+        # Fit every atom that will be drawn: with Show H, or for an H with no
+        # heavy atom to fold into, hydrogens too.
+        show_h = self._view2d is not None and self._view2d.show_hydrogens
+        drawn = [positions[i] for i, a in enumerate(mol.atoms) if i in positions
+                 and (a.element != "H" or show_h or not _hydrogen_is_implicit(i, mol))]
+        pts = drawn or list(positions.values())
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
         span_x = max(xs) - min(xs) + 2.4
