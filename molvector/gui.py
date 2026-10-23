@@ -70,6 +70,7 @@ from PyQt6.QtCore import (
 )
 from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QFontDatabase, QIconEngine, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen, QLinearGradient, QBrush
 from PyQt6.QtGui import QDrag
+from PyQt6 import sip
 
 try:
     from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
@@ -8748,7 +8749,11 @@ def main():
     if len(sys.argv) > 1 and os.path.isfile(sys.argv[1]):
         win._load_and_display(sys.argv[1])
 
-    sys.exit(app.exec())
+    rc = app.exec()
+    # Destroy the window while QApplication still exists; otherwise QApplication's
+    # dealloc deletes it mid-walk of sip's wrapper map and segfaults on quit.
+    sip.delete(win)
+    sys.exit(rc)
 
 
 if __name__ == "__main__":
