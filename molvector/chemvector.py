@@ -1485,54 +1485,23 @@ def _blend_hex(base: str, overlay: str, alpha: float) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
-def _hydrogen_is_implicit(i: int, mol: Molecule, bond_info: BondInfo) -> bool:
+def _hydrogen_is_implicit(i: int, mol: Molecule) -> bool:
     """
     Whether hydrogen atom *i* should be hidden in implicit-hydrogen mode.
 
-    A hydrogen on a heteroatom (O-H, N-H, S-H, Mg-H, ...) is hidden and
-    written into that atom's label instead — "OH", "NH2", "H2O" — the usual
-    skeletal-formula convention, which also keeps it readable when the 3D
-    projection puts a short, out-of-plane X-H bond right on its atom's
-    letter. A hydrogen bonded to another hydrogen (H2, H3+) or to two atoms
-    stays explicit: there is no heavy atom to fold it into.
-
-    On carbon, a hydrogen is implicit unless it carries a wedge/hash
-    (perspective) bond that could be conveying real stereochemistry. One
-    carrying a wedge/hash bond also
-    stays explicit, but only when it could actually be conveying real
-    stereochemistry — i.e. its carbon carries exactly one hydrogen (so it's
-    a genuine potential stereocenter). A carbon with two or more hydrogens
-    (a plain CH2 or CH3) can never be a stereocenter, so a wedge/hash there
-    is purely cosmetic (from perceived 3D shape, not configuration) and
-    hiding it just falls back to the normal implicit-CH2/CH3 convention —
-    exactly like any other saturated ring carbon, with no dangling H atoms
-    or wedge/hash lines drawn.
+    A hydrogen on carbon is always hidden, wedge/hash or not — the usual
+    skeletal-formula convention; Show H draws them. A hydrogen on a
+    heteroatom (O-H, N-H, S-H, Mg-H, ...) is hidden too and written into
+    that atom's label instead — "OH", "NH2", "H2O" — which also keeps it
+    readable when the 3D projection puts a short, out-of-plane X-H bond
+    right on its atom's letter. A hydrogen bonded to another hydrogen (H2,
+    H3+), to two atoms or to nothing stays explicit: there is no heavy atom
+    to fold it into.
     """
     if mol.atoms[i].element != "H":
         return False
-
-    own_bonds = [(bi, b) for bi, b in enumerate(mol.bonds) if b.i == i or b.j == i]
-    if not own_bonds:
-        return False  # isolated H atom — nothing to hide it from, keep visible
-
-    neighbor_idx = [b.j if b.i == i else b.i for bi, b in own_bonds]
-    if len(neighbor_idx) != 1 or mol.atoms[neighbor_idx[0]].element == "H":
-        return False
-    if mol.atoms[neighbor_idx[0]].element != "C":
-        return True
-
-    carbon_idx = neighbor_idx[0]
-    h_siblings = sum(
-        1 for b in mol.bonds
-        if (b.i == carbon_idx and mol.atoms[b.j].element == "H")
-        or (b.j == carbon_idx and mol.atoms[b.i].element == "H")
-    )
-    if h_siblings == 1:
-        for bi, b in own_bonds:
-            if bond_info.get(bi, {}).get("kind", "none") in ("wedge", "hash"):
-                return False
-
-    return True
+    neighbor_idx = [b.j if b.i == i else b.i for b in mol.bonds if b.i == i or b.j == i]
+    return len(neighbor_idx) == 1 and mol.atoms[neighbor_idx[0]].element != "H"
 
 
 # Clear space between a label's letters and the end of any bond reaching it,
@@ -1620,7 +1589,8 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
                inside_canvas: Optional[Tuple[float, float]] = None,
                centered: bool = False,
                ko_i: Optional[KeepOut] = None,
-               ko_j: Optional[KeepOut] = None):
+               ko_j: Optional[KeepOut] = None,
+               untrimmed: Tuple[bool, bool] = (False, False)):
     """
     Draw one bond from atom i (ax, ay) to atom j (bx, by). Every line is
     clipped at the keep-out of a labeled end (ko_i / ko_j), so all bonds stop
@@ -1631,6 +1601,9 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
       * triple bond: three lines *gap* apart;
       * wedge / hash: the wide end is 1.5 gaps across (+ the line width),
         and hash marks are HASH_SPACING gaps apart.
+    *untrimmed* (i end, j end) runs an offset double bond's inner line all
+    the way to that atom, so it joins the next bond's inner line in a
+    cumulated chain (C=C=C).
     """
     dx, dy = bx - ax, by - ay
     length = math.hypot(dx, dy)
@@ -1649,8 +1622,8 @@ def _draw_bond(dwg, group, ax, ay, bx, by, order: int, kind: str, apex_is_i: boo
         # A parallel line *off* to the side, pulled in by trim_frac of the bond
         # at a bare vertex (so it never runs into the neighbors' bonds); at a
         # labeled end it is clipped by the keep-out like any other line.
-        ti = 0.0 if ko_i is not None else length * trim_frac
-        tj = 0.0 if ko_j is not None else length * trim_frac
+        ti = 0.0 if ko_i is not None or untrimmed[0] else length * trim_frac
+        tj = 0.0 if ko_j is not None or untrimmed[1] else length * trim_frac
         line((ax + ux * ti + px * off, ay + uy * ti + py * off),
              (bx - ux * tj + px * off, by - uy * tj + py * off))
 
@@ -1844,7 +1817,7 @@ def render_chemvector(
 
     visible = {i for i in range(len(mol.atoms)) if i in positions}
     if not show_hydrogens:
-        visible = {i for i in visible if not _hydrogen_is_implicit(i, mol, bond_info)}
+        visible = {i for i in visible if not _hydrogen_is_implicit(i, mol)}
 
     visible_degree: Dict[int, int] = {i: 0 for i in visible}
     for bond in mol.bonds:
@@ -1956,6 +1929,89 @@ def render_chemvector(
     mask_group = dwg.g(id="chem_label_tints")
     text_group = dwg.g(id="chem_labels")
 
+    # Cumulated atoms (allene/cumulene centers: two or more double bonds) —
+    # their double bonds are drawn centered, so a run of them reads as one
+    # continuous "=" instead of inner lines zigzagging from side to side.
+    n_double: Dict[int, int] = {}
+    for bi, bond in enumerate(mol.bonds):
+        if (bond.i in visible and bond.j in visible and bi not in aromatic_ring_bond_idxs
+                and bond_info.get(bi, {}).get("order", bond.order) == 2):
+            n_double[bond.i] = n_double.get(bond.i, 0) + 1
+            n_double[bond.j] = n_double.get(bond.j, 0) + 1
+    cumulated = {i for i, n in n_double.items() if n >= 2}
+
+    def vertex_inside(o: int, t: int) -> Optional[Tuple[float, float]]:
+        """
+        When bare vertex *o* has exactly one bond besides the one to *t*, at
+        a real angle to it: the canvas direction toward that other bond
+        (inside the angle), for a double bond o=t drawn like a ring bond.
+        """
+        if visible_degree.get(o, 0) != 2 or o in keepout:
+            return None
+        nb = next((b2.j if b2.i == o else b2.i for b2 in mol.bonds
+                   if o in (b2.i, b2.j) and t not in (b2.i, b2.j)
+                   and (b2.j if b2.i == o else b2.i) in visible), None)
+        if nb is None:
+            return None
+        ox, oy = to_canvas(o)
+        tx, ty = to_canvas(t)
+        nx, ny = to_canvas(nb)
+        cross = (tx - ox) * (ny - oy) - (ty - oy) * (nx - ox)
+        norm = math.hypot(tx - ox, ty - oy) * math.hypot(nx - ox, ny - oy)
+        if norm < 1e-9 or abs(cross) / norm <= 0.1:   # (nearly) collinear: no inside
+            return None
+        return (nx - ox, ny - oy)
+
+    # A cumulated chain (C=C=C...) ending at such a vertex (H2C=C=CH-R) is
+    # drawn offset as a whole: the main line runs through the chain into
+    # the vertex, and one unbroken inner line sits inside the vertex's
+    # angle. Otherwise (both ends terminal, or the ends disagree on the
+    # side) it stays centered.
+    chain_inside: Dict[int, Tuple[float, float]] = {}
+    seen_chain_bonds: set = set()
+    for start_bi, sb in enumerate(mol.bonds):
+        if start_bi in seen_chain_bonds or not (sb.i in cumulated or sb.j in cumulated):
+            continue
+        if n_double.get(sb.i, 0) == 0 or sb.i not in visible or sb.j not in visible \
+                or bond_info.get(start_bi, {}).get("order", sb.order) != 2 \
+                or start_bi in aromatic_ring_bond_idxs:
+            continue
+        chain, stack = set(), [start_bi]
+        while stack:
+            cbi = stack.pop()
+            if cbi in chain:
+                continue
+            chain.add(cbi)
+            for a in (mol.bonds[cbi].i, mol.bonds[cbi].j):
+                if a in cumulated:
+                    stack.extend(obi for obi, ob in enumerate(mol.bonds)
+                                 if a in (ob.i, ob.j) and obi not in chain
+                                 and ob.i in visible and ob.j in visible
+                                 and obi not in aromatic_ring_bond_idxs
+                                 and bond_info.get(obi, {}).get("order", ob.order) == 2)
+        seen_chain_bonds |= chain
+        sides = []
+        for cbi in chain:
+            cb = mol.bonds[cbi]
+            for e, other in ((cb.i, cb.j), (cb.j, cb.i)):
+                if e not in cumulated:
+                    side = vertex_inside(e, other)
+                    if side is not None:
+                        sides.append((side, cb))
+        if not sides:
+            continue
+        # Every chain bond is (near) collinear, so one side vector serves them
+        # all; check the ends agree with each other about which side it is.
+        side0, cb0 = sides[0]
+        (x0, y0), (x1, y1) = to_canvas(cb0.i), to_canvas(cb0.j)
+        ux0, uy0 = x1 - x0, y1 - y0
+        def side_sign(v):
+            return 1 if (-uy0 * v[0] + ux0 * v[1]) >= 0 else -1
+        if any(side_sign(v) != side_sign(side0) for v, _ in sides[1:]):
+            continue
+        for cbi in chain:
+            chain_inside[cbi] = side0
+
     for bi, bond in enumerate(mol.bonds):
         if bond.i not in visible or bond.j not in visible:
             continue
@@ -1974,10 +2030,29 @@ def render_chemvector(
             inside_canvas = (layout_inside[0], -layout_inside[1])
 
         # Double bonds are drawn by position, not by element: centered when
-        # one end is terminal (no other drawn bond) or both ends carry a
-        # label; otherwise offset, inset on the "inside" side.
+        # one end is terminal (no other drawn bond), both ends carry a label,
+        # or an end is cumulated (C=C=C); otherwise offset, inset on the
+        # "inside" side.
         centered = (visible_degree.get(bond.i, 0) <= 1 or visible_degree.get(bond.j, 0) <= 1
-                    or (bond.i in keepout and bond.j in keepout))
+                    or (bond.i in keepout and bond.j in keepout)
+                    or bond.i in cumulated or bond.j in cumulated)
+        untrimmed = (False, False)
+        if order == 2 and bi in chain_inside:
+            centered = False
+            inside_canvas = chain_inside[bi]
+            untrimmed = (bond.i in cumulated, bond.j in cumulated)
+        elif centered and order == 2 and bond.i not in cumulated and bond.j not in cumulated:
+            # Terminal =CH2 / =O / ... on a bare vertex with one other bond
+            # (R-CH=CH2, R-CH=O): drawn like a ring bond instead — the main
+            # line meets the other bond at the vertex, the inner line sits
+            # inside the angle.
+            for t, o in ((bond.i, bond.j), (bond.j, bond.i)):
+                if visible_degree.get(t, 0) == 1:
+                    side = vertex_inside(o, t)
+                    if side is not None:
+                        centered = False
+                        inside_canvas = side
+                        break
 
         _draw_bond(
             dwg, bonds_group, ax, ay, bx, by,
@@ -1986,6 +2061,7 @@ def render_chemvector(
             bond_color=bond_color, lw=lw, gap=double_gap,
             inside_canvas=inside_canvas, centered=centered,
             ko_i=keepout.get(bond.i), ko_j=keepout.get(bond.j),
+            untrimmed=untrimmed,
         )
 
     for a, (rcx, rcy) in shown_ring_bonds:
@@ -2321,6 +2397,7 @@ class ChemCanvas(QSvgWidget):
 
         self.build_mode = False
         self.build_element = "C"
+        self.auto_adjust_h = False   # build edits add/remove H to fill each touched atom's valence
         self._bonding_from: Optional[int] = None
         self._mouse_pos: Optional[QPoint] = None
 
@@ -2359,7 +2436,7 @@ class ChemCanvas(QSvgWidget):
         self.label_color_mode = "cpk"   # "cpk" | "black" — atom letter colors
         self.color_overrides: Dict[str, str] = {}
         self.planarity_tolerance = PLANARITY_TOLERANCE
-        self.layout_mode = "clean"     # "match3d" (atoms exactly where the 3D view has them) | "clean" (idealized depiction)
+        self.layout_mode = "match3d"   # "match3d" (atoms exactly where the 3D view has them) | "clean" (idealized depiction)
         self._plane = None              # (normal, point) chosen with Align plane; kept while the molecule is
         self.align_mode = False
         self._green_atoms: set = set()   # atoms marked (Alt/Ctrl+click) to define a plane
@@ -2652,7 +2729,7 @@ class ChemCanvas(QSvgWidget):
             return []
         out = []
         for i, a in enumerate(mol.atoms):
-            if a.element != "H" or not _hydrogen_is_implicit(i, mol, self._bond_info):
+            if a.element != "H" or not _hydrogen_is_implicit(i, mol):
                 continue
             if idx is None or any((b.i == i and b.j == idx) or (b.j == i and b.i == idx) for b in mol.bonds):
                 out.append(i)
@@ -3052,6 +3129,40 @@ class ChemCanvas(QSvgWidget):
             ]
         _annotate_double_bond_insets(mol, self._positions, self._bond_info)
 
+    def _apply_auto_h(self, atoms: List[Atom]):
+        """
+        Auto adjust H: give each of *atoms* (Atom objects, so deletions that
+        reindex the molecule don't lose track of them) as many terminal H
+        atoms as its usual valence leaves free after its heavy-atom bonds,
+        deleting extras and adding/re-spreading the rest.
+        """
+        mol = self.molecule
+        if mol is None or not self.auto_adjust_h:
+            return
+        for atom in atoms:
+            idx = next((i for i, a in enumerate(mol.atoms) if a is atom), None)
+            valence_e = _VALENCE_ELECTRONS.get(atom.element)
+            if idx is None or valence_e is None:
+                continue
+            h_idx, heavy_orders = [], 0.0
+            for b in mol.bonds:
+                if idx not in (b.i, b.j):
+                    continue
+                j = b.j if b.i == idx else b.i
+                if mol.atoms[j].element == "H" and sum(1 for b2 in mol.bonds if j in (b2.i, b2.j)) == 1:
+                    h_idx.append(j)
+                else:
+                    heavy_orders += 1.5 if b.order == 5 else b.order
+            needed = max(0, min(valence_e, 8 - valence_e) - int(round(heavy_orders)))
+            if len(h_idx) > needed:
+                for j in sorted(h_idx[needed:], reverse=True):
+                    self._delete_atom(j)
+                idx = next(i for i, a in enumerate(mol.atoms) if a is atom)
+            if needed:
+                # Adds what's missing, and re-spreads the H it keeps around
+                # its new set of bonds.
+                self._add_hidden_hydrogens(idx, needed - min(needed, len(h_idx)))
+
     # ── drag and drop ────────────────────────────────────────────────────────
 
     def dragEnterEvent(self, event):
@@ -3198,11 +3309,14 @@ class ChemCanvas(QSvgWidget):
             if bi is not None:
                 self.requestHistorySave.emit()
                 if self._apply_bond_type(bi):
+                    b = self.molecule.bonds[bi]
+                    self._apply_auto_h([self.molecule.atoms[b.i], self.molecule.atoms[b.j]])
                     self.moleculeChanged.emit()
                     self.request_render()
                 return
             self.requestHistorySave.emit()
-            self._add_atom(pos)
+            new_idx = self._add_atom(pos)
+            self._apply_auto_h([self.molecule.atoms[new_idx]])
             self.moleculeChanged.emit()
             self.request_render()
             return
@@ -3211,7 +3325,10 @@ class ChemCanvas(QSvgWidget):
             idx = self._get_hit_atom(pos)
             if idx is not None:
                 self.requestHistorySave.emit()
+                nbs = [self.molecule.atoms[b.j if b.i == idx else b.i]
+                       for b in self.molecule.bonds if idx in (b.i, b.j)]
                 self._delete_atom(idx)
+                self._apply_auto_h(nbs)   # deleted ones (its own H) are skipped
                 self.moleculeChanged.emit()
                 self.request_render()
                 return
@@ -3349,10 +3466,12 @@ class ChemCanvas(QSvgWidget):
             if end_idx is not None and end_idx == self._bonding_from:
                 self.requestHistorySave.emit()
                 self.molecule.atoms[self._bonding_from].element = self.build_element
+                self._apply_auto_h([self.molecule.atoms[self._bonding_from]])
                 self.moleculeChanged.emit()
             elif end_idx is not None:
                 self.requestHistorySave.emit()
                 self._add_bond(self._bonding_from, end_idx, order, stereo)
+                self._apply_auto_h([self.molecule.atoms[self._bonding_from], self.molecule.atoms[end_idx]])
                 self.moleculeChanged.emit()
             else:
                 self.requestHistorySave.emit()
@@ -3361,6 +3480,7 @@ class ChemCanvas(QSvgWidget):
                 offset = {"wedge": STEREO_DEPTH, "hash": -STEREO_DEPTH}.get(stereo, 0.0)
                 new_idx = self._add_atom(pos, depth_from=self._bonding_from, depth_offset=offset)
                 self._add_bond(self._bonding_from, new_idx, order, stereo)
+                self._apply_auto_h([self.molecule.atoms[self._bonding_from], self.molecule.atoms[new_idx]])
                 self.moleculeChanged.emit()
             self._bonding_from = None
             self._mouse_pos = None

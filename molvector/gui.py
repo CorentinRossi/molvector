@@ -67,6 +67,7 @@ from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtCore import (
     Qt, QByteArray, QPoint, QPointF, pyqtSignal, pyqtProperty, QTimer, QSize, QRect, QRectF,
     QUrl, QMimeData, QEvent, QObject, QThread, QProcess, QProcessEnvironment, QPropertyAnimation, QEasingCurve,
+    QLoggingCategory,
 )
 from PyQt6.QtGui import QAction, QActionGroup, QColor, QPalette, QFont, QCursor, QIcon, QPixmap, QImage, QPainter, QFontDatabase, QIconEngine, QPainterPath, QPdfWriter, QPageSize, QKeySequence, QDesktopServices, QTextCursor, QPen, QLinearGradient, QBrush
 from PyQt6.QtGui import QDrag
@@ -565,8 +566,58 @@ THEMES = {
     }
 }
 
+# Interface text size (Settings > General), as a factor of the platform's own
+# UI font. _fs() scales px sizes that follow the text: style sheet font sizes
+# and widget widths sized for 100% text.
+_UI_FONT_SCALE = 1.0
+_UI_BASE_FONTS: dict = {}   # "" (application default) / widget class -> unscaled QFont
+
+# Classes Qt gives their own platform font (macOS draws several smaller)
+_UI_FONT_CLASSES = (
+    "QMenu", "QMenuBar", "QMenuItem", "QMessageBox", "QLabel", "QTipLabel", "QStatusBar",
+    "QDockWidgetTitle", "QPushButton", "QCheckBox", "QRadioButton", "QToolButton",
+    "QAbstractItemView", "QListView", "QHeaderView", "QComboMenuItem", "QComboLineEdit",
+    "QSmallFont", "QMiniFont", "QTabBar", "QGroupBox", "QComboBox", "QLineEdit",
+    "QAbstractSpinBox", "QTextEdit", "QPlainTextEdit",
+)
+
+
+def _fs(px: float) -> int:
+    """*px* scaled by the interface text size setting."""
+    return max(1, round(px * _UI_FONT_SCALE))
+
+
+def set_ui_font_scale(scale: float):
+    """Scale the application font (and each class's platform font) by *scale*."""
+    global _UI_FONT_SCALE
+    app = QApplication.instance()
+    if not _UI_BASE_FONTS:
+        _UI_BASE_FONTS[""] = QFont(app.font())
+        for name in _UI_FONT_CLASSES:
+            _UI_BASE_FONTS[name] = QFont(QApplication.font(name))
+    _UI_FONT_SCALE = scale
+
+    def _scaled(f: QFont) -> QFont:
+        f = QFont(f)
+        if f.pointSizeF() > 0:
+            f.setPointSizeF(f.pointSizeF() * scale)
+        elif f.pixelSize() > 0:
+            f.setPixelSize(_fs(f.pixelSize()))
+        return f
+
+    base = _UI_BASE_FONTS[""]
+    app.setFont(_scaled(base))   # also clears the per-class fonts...
+    for name in _UI_FONT_CLASSES:  # ...so put back the ones that differ, scaled
+        if _UI_BASE_FONTS[name] != base:
+            app.setFont(_scaled(_UI_BASE_FONTS[name]), name)
+
+
 def get_stylesheet(theme_name: str) -> str:
     t = THEMES[theme_name]
+    return re.sub(r"font-size:(\d+)px", lambda m: f"font-size:{_fs(int(m.group(1)))}px", _stylesheet(t))
+
+
+def _stylesheet(t: dict) -> str:
     return f"""
     QMainWindow, QDialog {{ background:{t['DARK_BG']}; }}
     QWidget {{ color:{t['FG']}; }}
@@ -922,12 +973,14 @@ class SettingsDialog(QDialog):
                  restore_molecule=False, start_view="3D", fast_render=False, show_debug_menu=False, live_callback=None,
                  shortcut_actions=None, alt_shortcut_defaults=None, parent=None,
                  show_dipole_arrow=False, quick_svg_widget=False,
-                 chem_label_colors="cpk", chem_layout="clean", chem_callback=None):
+                 chem_label_colors="cpk", chem_layout="match3d", chem_callback=None,
+                 ui_font_size=100, font_callback=None):
         super().__init__(parent)
         self.setWindowTitle("Settings")
         self.setMinimumWidth(520)
         self._live_callback = live_callback
         self._chem_callback = chem_callback
+        self._font_callback = font_callback
         self._color_overrides = color_overrides
 
         layout = QVBoxLayout(self)
@@ -937,7 +990,8 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.tabs)
 
         self._build_general_tab(theme, restore_molecule, start_view=start_view, fast_render=fast_render,
-                                show_debug_menu=show_debug_menu, quick_svg_widget=quick_svg_widget)
+                                show_debug_menu=show_debug_menu, quick_svg_widget=quick_svg_widget,
+                                ui_font_size=ui_font_size)
         self._build_shortcuts_tab(shortcut_actions or {}, alt_shortcut_defaults or {})
         self._build_overlay_tab(bg_color, show_axes, show_principal_axes, axes_position, principal_axes_position,
                                 show_dipole_arrow=show_dipole_arrow)
@@ -964,7 +1018,7 @@ class SettingsDialog(QDialog):
         layout.addLayout(btn_row)
 
     def _build_general_tab(self, theme, restore_molecule, start_view="3D", fast_render=False, show_debug_menu=False,
-                           quick_svg_widget=False):
+                           quick_svg_widget=False, ui_font_size=100):
         page = QWidget()
         form = QFormLayout(page)
         form.setSpacing(8)
@@ -995,6 +1049,17 @@ class SettingsDialog(QDialog):
         self._theme_combo.currentTextChanged.connect(self._on_change)
         form.addRow("Theme:", self._theme_combo)
 
+        self._font_size_spin = QSpinBox()
+        self._font_size_spin.setRange(70, 200)
+        self._font_size_spin.setSingleStep(10)
+        self._font_size_spin.setSuffix(" %")
+        self._font_size_spin.setValue(int(ui_font_size))
+        self._font_size_spin.setMinimumWidth(100)
+        self._font_size_spin.setToolTip("Size of the interface text (menus, toolbars, panels, dialogs), "
+                                        "relative to the system's own size")
+        self._font_size_spin.valueChanged.connect(self._on_font_size_change)
+        form.addRow("Interface text size:", self._font_size_spin)
+
         self._fast_render_cb = QCheckBox("Fast render mode (flat atoms during drag)")
         self._fast_render_cb.setChecked(fast_render)
         self._fast_render_cb.stateChanged.connect(self._on_change)
@@ -1007,7 +1072,7 @@ class SettingsDialog(QDialog):
 
         self.tabs.addTab(page, "&General")
 
-    def _build_chem2d_tab(self, label_colors: str, layout_mode: str = "clean"):
+    def _build_chem2d_tab(self, label_colors: str, layout_mode: str = "match3d"):
         page = QWidget()
         form = QFormLayout(page)
         form.setSpacing(8)
@@ -1354,6 +1419,10 @@ class SettingsDialog(QDialog):
         if self._chem_callback and hasattr(self, '_chem_layout_combo'):
             self._chem_callback(self.chem_label_colors, self.chem_layout)
 
+    def _on_font_size_change(self, value: int):
+        if self._font_callback:
+            self._font_callback(value)
+
     def eventFilter(self, obj, event):
         if event.type() == QEvent.Type.MouseButtonDblClick:
             cfg = self.load_config() or {}
@@ -1407,6 +1476,10 @@ class SettingsDialog(QDialog):
     @property
     def bg_color(self) -> str:
         return self._bg_btn.color()
+
+    @property
+    def ui_font_size(self) -> int:
+        return self._font_size_spin.value()
 
     @property
     def restore_molecule(self) -> bool:
@@ -1500,7 +1573,8 @@ class SettingsDialog(QDialog):
             return {"theme": self.theme, "restore_molecule": self.restore_molecule,
                     "start_view": self.start_view,
                     "fast_render": self.fast_render, "show_debug_menu": self.show_debug_menu,
-                    "quick_svg_export_widget": self.quick_svg_export_widget}
+                    "quick_svg_export_widget": self.quick_svg_export_widget,
+                    "ui_font_size": self.ui_font_size}
         if section == "chem2d":
             return {"label_colors": self.chem_label_colors, "layout": self.chem_layout}
         if section == "overlay":
@@ -1542,9 +1616,10 @@ class SettingsDialog(QDialog):
             self._start_view_combo.setCurrentText("3D")
             self._fast_render_cb.setChecked(False)
             self._quick_svg_widget_cb.setChecked(False)
+            self._font_size_spin.setValue(100)
         elif section == "chem2d":
             self._chem_label_combo.setCurrentIndex(0)
-            self._chem_layout_combo.setCurrentIndex(1)   # Clean depiction
+            self._chem_layout_combo.setCurrentIndex(0)   # Match 3D view
         elif section == "overlay":
             self._bg_btn.set_color("#ffffff")
             self._show_axes_cb.setChecked(False)
@@ -1587,6 +1662,7 @@ class SettingsDialog(QDialog):
                     "fast_render": data.get("fast_render", False),
                     "show_debug_menu": data.get("show_debug_menu", False),
                     "quick_svg_export_widget": data.get("quick_svg_export_widget", False),
+                    "ui_font_size": data.get("ui_font_size", 100),
                 },
                 "overlay": {
                     "bg_color": data.get("bg_color", "#ffffff"),
@@ -1644,7 +1720,7 @@ class AtomColorDialog(QDialog):
         lbl = QLabel("Click a tile to change its CPK colour. "
                       "\"Set Default\" saves your palette to ~/.config/molvector/color_table.json.")
         lbl.setObjectName("dim")
-        lbl.setStyleSheet("font-size:11px;")
+        lbl.setStyleSheet(f"font-size:{_fs(11)}px;")
         layout.addWidget(lbl)
 
         grid = QGridLayout()
@@ -3494,7 +3570,7 @@ class QuickExportDialog(QDialog):
         note = QLabel("Note: in Inkscape, you may have to drag the molecule to see gradients.")
         note.setObjectName("dim")
         note.setWordWrap(True)
-        note.setStyleSheet("font-size:10px;")
+        note.setStyleSheet(f"font-size:{_fs(10)}px;")
         layout.addWidget(note)
 
         btn_close = QPushButton("Close")
@@ -3634,7 +3710,7 @@ class CatalogDialog(QDialog):
         hint = QLabel(f"Within a row: AND · {ALT_CLICK_HINT}: OR · Shift+click: back to AND · "
                       "rows combine with AND")
         hint.setObjectName("dim")
-        hint.setStyleSheet("font-size:11px;")
+        hint.setStyleSheet(f"font-size:{_fs(11)}px;")
         ring_row.addWidget(hint)
         btn_clear = QPushButton("Clear Filters")
         btn_clear.clicked.connect(self._clear_filters)
@@ -3729,7 +3805,7 @@ class CatalogDialog(QDialog):
         """"The Astrochymist, updated 1 Oct 2026", linked to the list."""
         label = QLabel()
         label.setObjectName("dim")
-        label.setStyleSheet("font-size:11px;")
+        label.setStyleSheet(f"font-size:{_fs(11)}px;")
         if not src:
             return label
         def nice(iso):
@@ -3899,17 +3975,17 @@ class CatalogDialog(QDialog):
                    "fixed": "Fixed experimental geometry"}.get(src, src)
         lines.append(f"Geometry: {src}")
         smiles = rec["smiles"] if len(rec["smiles"]) <= 48 else rec["smiles"][:47] + "…"
-        lines.append(f"<span style='font-size:10px'>{smiles}</span>")
+        lines.append(f"<span style='font-size:{_fs(10)}px'>{smiles}</span>")
         # Detection in space: one line per reported detection, linked to its paper.
         for det in rec.get("detections", []):
             status = "" if det["status"] == "confirmed" else f" ({det['status']})"
             title = escape(det.get("paper_title") or "detection paper")
             link = f"<a href='{escape(det['paper_url'])}'>{title}</a>" if det.get("paper_url") else title
             ref = escape(det.get("paper_ref") or "")
-            lines.append(f"<span style='font-size:11px'>Detected {det['year']}{status}: {link}"
+            lines.append(f"<span style='font-size:{_fs(11)}px'>Detected {det['year']}{status}: {link}"
                          f"{'<br>' + ref if ref else ''}</span>")
         for note in rec.get("notes", []):
-            lines.append(f"<i style='font-size:11px'>{escape(note)}</i>")
+            lines.append(f"<i style='font-size:{_fs(11)}px'>{escape(note)}</i>")
         self._info.setText("<br>".join(lines))
 
     def _preview_svg(self, rec) -> bytes:
@@ -4161,6 +4237,8 @@ class MoleculeCanvas(QSvgWidget):
         self._sel_press_pos: QPoint | None = None
         self._sel_press_shift = False
         self._align_axis: np.ndarray | None = None  # bond axis for align rotate-around-bond drag
+        self._bond_rot_idx: int | None = None  # bond under a Shift+drag rotation (red ring overlay)
+        self._bond_rot_dir = 1.0  # sign of the last rotation step, sets the ring's arrowhead
 
         # Render parameters — all public, set by MainWindow
         self.base_scale     = 110.0
@@ -4394,11 +4472,16 @@ class MoleculeCanvas(QSvgWidget):
         draw_angles = self.measure_mode and (self._angle_atoms or self._angle_leg1 is not None) and self.molecule
         draw_green = self.align_mode and self._green_atoms and self.molecule
         draw_dipole = self.show_dipole_arrow and self.dipole_arrow_3d is not None and self.molecule
-        if not draw_sel and not draw_bond and not draw_measure and not draw_measure_drag and not draw_angles and not draw_green and not draw_dipole:
+        draw_bond_rot = (self._bond_rot_idx is not None and self._align_axis is not None and self.molecule
+                         and self._bond_rot_idx < len(self.molecule.bonds))
+        if not draw_sel and not draw_bond and not draw_measure and not draw_measure_drag and not draw_angles and not draw_green and not draw_dipole and not draw_bond_rot:
             return
 
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        if draw_bond_rot:
+            self._draw_bond_rotation_ring(p)
 
         if draw_sel:
             p.fillRect(self._sel_rect, QColor(0, 120, 255, 30))
@@ -4904,7 +4987,10 @@ class MoleculeCanvas(QSvgWidget):
                     self._align_axis = v_local / n
                     self._drag_start = event.position().toPoint()
                     self._drag_mode = "rotate_around_bond"
+                    self._bond_rot_idx = b_idx
+                    self._bond_rot_dir = 1.0
                     self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
+                    self.update()
                     return
 
         if event.button() == Qt.MouseButton.LeftButton:
@@ -5046,6 +5132,7 @@ class MoleculeCanvas(QSvgWidget):
                 perp = np.array([-bond_2d[1], bond_2d[0]])
                 angle = (dx * perp[0] + dy * perp[1]) * sens
             if abs(angle) > 1e-10:
+                self._bond_rot_dir = 1.0 if angle > 0 else -1.0
                 axis = self._rot @ self._align_axis
                 ca = math.cos(angle); sa = math.sin(angle)
                 K = np.array([[0, -axis[2], axis[1]],
@@ -5056,6 +5143,83 @@ class MoleculeCanvas(QSvgWidget):
 
         self.rotationChanged.emit()
         self.request_render(delay_ms=0)
+
+    def _draw_bond_rotation_ring(self, p: QPainter):
+        """Red circular arrow wrapped around the bond being Shift+dragged.
+
+        Built in molecule space (a ring centred on the bond midpoint, normal
+        to the bond axis) and projected like the atoms, so it follows view
+        rotation and zoom. Widget overlay only: never part of the SVG.
+        """
+        bond = self.molecule.bonds[self._bond_rot_idx]
+        centered = center_positions(self.molecule.atoms)
+        mid = (centered[bond.i] + centered[bond.j]) / 2
+        axis = self._align_axis
+        s = self.base_scale * self._zoom
+        cx = self.width() / 2 + self._pan[0]
+        cy = self.height() / 2 + self._pan[1]
+        CAMERA_Z = 60.0
+
+        def _proj(pt3d):
+            rp = self._rot @ pt3d
+            zf = CAMERA_Z / (CAMERA_Z - rp[2]) if (CAMERA_Z - rp[2]) != 0 else 1.0
+            return cx + rp[0] * s * zf, cy - rp[1] * s * zf
+
+        # Ring basis (u, v) with u × v = axis, so increasing t is a positive
+        # rotation about the axis. u points at the viewer where possible.
+        toward_viewer = self._rot.T @ np.array([0.0, 0.0, 1.0])
+        u = toward_viewer - np.dot(toward_viewer, axis) * axis
+        if np.linalg.norm(u) < 1e-3:   # bond seen end-on
+            u = np.cross(axis, [1.0, 0.0, 0.0])
+            if np.linalg.norm(u) < 1e-3:
+                u = np.cross(axis, [0.0, 1.0, 0.0])
+        u /= np.linalg.norm(u)
+        v = np.cross(axis, u)
+        radius = max(0.55, (self.bond_width_px * 0.5 + 9) / s)
+
+        # Screen-space ellipse from the projected basis. A bond lying in the
+        # screen plane shows its ring edge-on (a line), so keep it open to
+        # at least 40% of its width: still reads as a ring around the axis.
+        c2 = np.array(_proj(mid))
+        U2 = np.array(_proj(mid + radius * u)) - c2
+        V2 = np.array(_proj(mid + radius * v)) - c2
+        min_minor = 0.4 * np.linalg.norm(V2)
+        if np.linalg.norm(U2) < min_minor:
+            if np.linalg.norm(U2) > 1e-6:
+                U2 = U2 / np.linalg.norm(U2) * min_minor
+            else:
+                U2 = np.array([V2[1], -V2[0]]) / max(np.linalg.norm(V2), 1e-9) * min_minor
+
+        # 300° arc ending just past the front (t = 0), arrowhead there
+        d = self._bond_rot_dir
+        t_end = d * math.radians(25)
+        ts = [t_end - d * math.radians(300) * (1 - k / 60) for k in range(61)]
+        pts_2d = [tuple(c2 + math.cos(t) * U2 + math.sin(t) * V2) for t in ts]
+        red = QColor(230, 20, 20)
+        back = QColor(230, 20, 20, 110)
+        for k in range(len(pts_2d) - 1):
+            # Fade the half of the ring that passes behind the bond
+            in_front = math.cos((ts[k] + ts[k + 1]) / 2) >= 0
+            pen = QPen(red if in_front else back, 3 if in_front else 2)
+            pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            p.setPen(pen)
+            p.drawLine(QPointF(*pts_2d[k]), QPointF(*pts_2d[k + 1]))
+
+        ex, ey = pts_2d[-1]
+        bx, by = pts_2d[-4]
+        L = math.hypot(ex - bx, ey - by)
+        if L > 1e-3:
+            ux, uy = (ex - bx) / L, (ey - by) / L
+            ah_len, ah_hw = 13.0, 7.0
+            path = QPainterPath()
+            path.moveTo(ex + ux * ah_len * 0.6, ey + uy * ah_len * 0.6)
+            path.lineTo(ex - ux * ah_len * 0.4 - uy * ah_hw, ey - uy * ah_len * 0.4 + ux * ah_hw)
+            path.lineTo(ex - ux * ah_len * 0.4 + uy * ah_hw, ey - uy * ah_len * 0.4 - ux * ah_hw)
+            path.closeSubpath()
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(red)
+            p.drawPath(path)
+            p.setBrush(Qt.BrushStyle.NoBrush)
 
     def _any_mode_active(self):
         return self.build_mode or self.selection_mode or self.align_mode or self.paint_mode or self.measure_mode
@@ -5155,6 +5319,9 @@ class MoleculeCanvas(QSvgWidget):
             return
 
         was_atom_drag = self._drag_mode == "atom"
+        if self._bond_rot_idx is not None:
+            self._bond_rot_idx = None
+            self.update()   # clear the bond-rotation ring
         self._drag_atom_idx = None
         self._drag_start = None
         self._drag_mode  = "none"
@@ -5463,7 +5630,7 @@ class NotificationWidget(QWidget):
         # Message
         msg_label = QLabel(message)
         msg_label.setWordWrap(True)
-        msg_label.setStyleSheet(f"color:{self._fg}; background:transparent; border:none; font-size:12px;")
+        msg_label.setStyleSheet(f"color:{self._fg}; background:transparent; border:none; font-size:{_fs(12)}px;")
         content_layout.addWidget(msg_label)
 
         # Optional button row
@@ -5475,7 +5642,7 @@ class NotificationWidget(QWidget):
             open_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
             open_btn.setStyleSheet(
                 f"QPushButton {{ background:{self._accent}; color:#ffffff; border:none; "
-                f"border-radius:4px; font-size:11px; padding:3px 10px; }}"
+                f"border-radius:4px; font-size:{_fs(11)}px; padding:3px 10px; }}"
                 f"QPushButton:hover {{ background:#8b0000; }}"
             )
             open_btn.clicked.connect(button_callback)
@@ -5767,6 +5934,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Molvector — Molecule Viewer")
         self.resize(1080, 720)
         self._current_theme = "light"
+        self._ui_font_size = 100   # interface text size, % (Settings > General)
         self._apply_theme("light")
         self._current_source = "None"
         self._current_path   = ""
@@ -6188,14 +6356,6 @@ class MainWindow(QMainWindow):
 
         icon_color = '#ccd6f6' if self._current_theme == 'dark' else '#000000'
 
-        # Selection tool
-        select_path = os.path.join(assets_dir, "icon_select.svg")
-        self._act_select_btn = QAction(load_colored_icon(select_path, icon_color), "Selection", self)
-        self._act_select_btn.setCheckable(True)
-        self._act_select_btn.setToolTip("Selection tool — click or drag to select atoms, drag an atom to move the selection")
-        self._act_select_btn.triggered.connect(self._toggle_selection_mode)
-        self._build_toolbar_obj.addAction(self._act_select_btn)
-
         # Build tool
         draw_path = os.path.join(assets_dir, "icon_draw.svg")
         self._act_build_btn = QAction(load_colored_icon(draw_path, icon_color), "Build Mode", self)
@@ -6203,6 +6363,14 @@ class MainWindow(QMainWindow):
         self._act_build_btn.setToolTip("Build mode — add / bond atoms")
         self._act_build_btn.triggered.connect(self._toggle_build_mode)
         self._build_toolbar_obj.addAction(self._act_build_btn)
+
+        # Selection tool
+        select_path = os.path.join(assets_dir, "icon_select.svg")
+        self._act_select_btn = QAction(load_colored_icon(select_path, icon_color), "Selection", self)
+        self._act_select_btn.setCheckable(True)
+        self._act_select_btn.setToolTip("Selection tool — click or drag to select atoms, drag an atom to move the selection")
+        self._act_select_btn.triggered.connect(self._toggle_selection_mode)
+        self._build_toolbar_obj.addAction(self._act_select_btn)
 
         # Align tool
         align_path = os.path.join(assets_dir, "icon_align.svg")
@@ -6423,6 +6591,7 @@ class MainWindow(QMainWindow):
         sidebar = QWidget()
         sidebar.setObjectName("sidebar")
         sidebar.setFixedWidth(172)
+        self._sidebar = sidebar
         sl = QVBoxLayout(sidebar)
         sl.setContentsMargins(10,14,10,14)
         sl.setSpacing(10)
@@ -6439,7 +6608,7 @@ class MainWindow(QMainWindow):
         self._lbl_mass  = QLabel("Mass: —")
         self._lbl_src   = QLabel("Source: —")
         self._lbl_src.setObjectName("dim")
-        self._lbl_src.setStyleSheet("font-size:10px;")
+        self._lbl_src.setStyleSheet(f"font-size:{_fs(10)}px;")
         for w in (self._lbl_name, self._lbl_atoms, self._lbl_bonds, self._lbl_mass, self._lbl_charge, self._lbl_src):
             il.addWidget(w)
         sl.addWidget(info)
@@ -6954,6 +7123,22 @@ class MainWindow(QMainWindow):
         self._apply_theme(new_theme)
         self._canvas.background = THEMES[new_theme]["CANVAS"]
         self._canvas.request_render()
+
+    def _apply_ui_font_size(self, percent: int):
+        """Interface text size, in % of the platform's own UI font."""
+        percent = int(min(200, max(70, percent)))
+        if percent == self._ui_font_size:
+            return
+        self._ui_font_size = percent
+        set_ui_font_scale(percent / 100)
+        self._apply_theme(self._current_theme)   # style sheet px sizes
+        self._lbl_src.setStyleSheet(f"font-size:{_fs(10)}px;")
+        self._match_toolbar_fonts()
+        # Fixed widths sized for 100% text
+        self._sidebar.setFixedWidth(_fs(172))
+        self._zoom_lbl.setFixedWidth(_fs(46))
+        self._elem_combo.setMaximumWidth(_fs(60))
+        self._legend._update_scroll_height()
 
     def _apply_theme(self, theme_name: str):
         self._current_theme = theme_name
@@ -7810,6 +7995,7 @@ class MainWindow(QMainWindow):
 
     def _on_auto_h_toggle(self, checked: bool):
         self._canvas.auto_adjust_h = checked
+        self._chem_canvas.auto_adjust_h = checked
 
     def _toggle_bond_order(self, checked: bool):
         self._canvas.bond_order_disabled = checked
@@ -8159,7 +8345,7 @@ class MainWindow(QMainWindow):
         c2 = cfg.get("chem2d", {})
         if c2:
             self._chem_canvas.label_color_mode = c2.get("label_colors", "cpk")
-            self._chem_canvas.layout_mode = c2.get("layout", "clean")
+            self._chem_canvas.layout_mode = c2.get("layout", "match3d")
             self._chem_canvas.request_render()
         if g:
             theme = g.get("theme", "light")
@@ -8172,6 +8358,7 @@ class MainWindow(QMainWindow):
             self._show_debug_menu = g.get("show_debug_menu", False)
             self._quick_svg_widget_enabled = g.get("quick_svg_export_widget", False)
             self._update_quick_svg_widget()
+            self._apply_ui_font_size(g.get("ui_font_size", 100))
         if a:
             self._canvas.atom_scale = a.get("atom_scale", self._canvas.atom_scale)
             self._canvas.bond_width_px = a.get("bond_width_px", self._canvas.bond_width_px)
@@ -8349,6 +8536,8 @@ class MainWindow(QMainWindow):
         orig_chem_labels = self._chem_canvas.label_color_mode
         orig_chem_layout = self._chem_canvas.layout_mode
 
+        orig_font_size = self._ui_font_size
+
         def _chem_live_update(labels, layout):
             self._chem_canvas.label_color_mode = labels
             self._chem_canvas.set_layout_mode(layout)
@@ -8377,10 +8566,12 @@ class MainWindow(QMainWindow):
             start_view=orig[21],
             chem_label_colors=orig_chem_labels, chem_layout=orig_chem_layout,
             chem_callback=_chem_live_update,
+            ui_font_size=orig_font_size, font_callback=self._apply_ui_font_size,
         )
         dlg.tabs.setCurrentIndex(tab_index)
         if dlg.exec() == QDialog.DialogCode.Accepted:
             self._apply_theme(dlg.theme)
+            self._apply_ui_font_size(dlg.ui_font_size)
             self._canvas.background = dlg.bg_color
             self._canvas.atom_scale = dlg.ball_scale
             self._canvas.bond_width_px = dlg.bond_width
@@ -8432,6 +8623,7 @@ class MainWindow(QMainWindow):
             self._chem_canvas.label_color_mode = orig_chem_labels
             self._chem_canvas.set_layout_mode(orig_chem_layout)
             self._chem_canvas.request_render()
+            self._apply_ui_font_size(orig_font_size)
             self._update_quick_svg_widget()
             self._update_debug_menu()
             self._canvas.color_overrides = self._color_overrides
@@ -8718,6 +8910,10 @@ class MainWindow(QMainWindow):
 
 def main():
     native_guard.enable_crash_traceback()
+    # macOS accessibility asks for rows of a list/table Qt has just cleared
+    # (e.g. the catalog list refilled on each search keystroke); Qt resyncs by
+    # itself and only logs a warning about it, so keep it out of the terminal.
+    QLoggingCategory.setFilterRules("qt.accessibility.table.warning=false")
     app = QApplication(sys.argv)
     app.setApplicationName("Molvector")
     app._combo_popup_fitter = _ComboPopupFitter(app)
