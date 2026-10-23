@@ -17,6 +17,7 @@ Build mode (B):
 Selection mode (S):
   Click        Select atom
   Drag         Rectangle-select
+  Drag atom    Move selected atoms
 
 Align mode (A):
   Click bond       Align molecule vertically
@@ -4070,8 +4071,13 @@ class MoleculeCanvas(QSvgWidget):
         self._sel_drag_start: QPoint | None = None
         self._sel_rect: QRectF | None = None
 
-        # Atom dragging (Alt/Ctrl+click in build/select mode)
+        # Atom dragging (Alt/Ctrl+click in build mode; plain press-drag in select mode)
         self._drag_atom_idx: int | None = None
+        # Selection mode: atom pressed but not yet clicked or dragged — a
+        # release without moving toggles its selection, a drag moves the selection
+        self._sel_press_idx: int | None = None
+        self._sel_press_pos: QPoint | None = None
+        self._sel_press_shift = False
         self._align_axis: np.ndarray | None = None  # bond axis for align rotate-around-bond drag
 
         # Render parameters — all public, set by MainWindow
@@ -4607,14 +4613,10 @@ class MoleculeCanvas(QSvgWidget):
             mod = event.modifiers()
             idx = self._get_hit_atom(event.position().toPoint())
             if idx is not None:
-                if mod & Qt.KeyboardModifier.ShiftModifier:
-                    if idx in self.selected_atoms:
-                        self.selected_atoms.discard(idx)
-                    else:
-                        self.selected_atoms.add(idx)
-                else:
-                    self.selected_atoms = {idx} if idx not in self.selected_atoms else set()
-                self.request_render()
+                # Decided on release (click: toggle) or on moving (drag: move the selection)
+                self._sel_press_idx = idx
+                self._sel_press_pos = event.position().toPoint()
+                self._sel_press_shift = bool(mod & Qt.KeyboardModifier.ShiftModifier)
                 return
             self.selected_atoms.clear()
             self._sel_drag_start = event.position().toPoint()
@@ -4842,7 +4844,7 @@ class MoleculeCanvas(QSvgWidget):
             else:
                 self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
         elif self.selection_mode:
-            if alt_held and has_atom:
+            if (alt_held and has_atom) or self._drag_mode == "atom":
                 self.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
             elif has_atom:
                 self.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
@@ -4888,6 +4890,24 @@ class MoleculeCanvas(QSvgWidget):
             self._sel_rect = QRectF(QPointF(self._sel_drag_start), QPointF(cur)).normalized()
             self.update()
             return
+
+        if self._sel_press_idx is not None and self.molecule:
+            if (event.position().toPoint() - self._sel_press_pos).manhattanLength() < QApplication.startDragDistance():
+                return
+            # Dragging a selected atom moves the whole selection; dragging an
+            # unselected one selects it first (Shift: adds it to the selection)
+            idx = self._sel_press_idx
+            if idx not in self.selected_atoms:
+                if self._sel_press_shift:
+                    self.selected_atoms.add(idx)
+                else:
+                    self.selected_atoms = {idx}
+            self.requestHistorySave.emit()
+            self._drag_atom_idx = idx
+            self._drag_start = self._sel_press_pos
+            self._drag_mode = "atom"
+            self._sel_press_idx = None
+            self.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
 
         if self._drag_mode == "atom" and self._drag_atom_idx is not None and self.molecule:
             cur = event.position().toPoint()
@@ -4969,6 +4989,17 @@ class MoleculeCanvas(QSvgWidget):
 
     def mouseReleaseEvent(self, event):
         self._update_cursor(event.position().toPoint(), event.modifiers())
+        if self._sel_press_idx is not None:
+            # Released without dragging: a plain click on the atom
+            idx = self._sel_press_idx
+            self._sel_press_idx = None
+            if self._sel_press_shift:
+                self.selected_atoms ^= {idx}
+            else:
+                self.selected_atoms = {idx} if idx not in self.selected_atoms else set()
+            self.request_render()
+            return
+
         if self.selection_mode and self._sel_drag_start is not None:
             final_pt = event.position().toPoint()
             rect = QRectF(QPointF(self._sel_drag_start), QPointF(final_pt)).normalized()
@@ -5046,6 +5077,7 @@ class MoleculeCanvas(QSvgWidget):
         self._drag_start = None
         self._drag_mode  = "none"
         if was_atom_drag:
+            self.moleculeChanged.emit()   # atoms moved: info panel + 2D view are stale
             if self.build_mode or self.selection_mode:
                 self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
             else:
@@ -5968,7 +6000,8 @@ class MainWindow(QMainWindow):
         self._act_select_toggle.setToolTip(
             "3D: click or drag-select atoms. "
             "2D: click an atom to select it, click a bond or anywhere inside "
-            "a ring to select the whole ring (Shift adds to the selection)."
+            "a ring to select the whole ring (Shift adds to the selection). "
+            "Both: drag an atom to move the selected atoms."
         )
         chem_menu.addAction(self._act_select_toggle)
 
@@ -6055,7 +6088,7 @@ class MainWindow(QMainWindow):
         select_path = os.path.join(assets_dir, "icon_select.svg")
         self._act_select_btn = QAction(load_colored_icon(select_path, icon_color), "Selection", self)
         self._act_select_btn.setCheckable(True)
-        self._act_select_btn.setToolTip("Selection tool — click or drag to select atoms")
+        self._act_select_btn.setToolTip("Selection tool — click or drag to select atoms, drag an atom to move the selection")
         self._act_select_btn.triggered.connect(self._toggle_selection_mode)
         self._build_toolbar_obj.addAction(self._act_select_btn)
 
@@ -7287,9 +7320,9 @@ class MainWindow(QMainWindow):
             elif self._chem_canvas.selection_mode:
                 self._status.showMessage(
                     "2D Selection — click an atom to select it, click a bond or inside a ring "
-                    "to select the whole ring (Shift adds to the selection)."
+                    "to select the whole ring (Shift adds to the selection), drag an atom to move the selection."
                 )
-                self._hint.setText("Click atom  select\nClick ring  select ring\nShift  add to selection")
+                self._hint.setText("Click atom  select\nClick ring  select ring\nShift  add to selection\nDrag atom  move selection")
             elif self._chem_canvas.align_mode:
                 self._status.showMessage(
                     "2D Align — click a bond to make it vertical · Shift+click horizontal · "
@@ -7307,10 +7340,10 @@ class MainWindow(QMainWindow):
             return
         if self._canvas.build_mode:
             self._status.showMessage("Build: Left-click add atom · Drag to bond · Click bond change order · Scroll zoom")
-            self._hint.setText("Left-click  add atom\nDrag  bond atoms\nClick bond  change order")
+            self._hint.setText("Left-click  add atom\nDrag  bond atoms\nClick bond  change order\nAlt (Opt)+drag  move atom")
         elif self._canvas.selection_mode:
-            self._status.showMessage("Selection: Click select atom · Drag rectangle-select · Scroll zoom")
-            self._hint.setText("Click  select atom\nDrag  rectangle-select")
+            self._status.showMessage("Selection: Click select atom · Drag rectangle-select · Drag atom move selection · Scroll zoom")
+            self._hint.setText("Click  select atom\nDrag  rectangle-select\nDrag atom  move selection")
         elif self._canvas.align_mode:
             self._status.showMessage(f"Align: Click bond align vertically · Shift+click align horizontally · {ALT_CLICK_HINT} atoms to mark for plane alignment")
             self._hint.setText(f"Click bond  align vertically\nShift+click  align horizontally\n{ALT_CLICK_HINT}  mark atoms for plane")

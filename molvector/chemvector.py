@@ -48,7 +48,7 @@ def alt_click(modifiers) -> bool:
     return bool(modifiers & ALT_CLICK_MODIFIERS)
 from PyQt6.QtGui import QColor, QCursor, QFont, QFontMetricsF, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PyQt6.QtSvgWidgets import QSvgWidget
-from PyQt6.QtWidgets import (QColorDialog, QFrame, QHBoxLayout, QLineEdit, QSizePolicy,
+from PyQt6.QtWidgets import (QApplication, QColorDialog, QFrame, QHBoxLayout, QLineEdit, QSizePolicy,
                              QToolButton, QVBoxLayout)
 
 from molvector.render import (
@@ -2127,6 +2127,11 @@ class ChemCanvas(QSvgWidget):
         self.view_rot = np.eye(3)
         self._frame_origin = np.zeros(3)
         self.selected_atoms: set = set()
+        # Selection mode: atom pressed but not yet clicked or dragged — a
+        # release without moving toggles its selection, a drag moves the selection
+        self._sel_press_idx: Optional[int] = None
+        self._sel_press_pos: Optional[QPoint] = None
+        self._sel_press_shift = False
 
         # Build mode subtools: what kind of bond a drag draws / a bond click
         # sets ("single" | "double" | "triple" | "wedge" | "hash" | "ring"),
@@ -2646,6 +2651,32 @@ class ChemCanvas(QSvgWidget):
         self._positions[idx] = (x, y)
         return idx
 
+    def _move_selected_atoms(self, dx_px: float, dy_px: float):
+        """
+        Move the selected atoms (and the implicit hydrogens hidden on them) by
+        (*dx_px*, *dy_px*) canvas pixels: in the 2D layout, and in 3D within
+        the screen plane at each atom's own depth, so both views agree.
+        """
+        mol = self.molecule
+        if mol is None or not self.selected_atoms:
+            return
+        moving = {i for i in self.selected_atoms if i < len(mol.atoms)}
+        for i in list(moving):
+            if mol.atoms[i].element != "H":
+                moving.update(self._hidden_h_atoms(i))
+        dx, dy = dx_px / self._scale_px, -dy_px / self._scale_px   # layout y points up
+        for i in moving:
+            if i in self._positions:
+                x, y = self._positions[i]
+                self._positions[i] = (x + dx, y + dy)
+            a = mol.atoms[i]
+            p = np.array([a.x, a.y, a.z])
+            depth = float((self.view_rot @ (p - self._frame_origin))[2])
+            zf = PERSPECTIVE_CAMERA_Z / (PERSPECTIVE_CAMERA_Z - depth) if abs(PERSPECTIVE_CAMERA_Z - depth) > 1e-6 else 1.0
+            a.x, a.y, a.z = map(float, p + self.view_rot.T @ np.array([dx / zf, dy / zf, 0.0]))
+        _annotate_double_bond_insets(mol, self._positions, self._bond_info)
+        self.request_render()
+
     def _add_bond(self, i: int, j: int, order: int = 1, stereo: Optional[str] = None):
         self.molecule.bonds.append(Bond(i, j, order, stereo))
         bi = len(self.molecule.bonds) - 1
@@ -2874,14 +2905,10 @@ class ChemCanvas(QSvgWidget):
             mod = event.modifiers()
             idx = self._get_hit_atom(pos)
             if idx is not None:
-                if mod & Qt.KeyboardModifier.ShiftModifier:
-                    if idx in self.selected_atoms:
-                        self.selected_atoms.discard(idx)
-                    else:
-                        self.selected_atoms.add(idx)
-                else:
-                    self.selected_atoms = {idx} if idx not in self.selected_atoms else set()
-                self.request_render()
+                # Decided on release (click: toggle) or on moving (drag: move the selection)
+                self._sel_press_idx = idx
+                self._sel_press_pos = pos
+                self._sel_press_shift = bool(mod & Qt.KeyboardModifier.ShiftModifier)
                 return
             # No modifier needed for a ring: clicking one of its bonds, or
             # anywhere in its (otherwise empty) interior, selects it whole.
@@ -2974,6 +3001,28 @@ class ChemCanvas(QSvgWidget):
             self.setCursor(QCursor(Qt.CursorShape.ClosedHandCursor))
 
     def mouseMoveEvent(self, event):
+        if self._sel_press_idx is not None and self.molecule:
+            pos = event.position().toPoint()
+            if (pos - self._sel_press_pos).manhattanLength() < QApplication.startDragDistance():
+                return
+            # Dragging a selected atom moves the whole selection; dragging an
+            # unselected one selects it first (Shift: adds it to the selection)
+            idx = self._sel_press_idx
+            if idx not in self.selected_atoms:
+                if self._sel_press_shift:
+                    self.selected_atoms.add(idx)
+                else:
+                    self.selected_atoms = {idx}
+            self.requestHistorySave.emit()
+            self._drag_start = self._sel_press_pos
+            self._drag_mode = "atoms"
+            self._sel_press_idx = None
+            self.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
+        if self._drag_mode == "atoms" and self._drag_start is not None:
+            pos = event.position().toPoint()
+            self._move_selected_atoms(pos.x() - self._drag_start.x(), pos.y() - self._drag_start.y())
+            self._drag_start = pos
+            return
         if self.build_mode and self._ring_bond_from is not None:
             self._mouse_pos = self._snap_ring_bond_end(self._ring_bond_from, event.position().toPoint())
             self._snap_hint = (float(self._mouse_pos.x()), float(self._mouse_pos.y()), "ideal") if self.snapping else None
@@ -3011,6 +3060,22 @@ class ChemCanvas(QSvgWidget):
             self.request_render(delay_ms=0)
 
     def mouseReleaseEvent(self, event):
+        if self._sel_press_idx is not None:
+            # Released without dragging: a plain click on the atom
+            idx = self._sel_press_idx
+            self._sel_press_idx = None
+            if self._sel_press_shift:
+                self.selected_atoms ^= {idx}
+            else:
+                self.selected_atoms = {idx} if idx not in self.selected_atoms else set()
+            self.request_render()
+            return
+        if self._drag_mode == "atoms":
+            self._drag_start = None
+            self._drag_mode = "none"
+            self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
+            self.moleculeChanged.emit()
+            return
         if self.measure_mode and self._measure_from is not None:
             end_idx = self._get_hit_atom(event.position().toPoint())
             if end_idx is not None and end_idx != self._measure_from and not (event.modifiers() & Qt.KeyboardModifier.ShiftModifier):
