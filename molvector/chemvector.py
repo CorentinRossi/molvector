@@ -307,7 +307,7 @@ def generate_2d_layout(mol: Molecule, planarity_tolerance: float = PLANARITY_TOL
 
     if projection:
         positions, bond_info = _fallback_layout(mol, planarity_tolerance, rot, True, plane)
-        _separate_hydrogens(mol, positions)   # the one exception to "exactly where 3D draws it"
+        _separate_hydrogens(mol, positions, bond_info)   # the one exception to "exactly where 3D draws it"
         _annotate_double_bond_insets(mol, positions, bond_info)
         return positions, bond_info
 
@@ -329,9 +329,10 @@ def generate_2d_layout(mol: Molecule, planarity_tolerance: float = PLANARITY_TOL
         _swap_wedge_hash(bond_info)
     _flatten_near_planar_bonds(mol, bond_info, planarity_tolerance)
     _mark_front_back_hydrogens(mol, bond_info, planarity_tolerance, rot)
-    _separate_hydrogens(mol, positions)
-    _annotate_double_bond_insets(mol, positions, bond_info)
+    # Before separating hydrogens, so their wedge/hash H get sized too
     _add_cosmetic_tetrahedral_wedges(mol, bond_info, planarity_tolerance, rot)
+    _separate_hydrogens(mol, positions, bond_info)
+    _annotate_double_bond_insets(mol, positions, bond_info)
     return positions, bond_info
 
 
@@ -990,9 +991,11 @@ def _fan_out_terminal_wedges(mol: Molecule, positions: Positions2D, bond_info: B
 H_CLEARANCE = 0.55      # min distance (x typical bond) from a drawn H to other atoms / bonds
 H_STACK_SPREAD = 40.0   # degrees between hydrogens of one atom that landed on one spot
 H_LABELED_MIN_LEN = 0.95   # min drawn length (x typical bond) of an H bond to a lettered atom
+H_STEREO_MIN_LEN = 1.0     # min drawn length (x typical bond) of a wedge/hash H bond
 
 
-def _separate_hydrogens(mol: Molecule, positions: Positions2D) -> None:
+def _separate_hydrogens(mol: Molecule, positions: Positions2D,
+                        bond_info: Optional[BondInfo] = None) -> None:
     """
     Move terminal hydrogens that land on another atom or bond in 2D — e.g.
     the two H of a CH2 seen edge-on, one in front and one behind, projected
@@ -1000,7 +1003,8 @@ def _separate_hydrogens(mol: Molecule, positions: Positions2D) -> None:
     out evenly; then each still-crowded H takes the smallest move that
     clears it: along its bond (back / forward) or turned about its atom
     (left / right). Nothing else moves, and wedges/hashes keep showing
-    which H is in front.
+    which H is in front. With *bond_info*, a wedge/hash H bond is also
+    lengthened to H_STEREO_MIN_LEN, so it shows past the labels' gaps.
     """
     if not positions:
         return
@@ -1033,6 +1037,21 @@ def _separate_hydrogens(mol: Molecule, positions: Positions2D) -> None:
             f = H_LABELED_MIN_LEN * ref / d
             positions[h] = (px + (hx - px) * f, py + (hy - py) * f)
 
+    # 0b. A wedge/hash H: long enough to show (front and back alike)
+    h_bond = {}
+    for bi, b in enumerate(mol.bonds):
+        h_bond[(b.i, b.j)] = h_bond[(b.j, b.i)] = bi
+    stereo_h = {h for h in terminal_h
+                if (bond_info or {}).get(h_bond[(neighbors[h][0], h)], {}).get("kind") in ("wedge", "hash")}
+    for h in stereo_h:
+        p = neighbors[h][0]
+        want = H_STEREO_MIN_LEN * ref
+        (px, py), (hx, hy) = positions[p], positions[h]
+        d = math.hypot(hx - px, hy - py)
+        if 1e-6 < d < want:
+            f = want / d
+            positions[h] = (px + (hx - px) * f, py + (hy - py) * f)
+
     # 1. Fan out hydrogens of one atom that sit on one spot
     by_parent: Dict[int, List[int]] = {}
     for h in terminal_h:
@@ -1056,11 +1075,13 @@ def _separate_hydrogens(mol: Molecule, positions: Positions2D) -> None:
                 vx = -sum(positions[q][0] - px for q in others) or 1.0
                 vy = -sum(positions[q][1] - py for q in others)
             base = math.atan2(vy, vx)
-            length = max(min_len, sum(math.dist(positions[h], (px, py)) for h in stack) / len(stack))
-            if mol.atoms[p].element not in ("C", "H") or getattr(mol.atoms[p], "charge", 0):
-                length = max(length, H_LABELED_MIN_LEN * ref)
+            labeled = mol.atoms[p].element not in ("C", "H") or getattr(mol.atoms[p], "charge", 0)
             step = math.radians(H_STACK_SPREAD)
             for k, h in enumerate(stack):
+                # Each keeps its own length (a wedge/hash H its longer one)
+                length = max(min_len, math.dist(positions[h], (px, py)))
+                if labeled:
+                    length = max(length, H_LABELED_MIN_LEN * ref)
                 a = base + (k - (len(stack) - 1) / 2) * step
                 positions[h] = (px + length * math.cos(a), py + length * math.sin(a))
 
@@ -1112,7 +1133,8 @@ def _separate_hydrogens(mol: Molecule, positions: Positions2D) -> None:
         length = max(length, min_len)
         candidates = []
         for deg in range(-180, 181, 10):
-            for scale in (0.8, 1.0, 1.25):
+            # never shorter for a wedge/hash H: it would undo step 0b
+            for scale in ((1.0, 1.25) if h in stereo_h else (0.8, 1.0, 1.25)):
                 a = angle + math.radians(deg)
                 x, y = px + length * scale * math.cos(a), py + length * scale * math.sin(a)
                 candidates.append((math.hypot(x - hx, y - hy), x, y))
