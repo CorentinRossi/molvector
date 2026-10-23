@@ -4000,7 +4000,25 @@ class _DragWidget(QPushButton):
     """A draggable pushbutton that initiates a file drag on mouse move."""
 
     def __init__(self, get_svg_path_cb, parent=None):
-        super().__init__("Drag SVG", parent)
+        super().__init__("", parent)
+        # "SVG [export icon] (drag)", as labels the mouse goes through to the button
+        icon = load_colored_icon(
+            os.path.join(os.path.dirname(__file__), "assets", "icons", "icon_export.svg"), "#333333")
+        row = QHBoxLayout(self)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(2)
+        row.addStretch()
+        title = QLabel("SVG")
+        title.setStyleSheet("font-size: 14px; color: #222; background: transparent;")
+        glyph = QLabel()
+        glyph.setPixmap(icon.pixmap(QSize(23, 18)))   # the icon carries its own gap from "SVG"
+        glyph.setStyleSheet("background: transparent;")
+        hint = QLabel("(drag)")
+        hint.setStyleSheet("font-size: 12px; color: #888; background: transparent; padding-left: 4px;")
+        for lbl in (title, glyph, hint):
+            lbl.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+            row.addWidget(lbl)
+        row.addStretch()
         self._get_svg_path = get_svg_path_cb
         self.setCursor(QCursor(Qt.CursorShape.OpenHandCursor))
         self.setToolTip("Drag this into an SVG editor")

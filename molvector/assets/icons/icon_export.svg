@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!-- Export: an arrow leaving a square through its top-right corner. The
+     viewBox starts left of the drawing, leaving a gap before the icon. -->
+<svg width="30" height="24" viewBox="-6 0 30 24" version="1.1" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 6H6a3 3 0 0 0-3 3v9a3 3 0 0 0 3 3h9a3 3 0 0 0 3-3V12"/>
+    <path d="M10 14L21 3"/>
+    <path d="M21 9V3h-6"/>
+  </g>
+</svg>
