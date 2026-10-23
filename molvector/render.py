@@ -1765,9 +1765,13 @@ def center_positions(atoms: List[Atom]) -> np.ndarray:
     pos = np.array([a.pos for a in atoms])
     return pos - pos.mean(axis=0)
 
+# Conjugate-gradient steps between two progress reports of optimize_geometry
+_OPT_PROGRESS_CHUNK = 10
+
 @_ob_locked
 def optimize_geometry(mol: Molecule, max_steps: int = 500, tol: float = 0.01,
-                      fixed_indices: List[int] = None, k_bond: float = None, k_rep: float = None):
+                      fixed_indices: List[int] = None, k_bond: float = None, k_rep: float = None,
+                      progress=None):
     """
     Geometry optimization using OpenBabel's MMFF94s or UFF force field.
     
@@ -1789,7 +1793,10 @@ def optimize_geometry(mol: Molecule, max_steps: int = 500, tol: float = 0.01,
         Atom indices (0-based) that should remain frozen.
     k_bond, k_rep : ignored
         Legacy parameters accepted for backward-compatible call sites.
-    
+    progress : callable, optional
+        Called as progress(steps_done, max_steps) while minimizing (which
+        then runs in chunks of _OPT_PROGRESS_CHUNK steps).
+
     Returns
     -------
     int
@@ -1848,7 +1855,19 @@ def optimize_geometry(mol: Molecule, max_steps: int = 500, tol: float = 0.01,
                 ff.SetFixAtom(int(idx) + 1)  # OB is 1-indexed
 
         # ── 4. Optimize ───────────────────────────────────────────────────
-        ff.ConjugateGradients(int(max_steps))
+        if progress is None:
+            ff.ConjugateGradients(int(max_steps))
+        else:
+            # Same minimization, in chunks so the caller can show progress
+            total = int(max_steps)
+            done = 0
+            ff.ConjugateGradientsInitialize(total)
+            progress(0, total)
+            while done < total:
+                n_chunk = min(_OPT_PROGRESS_CHUNK, total - done)
+                converged = not ff.ConjugateGradientsTakeNSteps(n_chunk)
+                done = total if converged else done + n_chunk
+                progress(done, total)
 
     # ── 5. Read back coordinates ──────────────────────────────────────────
     ff.GetCoordinates(obmol)

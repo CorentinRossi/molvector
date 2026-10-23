@@ -60,7 +60,7 @@ from PyQt6.QtWidgets import (
     QButtonGroup, QRadioButton, QKeySequenceEdit, QToolButton,
     QGraphicsOpacityEffect, QStackedWidget, QAbstractButton,
     QStyle, QStyleOptionComboBox, QStylePainter, QListWidget, QListWidgetItem,
-    QTreeWidget, QTreeWidgetItem,
+    QTreeWidget, QTreeWidgetItem, QProgressBar,
 )
 from PyQt6.QtSvgWidgets import QSvgWidget
 from PyQt6.QtSvg import QSvgRenderer
@@ -390,6 +390,7 @@ class _OptimizeWorker(QThread):
     """
 
     result = pyqtSignal(object, int, object)
+    progress = pyqtSignal(int, int)   # steps done, max steps
 
     def __init__(self, mol: Molecule, max_steps: int, tol: float, parent=None):
         super().__init__(parent)
@@ -408,7 +409,8 @@ class _OptimizeWorker(QThread):
             if not ensure_openbabel():
                 self.result.emit(None, 0, "unavailable")
                 return
-            steps = optimize_geometry(self._copy, max_steps=self._max_steps, tol=self._tol)
+            steps = optimize_geometry(self._copy, max_steps=self._max_steps, tol=self._tol,
+                                      progress=self.progress.emit)
             coords = [(a.x, a.y, a.z) for a in self._copy.atoms]
             self.result.emit(coords, int(steps), None)
         except Exception as e:
@@ -6410,6 +6412,25 @@ class MainWindow(QMainWindow):
             "No file loaded — use File → Open to load an .xyz, .gjf, .com or .log file."
         )
 
+        # Clean progress, bottom left; shown only while an optimization runs
+        self._clean_progress = QWidget()
+        lay = QHBoxLayout(self._clean_progress)
+        lay.setContentsMargins(6, 0, 6, 0)
+        lay.setSpacing(8)
+        lay.addWidget(QLabel("Cleaning molecule…"))
+        self._clean_progress_bar = QProgressBar()
+        self._clean_progress_bar.setFixedWidth(160)
+        self._clean_progress_bar.setMaximumHeight(14)
+        self._clean_progress_bar.setTextVisible(False)
+        lay.addWidget(self._clean_progress_bar)
+        self._clean_progress.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        self._status.addWidget(self._clean_progress)
+        self._clean_progress.hide()
+
+    def _set_clean_progress(self, done: int, total: int):
+        self._clean_progress_bar.setRange(0, max(total, 1))
+        self._clean_progress_bar.setValue(done)
+
     # ── placeholder ───────────────────────────────────────────────────────────
 
     def _show_placeholder(self):
@@ -7709,16 +7730,21 @@ class MainWindow(QMainWindow):
         elements = list(worker.elements)
         worker.result.connect(
             lambda coords, steps, err: self._on_optimize_done(mol, elements, coords, steps, err))
+        worker.progress.connect(self._set_clean_progress)
         worker.finished.connect(self._on_optimize_thread_finished)
         self._optimize_worker = worker
         QApplication.setOverrideCursor(Qt.CursorShape.BusyCursor)
-        self._status.showMessage("Optimizing geometry…")
+        # A temporary message would hide the progress widget
+        self._status.clearMessage()
+        self._clean_progress_bar.setRange(0, 0)   # busy until the force field is set up
+        self._clean_progress.show()
         worker.start()
 
     def _on_optimize_thread_finished(self):
         if self._optimize_worker is not None:
             self._optimize_worker.deleteLater()
             self._optimize_worker = None
+        self._clean_progress.hide()
         QApplication.restoreOverrideCursor()
 
     def _on_optimize_done(self, mol, elements, coords, steps_taken, err):
