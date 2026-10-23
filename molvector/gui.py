@@ -6248,15 +6248,19 @@ class MainWindow(QMainWindow):
         self._menu_build.aboutToShow.connect(lambda: self._act_open_catalog.setText("Catalog…"))
         self._menu_build.aboutToHide.connect(lambda: self._act_open_catalog.setText("Open from &Catalog…"))
 
-        # ── 2D Viewer (Chemvector) ──
+        # ── 2D Viewer (Chemvector) — shown only while the 2D view is on ──
         chem_menu = mb.addMenu("2D &Viewer")
+        self._chem_menu = chem_menu
+        chem_menu.menuAction().setVisible(False)
 
+        # Not in a menu (the 3D/2D switch and Tab do it); kept on the window
+        # for its shortcut
         act_chem_mode = QAction("&Chem View (2D Whiteboard)", self)
         act_chem_mode.setCheckable(True)
         act_chem_mode.setShortcut(_mod("Ctrl+2"))
         act_chem_mode.setToolTip("Switch between the 3D viewer and the 2D Chemvector whiteboard")
         act_chem_mode.triggered.connect(self._toggle_chem_mode)
-        chem_menu.addAction(act_chem_mode)
+        self.addAction(act_chem_mode)
         self._act_chem_mode = act_chem_mode
         self._shortcut_actions["chem_mode"] = act_chem_mode
 
@@ -6268,7 +6272,6 @@ class MainWindow(QMainWindow):
             "2D: click empty space to add an atom, drag from an atom to bond it, "
             "click a bond to cycle its order, right-click to delete."
         )
-        chem_menu.addAction(self._act_build_toggle)
 
         self._act_select_toggle.setToolTip(
             "3D: click or drag-select atoms. "
@@ -6276,9 +6279,6 @@ class MainWindow(QMainWindow):
             "a ring to select the whole ring (Shift adds to the selection). "
             "Both: drag an atom to move the selected atoms."
         )
-        chem_menu.addAction(self._act_select_toggle)
-
-        chem_menu.addSeparator()
 
         act_chem_reset = QAction("Reset 2D View", self)
         act_chem_reset.triggered.connect(self._reset_chem_view)
@@ -8151,6 +8151,7 @@ class MainWindow(QMainWindow):
 
     def _toggle_chem_mode(self, enabled: bool):
         self._chem_mode = enabled
+        self._chem_menu.menuAction().setVisible(enabled)
         self._act_chem_mode.setChecked(enabled)
         self._view_mode_toggle.setChecked(enabled)
         self._update_view_mode_labels(enabled)
